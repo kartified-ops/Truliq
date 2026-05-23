@@ -197,9 +197,9 @@ const VendorLogin = () => {
         {/* Premium Vendor Illustration */}
         {step === 'phone' && (
           <div className="mt-6 flex justify-center">
-            <img 
-              src={vendorLoginImg} 
-              alt="Professional Vendor" 
+            <img
+              src={vendorLoginImg}
+              alt="Professional Vendor"
               className="w-56 h-auto rounded-2xl shadow-xl border border-gray-100"
             />
           </div>

@@ -39,7 +39,11 @@ const allowedOrigins = [
   'http://localhost:5174',
   'https://www.homster.in',
   'https://homster.in',
-  'https://api.homster.in'
+  'https://api.homster.in',
+  'https://www.truliq.com',
+  'https://truliq.com',
+  'https://api.truliq.com',
+  ''
 ];
 
 if (process.env.FRONTEND_URL) {

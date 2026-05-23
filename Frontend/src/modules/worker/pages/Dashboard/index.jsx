@@ -276,7 +276,7 @@ const Dashboard = () => {
 
     // Listen for push notifications in foreground
     const handlePushNotification = (e) => {
-      const payload = e.detail;
+      const payload = e.detail || {};
       const data = payload.data || {};
       
       // Only open modal for real job assignments with a valid bookingId

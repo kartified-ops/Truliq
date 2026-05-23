@@ -59,7 +59,7 @@ const getJobById = async (req, res) => {
     const workerId = req.user.id;
     const { id } = req.params;
 
-    const booking = await Booking.findOne({ _id: id, workerId })
+    const booking = await Booking.findById(id)
       .populate('userId', 'name phone email')
       .populate('vendorId', 'name businessName phone email address')
       .populate('serviceId', 'title description iconUrl images')
@@ -69,6 +69,13 @@ const getJobById = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Job not found'
+      });
+    }
+
+    if (booking.workerId && booking.workerId.toString() !== workerId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to view this job'
       });
     }
 

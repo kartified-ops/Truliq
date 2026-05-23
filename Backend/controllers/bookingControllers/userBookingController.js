@@ -44,6 +44,8 @@ const createBooking = async (req, res) => {
       basePrice: reqBasePrice,
       discount: reqDiscount,
       tax: reqTax,
+      promoCode: reqPromoCode,
+      promoDiscount: reqPromoDiscount,
       // Metadata from frontend
       serviceCategory: reqServiceCategory,
       categoryIcon: reqCategoryIcon,
@@ -234,9 +236,10 @@ const createBooking = async (req, res) => {
           // Use breakdown provided by frontend
           basePrice = reqBasePrice;
           discount = reqDiscount || 0;
+          const currentPromoDiscount = reqPromoDiscount || 0;
           tax = reqTax;
           visitingCharges = (reqVisitingCharges !== undefined) ? reqVisitingCharges : (visitingCharges || 49);
-          finalAmount = (basePrice - discount + tax + visitingCharges) + pendingPenalty;
+          finalAmount = Math.max(0, (basePrice - discount - currentPromoDiscount + tax + visitingCharges) + pendingPenalty);
         } else {
           // Backward compatibility: Reverse calculate
           if (!visitingCharges) visitingCharges = 0;
@@ -332,6 +335,8 @@ const createBooking = async (req, res) => {
       bookedItems: formattedBookedItems,
       basePrice,
       discount,
+      promoCode: reqPromoCode || null,
+      promoDiscount: reqPromoDiscount || 0,
       tax,
       visitingCharges,
       finalAmount,
