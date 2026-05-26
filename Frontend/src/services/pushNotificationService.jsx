@@ -55,10 +55,11 @@ async function requestNotificationPermission() {
       return true;
     } else {
       console.log('❌ Notification permission denied');
-      toast.error('Notification permission denied! Please enable it in browser settings to receive alerts.', {
-        id: 'fcm-permission-denied',
-        duration: 5000
-      });
+      // Toast removed as requested:
+      // toast.error('Notification permission denied! Please enable it in browser settings to receive alerts.', {
+      //   id: 'fcm-permission-denied',
+      //   duration: 5000
+      // });
       return false;
     }
   }

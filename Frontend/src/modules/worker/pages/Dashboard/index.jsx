@@ -278,7 +278,7 @@ const Dashboard = () => {
     const handlePushNotification = (e) => {
       const payload = e.detail || {};
       const data = payload.data || {};
-      
+
       // Only open modal for real job assignments with a valid bookingId
       if (data.type === 'job_assigned' && data.bookingId && data.bookingId !== 'test-id') {
         setAlertJobId(data.bookingId);
@@ -300,9 +300,9 @@ const Dashboard = () => {
     try {
       const { toast } = await import('react-hot-toast');
       const loadingToast = toast.loading('Sending test push...');
-      
+
       const res = await workerService.testPushNotification();
-      
+
       toast.dismiss(loadingToast);
       if (res.success) {
         toast.success('Test push sent! Check your notification tray.');
@@ -541,10 +541,10 @@ const Dashboard = () => {
         </div>
 
         {/* Notification Status & Debug - NEW */}
-        <div className="px-4 py-2">
+        {/* <div className="px-4 py-2">
           <div className="bg-white/50 backdrop-blur-md rounded-2xl p-3 border border-white/20 shadow-sm flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div 
+              <div
                 className={`w-2 h-2 rounded-full ${Notification.permission === 'granted' ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`}
               />
               <div>
@@ -554,26 +554,26 @@ const Dashboard = () => {
                 </p>
               </div>
             </div>
-            
+
             <div className="flex gap-2">
-               <button 
+              <button
                 onClick={() => {
                   if (window.fcmDebug) window.fcmDebug();
                   if (window.testLocalFCMUI) window.testLocalFCMUI();
                 }}
                 className="p-2 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-bold hover:bg-indigo-100 active:scale-95 transition-all"
-               >
-                 TEST UI
-               </button>
-               <button 
+              >
+                TEST UI
+              </button>
+              <button
                 onClick={async () => {
-                   const { registerFCMToken } = await import('../../../../services/pushNotificationService');
-                   registerFCMToken('worker', true);
+                  const { registerFCMToken } = await import('../../../../services/pushNotificationService');
+                  registerFCMToken('worker', true);
                 }}
                 className="p-2 bg-orange-50 text-orange-600 rounded-lg text-[10px] font-bold hover:bg-orange-100 active:scale-95 transition-all"
-               >
-                 RE-REGISTER
-               </button>
+              >
+                RE-REGISTER
+              </button>
             </div>
           </div>
           {Notification.permission !== 'granted' && (
@@ -581,7 +581,7 @@ const Dashboard = () => {
               ⚠️ Notifications are disabled in your browser. Click the lock icon in the URL bar to fix.
             </p>
           )}
-        </div>
+        </div> */}
 
         {/* Stats Cards - Outside Gradient */}
         <div className="px-4 pt-4">
@@ -926,21 +926,21 @@ const Dashboard = () => {
         </div>
       </main>
 
-        {/* Test Push Notification Floating Button */}
-        <div className="fixed bottom-24 right-4 z-40">
-          <button
-            onClick={handleTestPush}
-            className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-all duration-200"
-            style={{
-              background: 'linear-gradient(135deg, #FF9800 0%, #F57C00 100%)',
-              border: '2px solid rgba(255, 255, 255, 0.3)',
-              boxShadow: '0 8px 16px rgba(245, 124, 0, 0.4)',
-            }}
-            title="Test Push Notification"
-          >
-            <FiBell className="w-7 h-7 text-white" />
-          </button>
-        </div>
+      {/* Test Push Notification Floating Button */}
+      <div className="fixed bottom-24 right-4 z-40">
+        <button
+          onClick={handleTestPush}
+          className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-all duration-200"
+          style={{
+            background: 'linear-gradient(135deg, #FF9800 0%, #F57C00 100%)',
+            border: '2px solid rgba(255, 255, 255, 0.3)',
+            boxShadow: '0 8px 16px rgba(245, 124, 0, 0.4)',
+          }}
+          title="Test Push Notification"
+        >
+          <FiBell className="w-7 h-7 text-white" />
+        </button>
+      </div>
 
       <WorkerJobAlertModal
         isOpen={!!alertJobId}
