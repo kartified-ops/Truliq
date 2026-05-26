@@ -112,8 +112,8 @@ const UserRoutes = () => {
 
   return (
     <ErrorBoundary>
-      {/* Main content area - leaves space for bottom nav when needed */}
-      <div className={shouldShowBottomNav ? "pb-24" : ""}>
+      {/* Main content area - leaves space for bottom nav when needed. Home page has its own footer that handles bottom clearance. */}
+      <div className={(shouldShowBottomNav && location.pathname !== '/user' && location.pathname !== '/user/') ? "pb-24" : ""}>
         <Suspense fallback={<LoadingFallback />}>
           <PageTransition>
             <Routes>

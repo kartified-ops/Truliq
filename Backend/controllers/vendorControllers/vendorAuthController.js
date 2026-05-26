@@ -463,13 +463,13 @@ const refreshToken = async (req, res) => {
       });
     }
 
-    // Verify Session ID for Vendor
-    if (decoded.loginSessionId !== vendor.loginSessionId) {
-      return res.status(401).json({
-        success: false,
-        message: 'Account logged in on a new device. Please login again.'
-      });
-    }
+    // Verify Session ID for Vendor (disabled for development/testing)
+    // if (decoded.loginSessionId !== vendor.loginSessionId) {
+    //   return res.status(401).json({
+    //     success: false,
+    //     message: 'Account logged in on a new device. Please login again.'
+    //   });
+    // }
 
     // Generate new token pair with same session ID
     const tokens = generateTokenPair({

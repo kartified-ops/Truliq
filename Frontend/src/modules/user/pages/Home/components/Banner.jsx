@@ -3,8 +3,10 @@ import homepageBanner from '../../../../../assets/images/pages/Home/Banner/homep
 import { optimizeCloudinaryUrl } from '../../../../../utils/cloudinaryOptimize';
 
 const Banner = React.memo(({ imageUrl, onClick }) => {
+  if (!imageUrl) return null;
+
   // Optimize Cloudinary URLs for faster loading
-  const optimizedUrl = imageUrl ? optimizeCloudinaryUrl(imageUrl, { quality: 'auto' }) : homepageBanner;
+  const optimizedUrl = optimizeCloudinaryUrl(imageUrl, { quality: 'auto' });
 
   return (
     <div className="mb-8 px-4 cursor-pointer group" onClick={onClick}>
@@ -22,7 +24,7 @@ const Banner = React.memo(({ imageUrl, onClick }) => {
           loading="lazy"
           decoding="async"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-20 transition-opacity duration-300" />
+        {/* <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-20 transition-opacity duration-300" /> */}
       </div>
     </div>
   );

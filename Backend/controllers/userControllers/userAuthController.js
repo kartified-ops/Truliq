@@ -386,10 +386,10 @@ const refreshToken = async (req, res) => {
       });
     }
 
-    // Verify Session ID
-    if (decoded.loginSessionId !== user.loginSessionId) {
-      return res.status(401).json({ success: false, message: 'LoggedIn on another device.' });
-    }
+    // Verify Session ID (disabled for development/testing)
+    // if (decoded.loginSessionId !== user.loginSessionId) {
+    //   return res.status(401).json({ success: false, message: 'LoggedIn on another device.' });
+    // }
 
     // Generate new token pair
     const tokens = generateTokenPair({
