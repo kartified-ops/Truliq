@@ -40,7 +40,7 @@ const Checkout = () => {
   const [addressDetails, setAddressDetails] = useState(null);
   const [razorpayLoaded, setRazorpayLoaded] = useState(false);
   const [userPhone, setUserPhone] = useState('');
-  const [bookingModel, setBookingModel] = useState('vendor');
+  const [bookingModel, setBookingModel] = useState('worker');
 
   // Custom Contact State (for this booking only)
   const [contactDetails, setContactDetails] = useState({ name: '', phone: '' });
@@ -147,7 +147,7 @@ const Checkout = () => {
             // Set Config
             setVisitedFee(response.settings?.visitedCharges || 29);
             setGstPercentage(response.settings?.serviceGstPercentage || 18);
-            setBookingModel(response.bookingModel || 'vendor');
+            setBookingModel('worker'); // Force 'worker' model for UI display
 
             // Set Addresses
             if (response.user?.addresses?.length > 0) {
@@ -447,7 +447,7 @@ const Checkout = () => {
       if (data.bookingId === bookingRequest._id) {
         setSearchingVendors(false);
         setCurrentStep('failed');
-        toast.error(data.message || 'No vendors available at the moment.');
+        toast.error(data.message || 'No workers available at the moment.');
 
         // Auto-cancel and refresh on failure
         const handleAutoCancel = async () => {
@@ -599,7 +599,7 @@ const Checkout = () => {
 
       if (!bookingResponse.success) {
         toast.dismiss();
-        toast.error(bookingResponse.message || 'Failed to search for vendors');
+        toast.error(bookingResponse.message || 'Failed to search for workers');
         setCurrentStep('details');
         setSearchingVendors(false);
         setShowVendorModal(false);
@@ -634,7 +634,7 @@ const Checkout = () => {
         setShowVendorModal(false);
 
         if (bookingId) {
-          toast.error('No vendors currently available for this service.');
+          toast.error('No workers currently available for this service.');
 
           // Auto-cancel and refresh
           const cancelAndRefresh = async () => {
@@ -679,7 +679,7 @@ const Checkout = () => {
     } catch (error) {
       toast.dismiss();
       console.error('Search vendors error:', error);
-      toast.error('Failed to search for vendors. Please try again.');
+      toast.error('Failed to search for workers. Please try again.');
       setCurrentStep('details');
       setSearchingVendors(false);
       setShowVendorModal(false);

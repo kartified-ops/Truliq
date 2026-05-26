@@ -26,6 +26,7 @@ import SearchOverlay from './components/SearchOverlay';
 import LogoLoader from '../../../../components/common/LogoLoader';
 import AddressSelectionModal from '../Checkout/components/AddressSelectionModal';
 import ScrapPromotionCard from './components/ScrapPromotionCard';
+import AdvertisementCard from './components/AdvertisementCard';
 import DebugConsole from '../../components/common/DebugConsole';
 
 
@@ -396,6 +397,8 @@ const Home = () => {
     navigate('/user/rewards');
   };
 
+
+
   const handleLocationClick = () => {
     setIsAddressModalOpen(true);
   };
@@ -533,9 +536,9 @@ const Home = () => {
                 </motion.section>
               )}
 
-              {/* Scrap Promotion Section */}
+              {/* Advertisement Section */}
               <motion.section variants={itemVariants}>
-                <ScrapPromotionCard onClick={() => navigate('/user/scrap')} />
+                <AdvertisementCard onClick={() => {}} />
               </motion.section>
 
 
@@ -674,12 +677,14 @@ const Home = () => {
                 </motion.div>
               )}
 
-              {/* Refer & Earn Section */}
+              {/* Refer & Earn Section commented out as per user request */}
+              {/*
               <motion.div variants={itemVariants}>
                 <Suspense fallback={<div className="h-32 bg-gray-50 animate-pulse rounded-xl mx-4" />}>
                   <ReferEarnSection onReferClick={handleReferClick} />
                 </Suspense>
               </motion.div>
+              */}
             </>
           )}
         </main>

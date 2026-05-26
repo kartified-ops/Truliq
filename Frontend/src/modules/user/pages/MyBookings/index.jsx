@@ -115,6 +115,7 @@ const MyBookings = () => {
       case 'visited': return 'Arrived';
       case 'awaiting_payment': return 'Request Accepted';
       case 'work_done': return 'Work Completed';
+      case 'no_vendors': return 'No Workers';
       default: return status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ');
     }
   };

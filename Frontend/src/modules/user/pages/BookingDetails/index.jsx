@@ -268,6 +268,7 @@ const BookingDetails = () => {
       case 'cancelled': return 'Cancelled';
       case 'requested':
       case 'searching': return 'Finding Expert';
+      case 'no_vendors': return 'No Workers';
       default: return status?.replace('_', ' ') || 'Pending';
     }
   };
