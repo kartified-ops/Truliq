@@ -20,6 +20,7 @@ import {
 } from "react-icons/fi";
 import adminMenu from "../../config/adminMenu.json";
 import dashboardService from "../../services/dashboardService";
+import { getSettings } from "../../services/settingsService";
 import Logo from "../../../../components/common/Logo";
 
 // Icon mapping for menu items
@@ -123,6 +124,21 @@ const AdminSidebar = ({ isOpen, onClose }) => {
     pendingSettlements: 0,
     scraps: 0
   });
+  const [isWorkerMode, setIsWorkerMode] = useState(false);
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const res = await getSettings();
+        if (res.success && res.settings) {
+          setIsWorkerMode(res.settings.bookingModel === 'worker');
+        }
+      } catch (error) {
+        console.error("Error fetching settings for sidebar:", error);
+      }
+    };
+    fetchSettings();
+  }, []);
 
   // Load admin user from storage
   useEffect(() => {
@@ -141,11 +157,29 @@ const AdminSidebar = ({ isOpen, onClose }) => {
     }
   }, []);
 
-  // Filter menu items by role
-  const filteredMenu = useMemo(() => adminMenu.filter(item => {
-    if (!item.allowedRoles) return true;
-    return item.allowedRoles.includes(adminUser.role);
-  }), [adminUser.role]);
+  // Filter menu items by role and settings
+  const filteredMenu = useMemo(() => {
+    return adminMenu.filter(item => {
+      if (item.isHidden) return false;
+      if (item.title === 'Scrap Items' || item.title === 'Plans') return false; // Hiding Scrap Items and Plans
+      if (isWorkerMode && (item.title === 'Vendors' || item.title === 'Vendor Services' || item.title === 'Vendor Parts')) {
+        return false;
+      }
+      if (!item.allowedRoles) return true;
+      return item.allowedRoles.includes(adminUser.role);
+    }).map(item => {
+      if (isWorkerMode && item.children) {
+        return {
+          ...item,
+          children: item.children.filter(child =>
+            !child.includes('Vendor') &&
+            child !== 'Vendors with Due'
+          )
+        };
+      }
+      return item;
+    });
+  }, [adminUser.role, isWorkerMode]);
 
   // Fetch pending counts for badges
   useEffect(() => {

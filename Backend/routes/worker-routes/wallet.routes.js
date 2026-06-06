@@ -6,7 +6,9 @@ const {
   getWallet,
   getTransactions,
   requestPayout,
-  requestWithdrawal
+  requestWithdrawal,
+  createDuesPaymentOrder,
+  verifyDuesPayment
 } = require('../../controllers/workerControllers/workerWalletController');
 
 // Get wallet balance
@@ -20,5 +22,9 @@ router.post('/request-payout', authenticate, isWorker, requestPayout);
 
 // Request withdrawal from admin (Direct Worker Model)
 router.post('/withdraw', authenticate, isWorker, requestWithdrawal);
+
+// Pay Platform Dues
+router.post('/create-dues-order', authenticate, isWorker, createDuesPaymentOrder);
+router.post('/verify-dues-payment', authenticate, isWorker, verifyDuesPayment);
 
 module.exports = router;

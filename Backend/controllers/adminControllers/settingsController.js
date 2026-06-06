@@ -121,11 +121,16 @@ exports.updateSettings = async (req, res, next) => {
       await settings.save();
     }
 
-    // Propagate vendorCashLimit to all existing vendors if it was changed
+    // Propagate vendorCashLimit to all existing vendors AND workers if it was changed
     if (vendorCashLimit !== undefined) {
-      console.log(`Updating all vendors with new cash limit: ${vendorCashLimit}`);
+      console.log(`Updating all providers with new cash limit: ${vendorCashLimit}`);
       await Vendor.updateMany(
         {}, // Filter: all vendors
+        { $set: { 'wallet.cashLimit': vendorCashLimit } }
+      );
+      const Worker = require('../../models/Worker');
+      await Worker.updateMany(
+        {}, // Filter: all workers
         { $set: { 'wallet.cashLimit': vendorCashLimit } }
       );
     }

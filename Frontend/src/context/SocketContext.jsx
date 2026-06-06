@@ -84,6 +84,25 @@ export const SocketProvider = ({ children }) => {
 
   const userType = getUserType(location.pathname);
 
+  let currentTokenKey = 'accessToken';
+  switch (userType) {
+    case 'vendor':
+      currentTokenKey = 'vendorAccessToken';
+      break;
+    case 'worker':
+      currentTokenKey = 'workerAccessToken';
+      break;
+    case 'admin':
+      currentTokenKey = 'adminAccessToken';
+      break;
+    case 'user':
+    default:
+      currentTokenKey = 'accessToken';
+      break;
+  }
+
+  const currentToken = localStorage.getItem(currentTokenKey);
+
   useEffect(() => {
     if (!userType) {
       if (socket) {
@@ -93,26 +112,8 @@ export const SocketProvider = ({ children }) => {
       return;
     }
 
-    let tokenKey = 'accessToken';
-    switch (userType) {
-      case 'vendor':
-        tokenKey = 'vendorAccessToken';
-        break;
-      case 'worker':
-        tokenKey = 'workerAccessToken';
-        break;
-      case 'admin':
-        tokenKey = 'adminAccessToken';
-        break;
-      case 'user':
-      default:
-        tokenKey = 'accessToken';
-        break;
-    }
-
-    const token = localStorage.getItem(tokenKey);
     // If no token, we don't connect
-    if (!token) {
+    if (!currentToken) {
       if (socket) {
         socket.disconnect();
         setSocket(null);
@@ -136,7 +137,7 @@ export const SocketProvider = ({ children }) => {
 
     const newSocket = io(socketBaseUrl, {
       auth: {
-        token: token
+        token: currentToken
       },
       transports: ['polling', 'websocket'], // Try polling first for reliability
       path: '/socket.io/',
@@ -154,10 +155,10 @@ export const SocketProvider = ({ children }) => {
 
     newSocket.on('connect', () => {
       // console.log(`✅ ${userType?.toUpperCase()} App Socket connected`);
-      // console.log(`[DEBUG] userType: ${userType}, hasToken: ${!!token}`);
+      // console.log(`[DEBUG] userType: ${userType}, hasToken: ${!!currentToken}`);
       
       // Register FCM token for push notifications (on page load/refresh)
-      if (userType && token) {
+      if (userType && currentToken) {
         // Setup foreground notification listener
         setupForegroundNotificationHandler((payload) => {
           // Play sound and show notification (handled internally by the service)
@@ -453,7 +454,7 @@ export const SocketProvider = ({ children }) => {
     return () => {
       newSocket.disconnect();
     };
-  }, [userType]); // Only re-run if userType changes. Navigate is stable.
+  }, [userType, currentToken]); // Re-run if userType or currentToken changes
 
   return (
     <SocketContext.Provider value={socket}>

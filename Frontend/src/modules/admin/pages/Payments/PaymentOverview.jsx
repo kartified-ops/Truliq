@@ -170,7 +170,7 @@ const PaymentOverview = () => {
       animate={{ opacity: 1, y: 0 }}
       className="space-y-4"
     >
-      {/* Stats Cards */}
+      {/* Stats Cards
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
           <div>
@@ -202,6 +202,7 @@ const PaymentOverview = () => {
           </div>
         </div>
       </div>
+      */}
 
       {/* Filters & Actions */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col sm:flex-row gap-4 justify-between items-center">
@@ -310,8 +311,8 @@ const PaymentOverview = () => {
                       </span>
                     </td>
                     <td className="py-3 px-4">
-                      <span className={`text-sm font-semibold ${['credit', 'payment', 'cash_collected'].includes(tx.type) ? 'text-green-600' : 'text-gray-800'}`}>
-                        {['credit', 'payment', 'cash_collected'].includes(tx.type) ? '+' : '-'}{formatCurrency(tx.amount)}
+                      <span className={`text-sm font-semibold ${['credit', 'payment', 'cash_collected', 'commission', 'convenience_fee', 'worker_subscription', 'vendor_subscription', 'penalty'].includes(tx.type) ? 'text-green-600' : 'text-gray-800'}`}>
+                        {formatCurrency(tx.amount)}
                       </span>
                     </td>
                     <td className="py-3 px-4">

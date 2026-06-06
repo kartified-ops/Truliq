@@ -8,7 +8,12 @@ const settlementSchema = new mongoose.Schema({
   vendorId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Vendor',
-    required: true
+    required: false
+  },
+  workerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Worker',
+    required: false
   },
   amount: {
     type: Number,
@@ -76,6 +81,7 @@ const settlementSchema = new mongoose.Schema({
 
 // Indexes
 settlementSchema.index({ vendorId: 1, createdAt: -1 });
+settlementSchema.index({ workerId: 1, createdAt: -1 });
 settlementSchema.index({ status: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Settlement', settlementSchema);

@@ -17,8 +17,8 @@ const CancellationPolicy = () => {
         const res = await configService.getSettings();
         if (res.success && res.settings) {
           setFees({
-            penalty: res.settings.cancellationPenalty || 49,
-            visitingCharges: res.settings.visitedCharges || 49
+            penalty: res.settings.cancellationPenalty ?? 49,
+            visitingCharges: res.settings.visitedCharges ?? 49
           });
         }
       } catch (error) {
@@ -49,21 +49,12 @@ const CancellationPolicy = () => {
 
       <main className="max-w-2xl mx-auto px-4 py-6 space-y-6">
         {/* Key Policy Highlights with Icons */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center">
-            <div className="w-10 h-10 bg-green-50 rounded-full flex items-center justify-center mb-3">
-              <FiCheckCircle className="w-6 h-6 text-green-600" />
-            </div>
-            <h3 className="font-bold text-gray-900 mb-1">Free Cancellation</h3>
-            <p className="text-xs text-gray-500 font-medium">Until professional is assigned</p>
+        <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center">
+          <div className="w-10 h-10 bg-green-50 rounded-full flex items-center justify-center mb-3">
+            <FiCheckCircle className="w-6 h-6 text-green-600" />
           </div>
-          <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center">
-            <div className="w-10 h-10 bg-orange-50 rounded-full flex items-center justify-center mb-3">
-              <FiClock className="w-6 h-6 text-orange-600" />
-            </div>
-            <h3 className="font-bold text-gray-900 mb-1">Late Fee</h3>
-            <p className="text-xs text-gray-500 font-medium">If cancelled after assignment</p>
-          </div>
+          <h3 className="font-bold text-gray-900 mb-1">Free Cancellation</h3>
+          <p className="text-xs text-gray-500 font-medium">Until professional is assigned</p>
         </div>
 
         {/* Detailed Timeline Visualization */}
@@ -95,7 +86,7 @@ const CancellationPolicy = () => {
                 <h3 className="text-sm font-bold text-gray-900">Journey Started</h3>
                 <p className="text-xs text-gray-500 mt-1 mb-2">When professional is on the way</p>
                 <div className="inline-block px-3 py-1 bg-orange-50 text-orange-700 text-xs font-bold rounded-lg border border-orange-100">
-                  ₹{fees.penalty} Cancellation Penalty Applies
+                  Visit charges will applied charge by professional (worker)
                 </div>
               </div>
             </div>
@@ -109,7 +100,7 @@ const CancellationPolicy = () => {
                 <h3 className="text-sm font-bold text-gray-900">Professional Arrived</h3>
                 <p className="text-xs text-gray-500 mt-1 mb-2">When professional reaches your location</p>
                 <div className="inline-block px-3 py-1 bg-red-50 text-red-700 text-xs font-bold rounded-lg border border-red-100">
-                  ₹{fees.visitingCharges} Visiting Charges Apply
+                  Visit charges will applied charge by professional (worker)
                 </div>
               </div>
             </div>

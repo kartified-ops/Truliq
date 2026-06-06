@@ -326,7 +326,8 @@ exports.confirmCashCollection = async (req, res) => {
     let grandTotal = collectionAmount;
 
     if (bill) {
-      vendorEarning = Number(bill.vendorTotalEarning) || 0;
+      const isWorkerBooking = booking.bookingModel === 'worker';
+      vendorEarning = isWorkerBooking ? Number(bill.grandTotal) : (Number(bill.vendorTotalEarning) || 0);
       grandTotal = Number(bill.grandTotal) || 0;
 
       // Sync booking fields from bill to ensure data consistency
@@ -340,6 +341,9 @@ exports.confirmCashCollection = async (req, res) => {
       bill.status = 'paid';
       bill.paidAt = new Date();
       await bill.save();
+    } else {
+      const isWorkerBooking = booking.bookingModel === 'worker';
+      vendorEarning = isWorkerBooking ? collectionAmount : collectionAmount * 0.8;
     }
 
     // Update Booking
@@ -454,12 +458,14 @@ exports.confirmCashCollection = async (req, res) => {
         // OR simply track collected cash and earning separately.
         // In your walkthrough: Paisa Worker ki jeb mein gaya. Admin ka share Worker ke wallet mein "Dues" (Negative) banega.
 
-        const workerEarning = vendorEarning; // Reusing variable for consistency
-        const adminShare = grandTotal - workerEarning;
+        const isWorkerBooking = booking.bookingModel === 'worker';
+        const workerEarning = isWorkerBooking ? grandTotal : vendorEarning;
+        const adminShare = isWorkerBooking ? 0 : (grandTotal - workerEarning);
 
         // LOGIC: 
         // 1. Worker collected CASH: They have their share (workerEarning) in hand.
-        //    We only increase 'dues' by the adminShare (what they owe admin).
+        //    For worker bookings, dues remain 0 because they keep 100% of cash.
+        //    Otherwise they owe Admin the commission.
         //    We do NOT increase 'balance' (withdrawable money) because they already have it.
         // 2. We still track 'earnings' for lifetime reporting.
 
@@ -467,7 +473,7 @@ exports.confirmCashCollection = async (req, res) => {
           $inc: {
             'wallet.totalCashCollected': grandTotal,
             'wallet.earnings': workerEarning,
-            'wallet.dues': adminShare // Worker owes Admin the commission
+            'wallet.dues': adminShare
           }
         };
 
@@ -509,11 +515,12 @@ exports.confirmCashCollection = async (req, res) => {
 
     // Record stats in the Daily Earning Tracker
     // Record stats in the Daily Earning Tracker (Async)
+    const isWorkerBooking = booking.bookingModel === 'worker';
     recordBookingEarning({
       date: new Date(),
       totalRevenue: bill ? bill.grandTotal : collectionAmount,
-      platformCommission: bill ? (bill.companyRevenue || 0) : (collectionAmount * 0.2),
-      vendorEarnings: vendorEarning > 0 ? vendorEarning : (collectionAmount * 0.8),
+      platformCommission: isWorkerBooking ? 0 : (bill ? (bill.companyRevenue || 0) : (collectionAmount * 0.2)),
+      vendorEarnings: isWorkerBooking ? (bill ? bill.vendorTotalEarning : collectionAmount) : (vendorEarning > 0 ? vendorEarning : (collectionAmount * 0.8)),
       totalGST: bill ? (bill.totalGST || 0) : 0,
       totalTDS: 0 // Captured separately during withdrawal
     }).catch(err => console.error('[ConfirmCash] Daily tracker failed:', err));
@@ -633,7 +640,8 @@ exports.verifyOnlinePayment = async (req, res) => {
 
         let vendorEarning = 0;
         if (bill) {
-          vendorEarning = bill.vendorTotalEarning;
+          const isWorkerBooking = booking.bookingModel === 'worker';
+          vendorEarning = isWorkerBooking ? bill.grandTotal : bill.vendorTotalEarning;
 
           // Sync booking fields from bill to ensure data consistency
           booking.basePrice = bill.originalServiceBase;
@@ -646,7 +654,8 @@ exports.verifyOnlinePayment = async (req, res) => {
           bill.paidAt = new Date();
           await bill.save();
         } else {
-          vendorEarning = booking.finalAmount * 0.8;
+          const isWorkerBooking = booking.bookingModel === 'worker';
+          vendorEarning = isWorkerBooking ? booking.finalAmount : booking.finalAmount * 0.8;
         }
 
         // 2. Handle Earnings & Wallet (Vendor or Worker)
@@ -705,7 +714,7 @@ exports.verifyOnlinePayment = async (req, res) => {
         recordBookingEarning({
           date: new Date(),
           totalRevenue: Number(bill ? bill.grandTotal : booking.finalAmount) || 0,
-          platformCommission: Number(bill ? bill.companyRevenue : (booking.finalAmount * 0.2)) || 0,
+          platformCommission: Number(bill ? bill.companyRevenue : (booking.bookingModel === 'worker' ? 0 : booking.finalAmount * 0.2)) || 0,
           vendorEarnings: Number(vendorEarning) || 0,
           totalGST: Number(bill ? bill.totalGST : 0) || 0,
           totalTDS: 0
@@ -818,7 +827,8 @@ exports.confirmManualOnlinePayment = async (req, res) => {
 
     let vendorEarning = 0;
     if (bill) {
-      vendorEarning = bill.vendorTotalEarning;
+      const isWorkerBooking = booking.bookingModel === 'worker';
+      vendorEarning = isWorkerBooking ? bill.grandTotal : bill.vendorTotalEarning;
 
       // Sync booking fields from bill to ensure data consistency
       booking.basePrice = bill.originalServiceBase;
@@ -831,7 +841,8 @@ exports.confirmManualOnlinePayment = async (req, res) => {
       bill.paidAt = new Date();
       await bill.save();
     } else {
-      vendorEarning = booking.finalAmount * 0.8;
+      const isWorkerBooking = booking.bookingModel === 'worker';
+      vendorEarning = isWorkerBooking ? booking.finalAmount : booking.finalAmount * 0.8;
     }
 
     // 2. Handle Earnings & Wallet (Vendor or Worker)
@@ -881,7 +892,7 @@ exports.confirmManualOnlinePayment = async (req, res) => {
     recordBookingEarning({
       date: new Date(),
       totalRevenue: Number(bill ? bill.grandTotal : booking.finalAmount) || 0,
-      platformCommission: Number(bill ? bill.companyRevenue : (booking.finalAmount * 0.2)) || 0,
+      platformCommission: Number(bill ? bill.companyRevenue : (booking.bookingModel === 'worker' ? 0 : booking.finalAmount * 0.2)) || 0,
       vendorEarnings: Number(vendorEarning) || 0,
       totalGST: Number(bill ? bill.totalGST : 0) || 0,
       totalTDS: 0

@@ -145,7 +145,7 @@ const Tracking = () => {
                       <td className="p-4">
                         <span className={`px-3 py-1 rounded-full text-xs font-semibold text-white uppercase tracking-wide
                                     ${getStatusColor(booking.status)}`}>
-                          {booking.status?.replace('_', ' ')}
+                          {booking.status === 'no_vendors' ? 'no worker' : booking.status?.replace('_', ' ')}
                         </span>
                       </td>
                       <td className="p-4 text-gray-600 text-sm">

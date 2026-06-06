@@ -136,8 +136,8 @@ const Settings = () => {
               </button>
             </div>
 
-            {/* Email */}
-            <div className="flex items-center justify-between p-4">
+            {/* Email - temporarily hidden */}
+            {/* <div className="flex items-center justify-between p-4">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ backgroundColor: 'rgba(0, 166, 166, 0.1)' }}>
                   <FiMail className="w-5 h-5" style={{ color: themeColors.button }} />
@@ -155,7 +155,7 @@ const Settings = () => {
                     }`}
                 />
               </button>
-            </div>
+            </div> */}
           </div>
         </div>
 
@@ -204,8 +204,8 @@ const Settings = () => {
           </div>
         </div>
 
-        {/* Privacy & Data Section */}
-        <div className="space-y-4 mb-6">
+        {/* Privacy & Data Section - temporarily hidden */}
+        {/* <div className="space-y-4 mb-6">
           <button
             onClick={handlePrivacyClick}
             className="w-full bg-white rounded-xl border border-gray-200 p-4 flex items-center justify-between hover:bg-gray-50 active:scale-[0.98] transition-all"
@@ -218,8 +218,7 @@ const Settings = () => {
             </div>
             <FiChevronRight className="w-5 h-5 text-gray-400" />
           </button>
-
-        </div>
+        </div> */}
       </main>
 
       {/* BottomNav hidden on this page */}

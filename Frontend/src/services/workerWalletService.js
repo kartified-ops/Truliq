@@ -35,6 +35,24 @@ const workerWalletService = {
     } catch (error) {
       throw error.response?.data || error.message;
     }
+  },
+
+  createDuesOrder: async () => {
+    try {
+      const response = await api.post('/workers/wallet/create-dues-order');
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || error.message;
+    }
+  },
+
+  verifyDuesPayment: async (paymentData) => {
+    try {
+      const response = await api.post('/workers/wallet/verify-dues-payment', paymentData);
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || error.message;
+    }
   }
 };
 

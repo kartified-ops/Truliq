@@ -73,6 +73,9 @@ const AdminSettings = () => {
   const [activeView, setActiveView] = useState('main'); // 'main', 'profile', 'financial', 'system', 'admins'
 
   const isSuperAdmin = profile.role === 'super_admin';
+  const isWorkerMode = financialSettings.bookingModel === 'worker';
+  const providerLabel = isWorkerMode ? 'Worker' : 'Vendor';
+  const providersLabel = isWorkerMode ? 'Workers' : 'Vendors';
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -586,7 +589,7 @@ const AdminSettings = () => {
                         className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-green-500 transition-all" />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Vendor Cash Limit (₹)</label>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">{providerLabel} Cash Limit (₹)</label>
                       <input type="number" name="vendorCashLimit" value={financialSettings.vendorCashLimit} onChange={handleFinancialChange}
                         className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-green-500 transition-all" />
                     </div>
@@ -609,14 +612,14 @@ const AdminSettings = () => {
                       <input type="number" name="servicePayoutPercentage" value={financialSettings.servicePayoutPercentage} onChange={handleFinancialChange}
                         min="0" max="100"
                         className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-green-500 transition-all" />
-                      <p className="text-[10px] text-gray-400 mt-1">Vendor keeps this % of service charges</p>
+                      <p className="text-[10px] text-gray-400 mt-1">{providerLabel} keeps this % of service charges</p>
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Parts Payout (%)</label>
                       <input type="number" name="partsPayoutPercentage" value={financialSettings.partsPayoutPercentage} onChange={handleFinancialChange}
                         min="0" max="100"
                         className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-green-500 transition-all" />
-                      <p className="text-[10px] text-gray-400 mt-1">Vendor keeps this % of parts charges</p>
+                      <p className="text-[10px] text-gray-400 mt-1">{providerLabel} keeps this % of parts charges</p>
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">TDS Percentage (%)</label>
@@ -627,7 +630,7 @@ const AdminSettings = () => {
                       <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Platform Fee (%)</label>
                       <input type="number" name="platformFeePercentage" value={financialSettings.platformFeePercentage} onChange={handleFinancialChange}
                         className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-green-500 transition-all" />
-                      <p className="text-[10px] text-gray-400 mt-1">Fee charged on vendor withdrawals</p>
+                      <p className="text-[10px] text-gray-400 mt-1">Fee charged on {providerLabel.toLowerCase()} withdrawals</p>
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Cancellation Penalty (₹)</label>
@@ -641,19 +644,19 @@ const AdminSettings = () => {
                           <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Max Global Search Time (Mins)</label>
                           <input type="number" name="maxSearchTime" value={financialSettings.maxSearchTime} onChange={handleFinancialChange}
                             className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-green-500 transition-all" />
-                          <p className="text-[10px] text-gray-400 mt-1">Total time to find a vendor before search is auto-cancelled</p>
+                          <p className="text-[10px] text-gray-400 mt-1">Total time to find a {providerLabel.toLowerCase()} before search is auto-cancelled</p>
                         </div>
                         <div>
                           <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Wave Alert Threshold (Secs)</label>
                           <input type="number" name="waveDuration" value={financialSettings.waveDuration} onChange={handleFinancialChange}
                             className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-green-500 transition-all" />
-                          <p className="text-[10px] text-gray-400 mt-1">Time waited before alerting the next batch of vendors</p>
+                          <p className="text-[10px] text-gray-400 mt-1">Time waited before alerting the next batch of {providersLabel.toLowerCase()}</p>
                         </div>
                         <div>
                           <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Global Search Radius (Km)</label>
                           <input type="number" name="searchRadius" value={financialSettings.searchRadius} onChange={handleFinancialChange}
                             className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-green-500 transition-all" />
-                          <p className="text-[10px] text-gray-400 mt-1">Default distance to hunt for vendors around booking location</p>
+                          <p className="text-[10px] text-gray-400 mt-1">Default distance to hunt for {providersLabel.toLowerCase()} around booking location</p>
                         </div>
                       </div>
                     </div>
@@ -855,14 +858,7 @@ const AdminSettings = () => {
                         className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-blue-500 transition-all" />
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">WhatsApp Support</label>
-                    <div className="relative">
-                      <FiMessageCircle className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                      <input type="tel" name="supportWhatsapp" value={supportSettings.supportWhatsapp} onChange={handleSupportChange}
-                        className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-blue-500 transition-all" />
-                    </div>
-                  </div>
+
                   <div className="flex justify-end pt-2">
                     <button type="submit" disabled={supportLoading}
                       className="px-6 py-2.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 flex items-center gap-2 disabled:opacity-60 shadow-lg shadow-blue-200">

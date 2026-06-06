@@ -288,8 +288,8 @@ const JobTimeline = () => {
       icon: FiDollarSign,
       action: (currentStage === 8 && !(job?.isWorkerPaid || job?.workerPaymentStatus === 'PAID' || job?.workerPaymentStatus === 'SUCCESS')) ? handleRequestPayment : null,
       actionLabel: job?.bookingModel === 'worker' ? 'Ask Admin for Payment' : 'Ask Vendor for Payment',
-      description: (job?.isWorkerPaid || job?.workerPaymentStatus === 'PAID' || job?.workerPaymentStatus === 'SUCCESS') 
-        ? 'Payment received successfully.' 
+      description: (job?.isWorkerPaid || job?.workerPaymentStatus === 'PAID' || job?.workerPaymentStatus === 'SUCCESS')
+        ? 'Payment received successfully.'
         : (job?.cashCollected && job?.bookingModel === 'worker')
           ? 'Cash received by you. No payout needed from Admin.'
           : (job?.bookingModel === 'worker' ? 'Waiting for admin to release payment.' : 'Waiting for vendor to release payment.'),

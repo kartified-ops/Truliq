@@ -30,7 +30,7 @@ const Footer = () => {
       links: [
         { label: 'About Us', path: '/user/about-Truliq' },
         { label: 'Help & Support', path: '/user/help-support' },
-        { label: 'Cancellation Policy', path: '/user/cancellation-policy' },
+        // { label: 'Cancellation Policy', path: '/user/cancellation-policy' },
         { label: 'Terms & Conditions', path: '#' },
         { label: 'Privacy Policy', path: '#' },
       ]
@@ -39,9 +39,9 @@ const Footer = () => {
       title: 'Quick Links',
       links: [
         { label: 'My Bookings', path: '/user/my-bookings' },
-        { label: 'My Wallet', path: '/user/wallet' },
-        { label: 'My Plan', path: '/user/my-plan' },
-        { label: 'Register as Vendor', path: '/vendor/signup' },
+        // { label: 'My Wallet', path: '/user/wallet' },
+        // { label: 'My Plan', path: '/user/my-plan' },
+        // { label: 'Register as Vendor', path: '/vendor/signup' },
         { label: 'Register as Worker', path: '/worker/signup' },
       ]
     },
@@ -58,11 +58,11 @@ const Footer = () => {
           path: `tel:${(settings?.supportPhone || settings?.companyPhone || '+91 98765 43210').replace(/\s/g, '')}`, 
           icon: FiPhone 
         },
-        { 
-          label: settings?.companyAddress ? `${settings.companyAddress}, ${settings.companyCity}, ${settings.companyState} - ${settings.companyPincode}` : 'Bhopal, Madhya Pradesh, India', 
-          path: '#', 
-          icon: FiMapPin 
-        },
+        // { 
+        //   label: settings?.companyAddress ? `${settings.companyAddress}, ${settings.companyCity}, ${settings.companyState} - ${settings.companyPincode}` : 'Bhopal, Madhya Pradesh, India', 
+        //   path: '#', 
+        //   icon: FiMapPin 
+        // },
       ]
     }
   ];
@@ -81,9 +81,10 @@ const Footer = () => {
               <Logo className="h-10 w-auto" />
             </Link>
             <p className="text-gray-500 text-sm leading-relaxed max-w-xs">
-              {settings?.companyName || 'Truliq'} is your one-stop destination for all home services. From electrical repairs to premium salon services, we bring the experts to your doorstep.
+              {settings?.companyName || 'Truliq'} is your one-stop destination for all home services. From electrical repairs to home services, we bring the experts to your doorstep.
             </p>
-            <div className="flex items-center gap-4">
+            {/* Social Media Icons - temporarily hidden */}
+            {/* <div className="flex items-center gap-4">
               {[FiFacebook, FiTwitter, FiInstagram, FiLinkedin].map((Icon, i) => (
                 <a 
                   key={i} 
@@ -93,7 +94,7 @@ const Footer = () => {
                   <Icon className="w-5 h-5" />
                 </a>
               ))}
-            </div>
+            </div> */}
           </div>
 
           {/* Navigation Sections */}
@@ -133,13 +134,14 @@ const Footer = () => {
         {/* Bottom Row */}
         <div className="flex flex-col md:flex-row items-center justify-between gap-6">
           <p className="text-gray-400 text-sm">
-            © {currentYear} {settings?.companyName || 'Truliq'}. All rights reserved.
+            © {currentYear} Truliq. All rights reserved. &nbsp;|&nbsp;
+            <a href="https://www.truliq.com" target="_blank" rel="noopener noreferrer" className="hover:text-[#347989] transition-colors">www.truliq.com</a>
           </p>
-          <div className="flex items-center gap-6">
+          {/* <div className="flex items-center gap-6">
             <Link to="#" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">Privacy</Link>
             <Link to="#" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">Terms</Link>
             <Link to="#" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">Cookies</Link>
-          </div>
+          </div> */}
         </div>
       </div>
     </footer>

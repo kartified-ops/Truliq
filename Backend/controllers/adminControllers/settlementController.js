@@ -1,4 +1,5 @@
 const Vendor = require('../../models/Vendor');
+const Worker = require('../../models/Worker');
 const Transaction = require('../../models/Transaction');
 const Settlement = require('../../models/Settlement');
 const Withdrawal = require('../../models/Withdrawal');
@@ -10,44 +11,52 @@ const { recordSettlement, recordWithdrawal } = require('../../services/earningTr
  */
 const getVendorBalances = async (req, res) => {
   try {
-    const { page = 1, limit = 20, search, filterDue } = req.query;
+    const { page = 1, limit = 20, search, filterDue, model } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    const TargetModel = model === 'worker' ? Worker : Vendor;
 
     let matchQuery = { approvalStatus: 'approved' };
     if (search) {
       matchQuery.$or = [
         { name: { $regex: search, $options: 'i' } },
-        { businessName: { $regex: search, $options: 'i' } },
         { phone: { $regex: search, $options: 'i' } }
       ];
+      if (model !== 'worker') {
+        matchQuery.$or.push({ businessName: { $regex: search, $options: 'i' } });
+      }
     }
 
-    // If filtering by vendors who owe money
+    // If filtering by vendors/workers who owe money
     if (filterDue === 'true') {
       matchQuery['wallet.dues'] = { $gt: 0 };
     }
 
-    const vendors = await Vendor.find(matchQuery)
-      .select('name businessName phone email wallet profilePhoto')
+    const selectFields = model === 'worker' 
+      ? 'name phone email wallet profilePhoto'
+      : 'name businessName phone email wallet profilePhoto';
+
+    const vendors = await TargetModel.find(matchQuery)
+      .select(selectFields)
       .sort({ 'wallet.dues': -1 }) // Highest dues first
       .skip(skip)
       .limit(parseInt(limit));
 
-    const total = await Vendor.countDocuments(matchQuery);
+    const total = await TargetModel.countDocuments(matchQuery);
 
     // Calculate total amount due to admin
-    const totalDueResult = await Vendor.aggregate([
+    const totalDueResult = await TargetModel.aggregate([
       { $match: { 'wallet.dues': { $gt: 0 } } },
       { $group: { _id: null, total: { $sum: '$wallet.dues' } } }
     ]);
 
     const totalDueToAdmin = Math.abs(totalDueResult[0]?.total || 0);
 
-    // Format vendor data
+    // Format data
     const vendorData = vendors.map(v => ({
       _id: v._id,
       name: v.name,
-      businessName: v.businessName,
+      businessName: v.businessName || v.name,
       phone: v.phone,
       email: v.email,
       profilePhoto: v.profilePhoto,
@@ -65,7 +74,7 @@ const getVendorBalances = async (req, res) => {
       data: vendorData,
       summary: {
         totalDueToAdmin,
-        vendorsWithDue: await Vendor.countDocuments({ 'wallet.dues': { $gt: 0 } })
+        vendorsWithDue: await TargetModel.countDocuments({ 'wallet.dues': { $gt: 0 } })
       },
       pagination: {
         page: parseInt(page),
@@ -75,10 +84,10 @@ const getVendorBalances = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Get vendor balances error:', error);
+    console.error('Get balances error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch vendor balances'
+      message: 'Failed to fetch balances'
     });
   }
 };
@@ -148,20 +157,30 @@ const getVendorLedger = async (req, res) => {
  */
 const getPendingSettlements = async (req, res) => {
   try {
-    const { page = 1, limit = 20 } = req.query;
+    const { page = 1, limit = 20, model } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    const settlements = await Settlement.find({ status: 'pending' })
+    const query = { status: 'pending' };
+    if (model === 'worker') {
+      query.workerId = { $exists: true };
+    } else {
+      // By default or explicit vendor model, show vendor settlements
+      // Handle legacy where workerId might not exist on older records
+      query.$or = [{ vendorId: { $exists: true, $ne: null } }];
+    }
+
+    const settlements = await Settlement.find(query)
       .populate('vendorId', 'name businessName phone profilePhoto wallet.balance')
+      .populate('workerId', 'name phone profilePhoto wallet.balance')
       .sort({ createdAt: 1 }) // Oldest first
       .skip(skip)
       .limit(parseInt(limit));
 
-    const total = await Settlement.countDocuments({ status: 'pending' });
+    const total = await Settlement.countDocuments(query);
 
     // Calculate total pending settlement amount
     const totalPending = await Settlement.aggregate([
-      { $match: { status: 'pending' } },
+      { $match: query },
       { $group: { _id: null, total: { $sum: '$amount' } } }
     ]);
 
@@ -212,38 +231,42 @@ const approveSettlement = async (req, res) => {
       });
     }
 
-    const vendor = await Vendor.findById(settlement.vendorId);
-    if (!vendor) {
+    const isWorker = !!settlement.workerId;
+    const targetId = isWorker ? settlement.workerId : settlement.vendorId;
+    const TargetModel = isWorker ? Worker : Vendor;
+
+    const userRecord = await TargetModel.findById(targetId);
+    if (!userRecord) {
       return res.status(404).json({
         success: false,
-        message: 'Vendor not found'
+        message: 'Provider not found'
       });
     }
 
-    const currentDues = vendor.wallet?.dues || 0;
+    const currentDues = userRecord.wallet?.dues || 0;
 
     // Settlement reduces DUES
     // Ensure we don't go below zero (though validation handles request)
-    vendor.wallet.dues = Math.max(0, currentDues - settlement.amount);
+    userRecord.wallet.dues = Math.max(0, currentDues - settlement.amount);
 
     // Auto-unblock if dues drop below limit
-    if (vendor.wallet.isBlocked && vendor.wallet.dues <= (vendor.wallet.cashLimit || 10000)) {
-      vendor.wallet.isBlocked = false;
-      vendor.wallet.blockedAt = null;
-      vendor.wallet.blockReason = null;
+    if (userRecord.wallet.isBlocked && userRecord.wallet.dues <= (userRecord.wallet.cashLimit || 10000)) {
+      userRecord.wallet.isBlocked = false;
+      userRecord.wallet.blockedAt = null;
+      userRecord.wallet.blockReason = null;
     }
 
-    await vendor.save();
+    await userRecord.save();
 
     // Update settlement
     settlement.status = 'approved';
     settlement.processedBy = adminId;
     settlement.processedAt = new Date();
     settlement.adminNotes = adminNotes;
-    settlement.balanceAfter = vendor.wallet.dues;
+    settlement.balanceAfter = userRecord.wallet.dues;
     // Send Dues Payment (Settlement) Email
     const { sendDuesPaymentApprovedEmail } = require('../../services/emailService');
-    sendDuesPaymentApprovedEmail(vendor, settlement.amount, vendor.wallet.dues).catch(e => console.error(e));
+    sendDuesPaymentApprovedEmail(userRecord, settlement.amount, userRecord.wallet.dues).catch(e => console.error(e));
 
     await settlement.save();
 
@@ -323,30 +346,94 @@ const rejectSettlement = async (req, res) => {
  */
 const getSettlementHistory = async (req, res) => {
   try {
-    const { page = 1, limit = 50, status, vendorId } = req.query;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const { page = 1, limit = 50, status, vendorId, model } = req.query;
+    const limitInt = parseInt(limit);
+    const pageInt = parseInt(page);
+    const skip = (pageInt - 1) * limitInt;
 
-    const query = {};
-    if (status) query.status = status;
-    if (vendorId) query.vendorId = vendorId;
+    // Build Settlement query
+    const settlementQuery = {};
+    if (status) settlementQuery.status = status;
+    if (vendorId) settlementQuery.vendorId = vendorId;
+    if (model === 'worker') {
+      settlementQuery.workerId = { $exists: true };
+    } else {
+      settlementQuery.$or = [{ vendorId: { $exists: true, $ne: null } }];
+    }
 
-    const settlements = await Settlement.find(query)
-      .populate('vendorId', 'name businessName phone')
-      .populate('processedBy', 'name')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
+    // Build Withdrawal query
+    const withdrawalQuery = {};
+    if (status) {
+      withdrawalQuery.status = status;
+    } else {
+      withdrawalQuery.status = { $in: ['approved', 'rejected'] };
+    }
+    if (vendorId) withdrawalQuery.vendorId = vendorId;
+    if (model === 'worker') {
+      withdrawalQuery.workerId = { $exists: true };
+    } else {
+      withdrawalQuery.$or = [{ vendorId: { $exists: true, $ne: null } }];
+    }
 
-    const total = await Settlement.countDocuments(query);
+    // Fetch both collections
+    const [settlements, withdrawals] = await Promise.all([
+      Settlement.find(settlementQuery)
+        .populate('vendorId', 'name businessName phone')
+        .populate('workerId', 'name phone')
+        .populate('processedBy', 'name')
+        .lean(),
+      Withdrawal.find(withdrawalQuery)
+        .populate('vendorId', 'name businessName phone')
+        .populate('workerId', 'name phone')
+        .populate('processedBy', 'name')
+        .lean()
+    ]);
+
+    // Map to unified structure
+    const unifiedHistory = [
+      ...settlements.map(s => ({
+        _id: s._id,
+        type: 'settlement',
+        amount: s.amount,
+        status: s.status,
+        paymentMethod: s.paymentMethod || 'upi',
+        paymentReference: s.paymentReference,
+        createdAt: s.createdAt,
+        vendorId: s.vendorId,
+        workerId: s.workerId,
+        processedBy: s.processedBy,
+        rejectionReason: s.rejectionReason
+      })),
+      ...withdrawals.map(w => ({
+        _id: w._id,
+        type: 'withdrawal',
+        amount: w.amount,
+        status: w.status,
+        paymentMethod: 'bank_transfer',
+        paymentReference: w.transactionReference,
+        createdAt: w.processedDate || w.updatedAt,
+        vendorId: w.vendorId,
+        workerId: w.workerId,
+        processedBy: w.processedBy,
+        rejectionReason: w.rejectionReason
+      }))
+    ];
+
+    // Sort by date descending
+    unifiedHistory.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    // Paginate
+    const paginatedHistory = unifiedHistory.slice(skip, skip + limitInt);
+    const total = unifiedHistory.length;
 
     res.status(200).json({
       success: true,
-      data: settlements,
+      data: paginatedHistory,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: pageInt,
+        limit: limitInt,
         total,
-        pages: Math.ceil(total / parseInt(limit))
+        pages: Math.ceil(total / limitInt)
       }
     });
   } catch (error) {
@@ -363,30 +450,38 @@ const getSettlementHistory = async (req, res) => {
  */
 const getSettlementDashboard = async (req, res) => {
   try {
+    const { model } = req.query;
+    const TargetModel = model === 'worker' ? Worker : Vendor;
+    
     // Total amount due to admin
-    // Total amount due to admin
-    const totalDueResult = await Vendor.aggregate([
+    const totalDueResult = await TargetModel.aggregate([
       { $match: { 'wallet.dues': { $gt: 0 } } },
       { $group: { _id: null, total: { $sum: '$wallet.dues' } } }
     ]);
     const totalDueToAdmin = totalDueResult[0]?.total || 0;
 
     // Pending settlements
+    const pendingQuery = { status: 'pending' };
+    if (model === 'worker') pendingQuery.workerId = { $exists: true };
+    else pendingQuery.$or = [{ vendorId: { $exists: true, $ne: null } }];
+
     const pendingSettlements = await Settlement.aggregate([
-      { $match: { status: 'pending' } },
+      { $match: pendingQuery },
       { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } }
     ]);
 
     // Today's cash collections
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const cashQuery = {
+      type: 'cash_collected',
+      createdAt: { $gte: today }
+    };
+    if (model === 'worker') cashQuery.workerId = { $exists: true };
+    else cashQuery.$or = [{ vendorId: { $exists: true, $ne: null } }];
+    
     const todayCollections = await Transaction.aggregate([
-      {
-        $match: {
-          type: 'cash_collected',
-          createdAt: { $gte: today }
-        }
-      },
+      { $match: cashQuery },
       {
         $group: {
           _id: null,
@@ -399,14 +494,16 @@ const getSettlementDashboard = async (req, res) => {
     // This week settlements
     const weekStart = new Date();
     weekStart.setDate(weekStart.getDate() - 7);
+    const weekQuery = {
+      type: 'settlement',
+      status: 'completed',
+      createdAt: { $gte: weekStart }
+    };
+    if (model === 'worker') weekQuery.workerId = { $exists: true };
+    else weekQuery.$or = [{ vendorId: { $exists: true, $ne: null } }];
+
     const weekSettlements = await Transaction.aggregate([
-      {
-        $match: {
-          type: 'settlement',
-          status: 'completed',
-          createdAt: { $gte: weekStart }
-        }
-      },
+      { $match: weekQuery },
       {
         $group: {
           _id: null,
@@ -420,7 +517,7 @@ const getSettlementDashboard = async (req, res) => {
       success: true,
       data: {
         totalDueToAdmin,
-        vendorsWithDue: await Vendor.countDocuments({ 'wallet.dues': { $gt: 0 } }),
+        vendorsWithDue: await TargetModel.countDocuments({ 'wallet.dues': { $gt: 0 } }),
         pendingSettlements: {
           amount: pendingSettlements[0]?.total || 0,
           count: pendingSettlements[0]?.count || 0
@@ -534,16 +631,24 @@ module.exports = {
   // Withdrawal functions
   getWithdrawalRequests: async (req, res) => {
     try {
-      const { page = 1, limit = 20 } = req.query;
+      const { page = 1, limit = 20, model } = req.query;
       const skip = (parseInt(page) - 1) * parseInt(limit);
 
-      const withdrawals = await Withdrawal.find({ status: 'pending' })
+      const query = { status: 'pending' };
+      if (model === 'worker') {
+        query.workerId = { $exists: true };
+      } else {
+        query.$or = [{ vendorId: { $exists: true, $ne: null } }];
+      }
+
+      const withdrawals = await Withdrawal.find(query)
         .populate('vendorId', 'name businessName phone wallet.earnings')
+        .populate('workerId', 'name phone wallet.balance wallet.earnings')
         .sort({ createdAt: 1 })
         .skip(skip)
         .limit(parseInt(limit));
 
-      const total = await Withdrawal.countDocuments({ status: 'pending' });
+      const total = await Withdrawal.countDocuments(query);
 
       res.status(200).json({
         success: true,
@@ -566,24 +671,40 @@ module.exports = {
       const { transactionReference, notes } = req.body;
       const adminId = req.user.id;
 
-      // Fetch global settings for rates
-      const Settings = require('../../models/Settings');
-      const settings = await Settings.findOne({ type: 'global' });
-      const tdsRate = settings?.tdsPercentage || 1;
-      const platformFeeRate = settings?.platformFeePercentage || 1;
-
       const withdrawal = await Withdrawal.findById(withdrawalId);
       if (!withdrawal) return res.status(404).json({ success: false, message: 'Withdrawal not found' });
       if (withdrawal.status !== 'pending') return res.status(400).json({ success: false, message: 'Not pending' });
 
-      const vendor = await Vendor.findById(withdrawal.vendorId);
-      if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
+      const isWorker = !!withdrawal.workerId;
 
-      if (vendor.wallet.earnings < withdrawal.amount) {
-        return res.status(400).json({
-          success: false,
-          message: `Insufficient earnings. Available: ₹${vendor.wallet.earnings}`
-        });
+      // Fetch global settings for rates
+      const Settings = require('../../models/Settings');
+      const settings = await Settings.findOne({ type: 'global' });
+      // Workers have no TDS/Platform fee under simplified flow
+      const tdsRate = isWorker ? 0 : (settings?.tdsPercentage || 1);
+      const platformFeeRate = isWorker ? 0 : (settings?.platformFeePercentage || 1);
+
+      const targetId = isWorker ? withdrawal.workerId : withdrawal.vendorId;
+      const TargetModel = isWorker ? Worker : Vendor;
+      const userTypeField = isWorker ? 'workerId' : 'vendorId';
+
+      const userRecord = await TargetModel.findById(targetId);
+      if (!userRecord) return res.status(404).json({ success: false, message: 'Provider not found' });
+
+      if (isWorker) {
+        if (userRecord.wallet.balance < withdrawal.amount) {
+          return res.status(400).json({
+            success: false,
+            message: `Insufficient balance. Available: ₹${userRecord.wallet.balance}`
+          });
+        }
+      } else {
+        if (userRecord.wallet.earnings < withdrawal.amount) {
+          return res.status(400).json({
+            success: false,
+            message: `Insufficient earnings. Available: ₹${userRecord.wallet.earnings}`
+          });
+        }
       }
 
       // Calculate Deductions
@@ -592,10 +713,14 @@ module.exports = {
       const platformFeeAmount = Math.round((grossAmount * platformFeeRate) / 100);
       const netAmount = grossAmount - tdsAmount - platformFeeAmount;
 
-      // Deduct full amount from vendor earnings (gross)
-      vendor.wallet.earnings -= grossAmount;
-      vendor.wallet.totalWithdrawn = (vendor.wallet.totalWithdrawn || 0) + grossAmount;
-      await vendor.save();
+      // Deduct full amount
+      if (isWorker) {
+        userRecord.wallet.balance -= grossAmount;
+      } else {
+        userRecord.wallet.earnings -= grossAmount;
+      }
+      userRecord.wallet.totalWithdrawn = (userRecord.wallet.totalWithdrawn || 0) + grossAmount;
+      await userRecord.save();
 
       // Update withdrawal with details
       withdrawal.status = 'approved';
@@ -611,16 +736,30 @@ module.exports = {
       await withdrawal.save();
 
       // Record withdrawal payout in earning tracker
-      // We pass the amount that legitimately left platform bounds to Vendor (including TDS tracking separately later if needed)
       recordWithdrawal(new Date(), grossAmount);
 
       // Send Withdrawal Approved Email
       const { sendWithdrawalApprovedEmail } = require('../../services/emailService');
-      sendWithdrawalApprovedEmail(vendor, grossAmount, transactionReference).catch(e => console.error(e));
+      sendWithdrawalApprovedEmail(userRecord, grossAmount, transactionReference).catch(e => console.error(e));
 
-      // Transaction 1: Withdrawal Payout (Gross Amount Debited from Wallet)
+      // Send Withdrawal Notification
+      const { createNotification } = require('../notificationControllers/notificationController');
+      createNotification({
+        [isWorker ? 'workerId' : 'vendorId']: targetId,
+        type: 'withdrawal_approved',
+        title: 'Withdrawal Approved',
+        message: `Your withdrawal request of ₹${grossAmount} has been successfully accepted.`,
+        relatedId: withdrawal._id,
+        relatedType: 'withdrawal',
+        data: {
+          amount: String(grossAmount),
+          transactionReference: transactionReference || ''
+        }
+      }).catch(e => console.error('Withdrawal notification error:', e));
+
+      // Transaction 1: Withdrawal Payout
       await Transaction.create({
-        vendorId: vendor._id,
+        [userTypeField]: userRecord._id,
         type: 'withdrawal',
         amount: grossAmount,
         status: 'completed',
@@ -638,38 +777,42 @@ module.exports = {
       });
 
       // Transaction 2: TDS Deduction
-      await Transaction.create({
-        vendorId: vendor._id,
-        type: 'tds_deduction',
-        amount: tdsAmount,
-        status: 'completed',
-        paymentMethod: 'system',
-        description: `TDS Deduction (${tdsRate}%) on withdrawal of ₹${grossAmount}`,
-        referenceId: transactionReference,
-        metadata: {
-          withdrawalId: withdrawal._id,
-          grossAmount,
-          tdsRate,
-          netAmountTransferred: netAmount
-        }
-      });
+      if (tdsAmount > 0) {
+        await Transaction.create({
+          [userTypeField]: userRecord._id,
+          type: 'tds_deduction',
+          amount: tdsAmount,
+          status: 'completed',
+          paymentMethod: 'system',
+          description: `TDS Deduction (${tdsRate}%) on withdrawal of ₹${grossAmount}`,
+          referenceId: transactionReference,
+          metadata: {
+            withdrawalId: withdrawal._id,
+            grossAmount,
+            tdsRate,
+            netAmountTransferred: netAmount
+          }
+        });
+      }
 
       // Transaction 3: Platform Fee Deduction
-      await Transaction.create({
-        vendorId: vendor._id,
-        type: 'platform_fee',
-        amount: platformFeeAmount,
-        status: 'completed',
-        paymentMethod: 'system',
-        description: `Platform Charge Fee (${platformFeeRate}%) on withdrawal of ₹${grossAmount}`,
-        referenceId: transactionReference,
-        metadata: {
-          withdrawalId: withdrawal._id,
-          grossAmount,
-          platformFeeRate,
-          netAmountTransferred: netAmount
-        }
-      });
+      if (platformFeeAmount > 0) {
+        await Transaction.create({
+          [userTypeField]: userRecord._id,
+          type: 'platform_fee',
+          amount: platformFeeAmount,
+          status: 'completed',
+          paymentMethod: 'system',
+          description: `Platform Charge Fee (${platformFeeRate}%) on withdrawal of ₹${grossAmount}`,
+          referenceId: transactionReference,
+          metadata: {
+            withdrawalId: withdrawal._id,
+            grossAmount,
+            platformFeeRate,
+            netAmountTransferred: netAmount
+          }
+        });
+      }
 
       res.status(200).json({
         success: true,
@@ -705,6 +848,21 @@ module.exports = {
       withdrawal.processedAt = new Date();
       withdrawal.rejectionReason = reason;
       await withdrawal.save();
+
+      // Send Withdrawal Rejection Notification
+      const { createNotification } = require('../notificationControllers/notificationController');
+      createNotification({
+        [withdrawal.workerId ? 'workerId' : 'vendorId']: withdrawal.workerId || withdrawal.vendorId,
+        type: 'withdrawal_rejected',
+        title: 'Withdrawal Rejected',
+        message: `Your withdrawal request of ₹${withdrawal.amount} has been rejected. Reason: ${reason}`,
+        relatedId: withdrawal._id,
+        relatedType: 'withdrawal',
+        data: {
+          amount: String(withdrawal.amount),
+          reason: reason || ''
+        }
+      }).catch(e => console.error('Withdrawal rejection notification error:', e));
 
 
 

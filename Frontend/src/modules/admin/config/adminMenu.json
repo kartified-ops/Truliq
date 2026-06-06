@@ -56,8 +56,7 @@
     ],
     "children": [
       "All Bookings",
-      "Booking Tracking",
-      "Booking Notifications"
+      "Booking Tracking"
     ]
   },
   {
@@ -80,8 +79,7 @@
       "User Payments",
       "Worker Payments",
       "Vendor Payments",
-      "Admin Revenue",
-      "Payment Reports"
+      "Admin Revenue"
     ]
   },
   {
@@ -112,26 +110,9 @@
     ]
   },
   {
-    "title": "Vendor Services",
-    "route": "/admin/user-categories/vendor-services",
-    "allowedRoles": [
-      "super_admin",
-      "admin"
-    ],
-    "children": []
-  },
-  {
-    "title": "Vendor Parts",
-    "route": "/admin/user-categories/vendor-parts",
-    "allowedRoles": [
-      "super_admin",
-      "admin"
-    ],
-    "children": []
-  },
-  {
     "title": "Reports",
     "route": "/admin/reports",
+    "isHidden": true,
     "allowedRoles": [
       "super_admin"
     ],

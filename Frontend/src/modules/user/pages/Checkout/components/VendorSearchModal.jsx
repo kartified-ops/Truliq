@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { themeColors } from '../../../../../theme';
 
-const VendorSearchModal = ({ isOpen, onClose, currentStep, acceptedVendor, onRetry, bookingModel = 'vendor' }) => {
+const VendorSearchModal = ({ isOpen, onClose, currentStep, acceptedVendor, onRetry, onTimeout, bookingModel = 'vendor', createdAt }) => {
   const [dots, setDots] = useState('.');
+  const [timeLeft, setTimeLeft] = useState(120);
 
   useEffect(() => {
     if (isOpen && (currentStep === 'searching' || currentStep === 'waiting')) {
@@ -12,6 +13,29 @@ const VendorSearchModal = ({ isOpen, onClose, currentStep, acceptedVendor, onRet
       return () => clearInterval(interval);
     }
   }, [isOpen, currentStep]);
+
+  useEffect(() => {
+    if (isOpen && (currentStep === 'searching' || currentStep === 'waiting')) {
+      let initialTime = 120;
+      if (createdAt) {
+        const elapsed = Math.floor((Date.now() - new Date(createdAt).getTime()) / 1000);
+        initialTime = Math.max(0, 120 - elapsed);
+      }
+      setTimeLeft(initialTime);
+
+      const timer = setInterval(() => {
+        setTimeLeft((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            onTimeout?.();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [isOpen, currentStep, onTimeout, createdAt]);
 
   if (!isOpen) return null;
 
@@ -55,15 +79,16 @@ const VendorSearchModal = ({ isOpen, onClose, currentStep, acceptedVendor, onRet
                   animationDuration: '4s'
                 }}></div>
 
-              {/* Center Core */}
+              {/* Center Core showing Search Icon / Loader */}
               <div className="relative z-10 w-20 h-20 bg-white rounded-full shadow-lg flex items-center justify-center p-1">
                 <div className="w-full h-full rounded-full flex items-center justify-center relative overflow-hidden"
                   style={{ background: `linear-gradient(135deg, ${themeColors.brand.teal}15, ${themeColors.brand.teal}05)` }}>
-                  {/* User Icon or Brand Icon */}
-                  <div className="w-3 h-3 rounded-full shadow-lg animate-pulse"
-                    style={{ backgroundColor: themeColors.brand.teal }}></div>
-                  <div className="absolute w-full h-full animate-pulse opacity-30 rounded-full"
-                    style={{ backgroundColor: themeColors.brand.teal }}></div>
+                  <div className="animate-pulse">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={themeColors.brand.teal} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="11" cy="11" r="8"></circle>
+                      <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                  </div>
                 </div>
               </div>
 
@@ -75,8 +100,11 @@ const VendorSearchModal = ({ isOpen, onClose, currentStep, acceptedVendor, onRet
             {/* Status Text */}
             <div className="text-center relative z-20 px-4 mb-4">
               <h3 className="text-xl font-black text-gray-900 mb-2">Searching nearby {bookingModel === 'worker' ? 'workers' : 'vendors'}</h3>
-              <p className="text-gray-400 text-xs font-bold uppercase tracking-widest leading-relaxed">
-                Searching within 10km radius{dots}
+              <p className="text-gray-500 text-xs font-bold leading-relaxed mb-1">
+                Please wait for a few minutes (2-3 minutes){dots}
+              </p>
+              <p className="text-gray-400 text-[10px] font-medium leading-relaxed">
+                This window will close automatically if no worker is assigned.
               </p>
             </div>
 
@@ -147,8 +175,8 @@ const VendorSearchModal = ({ isOpen, onClose, currentStep, acceptedVendor, onRet
             </div>
 
             <h3 className="text-2xl font-black text-gray-900 mb-2 italic">NO {bookingModel.toUpperCase()} FOUND</h3>
-            <p className="text-gray-400 text-[10px] text-center mb-10 px-8 font-black uppercase tracking-widest leading-relaxed">
-              We couldn't find any available {bookingModel}s in your area right now.
+            <p className="text-slate-500 text-sm font-bold text-center mb-10 px-8">
+              Request not accepted yet. You can resend it.
             </p>
 
             <button
@@ -156,7 +184,7 @@ const VendorSearchModal = ({ isOpen, onClose, currentStep, acceptedVendor, onRet
               className="w-full text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl transition-all active:scale-95 mb-4"
               style={{ background: themeColors.button }}
             >
-              Search Again
+              Resend Request
             </button>
             <button
               onClick={onClose}
@@ -173,4 +201,3 @@ const VendorSearchModal = ({ isOpen, onClose, currentStep, acceptedVendor, onRet
 };
 
 export default VendorSearchModal;
-

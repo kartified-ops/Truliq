@@ -27,6 +27,11 @@ const SettlementManagement = () => {
   const [modalInput, setModalInput] = useState('');
   const [modalInput2, setModalInput2] = useState('');
 
+  const isWorkerMode = settings?.bookingModel === 'worker';
+  const providerLabel = isWorkerMode ? 'Worker' : 'Vendor';
+  const providersLabel = isWorkerMode ? 'Workers' : 'Vendors';
+  const providerIdField = isWorkerMode ? 'workerId' : 'vendorId';
+
   // Determine active tab from URL
   useEffect(() => {
     const path = location.pathname.split('/').pop();
@@ -45,28 +50,35 @@ const SettlementManagement = () => {
     try {
       setLoading(true);
 
-      // Always load dashboard
-      const dashRes = await adminSettlementService.getDashboard();
+      // 1. Fetch settings to know if we are in Worker Mode
+      let currentBookingModel = 'vendor';
+      const setRes = await getSettings();
+      if (setRes.success) {
+        setSettings(setRes.settings);
+        currentBookingModel = setRes.settings.bookingModel || 'vendor';
+      }
+      
+      const queryParams = { model: currentBookingModel };
+
+      // 2. Load dashboard
+      const dashRes = await adminSettlementService.getDashboard(queryParams);
       if (dashRes.success) {
         setDashboard(dashRes.data);
       }
 
+      // 3. Load tab specific data
       if (activeTab === 'pending') {
-        const res = await adminSettlementService.getPendingSettlements();
+        const res = await adminSettlementService.getPendingSettlements(queryParams);
         if (res.success) setPendingSettlements(res.data || []);
       } else if (activeTab === 'vendors') {
-        const res = await adminSettlementService.getVendorBalances({ filterDue: 'true' });
+        const res = await adminSettlementService.getVendorBalances({ ...queryParams, filterDue: 'true' });
         if (res.success) setVendors(res.data || []);
       } else if (activeTab === 'history') {
-        const res = await adminSettlementService.getSettlementHistory();
+        const res = await adminSettlementService.getSettlementHistory(queryParams);
         if (res.success) setHistory(res.data || []);
       } else if (activeTab === 'withdrawals') {
-        const res = await adminSettlementService.getWithdrawalRequests();
+        const res = await adminSettlementService.getWithdrawalRequests(queryParams);
         if (res.success) setWithdrawals(res.data || []);
-
-        // Load settings for fee calculation
-        const setRes = await getSettings();
-        if (setRes.success) setSettings(setRes.settings);
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -255,10 +267,15 @@ const SettlementManagement = () => {
   };
 
   const handleExport = () => {
+    const isWorkerMode = settings?.bookingModel === 'worker';
+    const userTypeLabel = isWorkerMode ? 'Worker Name' : 'Vendor Name';
+    const userTypeKey = isWorkerMode ? 'workerId.name' : 'vendorId.name';
+    const businessNameKey = isWorkerMode ? 'workerId.name' : 'vendorId.businessName'; // Worker usually doesn't have businessName
+    
     if (activeTab === 'history' && history.length > 0) {
       exportToCSV(history, 'settlement_history', [
-        { key: 'vendorId.name', label: 'Vendor Name' },
-        { key: 'vendorId.businessName', label: 'Business Name' },
+        { key: userTypeKey, label: userTypeLabel },
+        { key: businessNameKey, label: isWorkerMode ? 'Phone' : 'Business Name' },
         { key: 'amount', label: 'Amount', type: 'currency' },
         { key: 'paymentMethod', label: 'Payment Method' },
         { key: 'paymentReference', label: 'Reference' },
@@ -266,9 +283,9 @@ const SettlementManagement = () => {
         { key: 'createdAt', label: 'Date', type: 'datetime' }
       ]);
     } else if (activeTab === 'vendors' && vendors.length > 0) {
-      exportToCSV(vendors, 'vendor_dues', [
-        { key: 'name', label: 'Vendor Name' },
-        { key: 'businessName', label: 'Business Name' },
+      exportToCSV(vendors, isWorkerMode ? 'worker_dues' : 'vendor_dues', [
+        { key: 'name', label: userTypeLabel },
+        { key: 'businessName', label: isWorkerMode ? 'Name' : 'Business Name' },
         { key: 'phone', label: 'Phone', type: 'phone' },
         { key: 'amountDue', label: 'Amount Due', type: 'currency' },
         { key: 'cashLimit', label: 'Cash Limit', type: 'currency' },
@@ -276,16 +293,16 @@ const SettlementManagement = () => {
       ]);
     } else if (activeTab === 'withdrawals' && withdrawals.length > 0) {
       exportToCSV(withdrawals, 'withdrawal_requests', [
-        { key: 'vendorId.name', label: 'Vendor Name' },
-        { key: 'vendorId.businessName', label: 'Business Name' },
+        { key: userTypeKey, label: userTypeLabel },
+        { key: businessNameKey, label: isWorkerMode ? 'Phone' : 'Business Name' },
         { key: 'amount', label: 'Amount', type: 'currency' },
         { key: 'status', label: 'Status' },
         { key: 'requestDate', label: 'Request Date', type: 'date' }
       ]);
     } else if (activeTab === 'pending' && pendingSettlements.length > 0) {
       exportToCSV(pendingSettlements, 'pending_settlements', [
-        { key: 'vendorId.name', label: 'Vendor Name' },
-        { key: 'vendorId.businessName', label: 'Business Name' },
+        { key: userTypeKey, label: userTypeLabel },
+        { key: businessNameKey, label: isWorkerMode ? 'Phone' : 'Business Name' },
         { key: 'amount', label: 'Amount', type: 'currency' },
         { key: 'paymentMethod', label: 'Payment Method' },
         { key: 'paymentReference', label: 'Reference' },
@@ -351,7 +368,7 @@ const SettlementManagement = () => {
 
       cards = [
         {
-          title: 'Total Due from Vendors',
+          title: `Total Due from ${providersLabel}`,
           value: `₹${totalDue.toLocaleString()}`,
           icon: FiDollarSign,
           color: 'text-red-600',
@@ -359,7 +376,7 @@ const SettlementManagement = () => {
           border: 'border-red-100'
         },
         {
-          title: 'Vendors with Dues',
+          title: `${providersLabel} with Dues`,
           value: totalVendors,
           icon: FiUsers,
           color: 'text-blue-600',
@@ -367,7 +384,7 @@ const SettlementManagement = () => {
           border: 'border-blue-100'
         },
         {
-          title: 'Blocked Vendors',
+          title: `Blocked ${providersLabel}`,
           value: blockedCount,
           icon: FiAlertCircle,
           color: 'text-orange-600',
@@ -484,7 +501,7 @@ const SettlementManagement = () => {
   const getPageTitle = () => {
     switch (activeTab) {
       case 'pending': return 'Pending Settlements';
-      case 'vendors': return 'Vendor Balances & Limits';
+      case 'vendors': return `${providerLabel} Balances & Limits`;
       case 'history': return 'Settlement History';
       case 'withdrawals': return 'Withdrawal Requests';
       default: return 'Settlements';
@@ -501,13 +518,15 @@ const SettlementManagement = () => {
       </div>
     ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {pendingSettlements.map(settlement => (
+        {pendingSettlements.map(settlement => {
+          const providerObj = settlement[providerIdField] || {};
+          return (
           <div key={settlement._id} className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-all">
             <div className="flex justify-between items-start gap-4">
               <div className="min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-bold text-gray-900">{settlement.vendorId?.name || 'Unknown Vendor'}</h3>
-                  <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">{settlement.vendorId?.businessName}</span>
+                  <h3 className="font-bold text-gray-900">{providerObj.name || `Unknown ${providerLabel}`}</h3>
+                  {!isWorkerMode && <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">{providerObj.businessName}</span>}
                 </div>
 
                 <div className="flex items-center gap-2 mb-2">
@@ -553,7 +572,7 @@ const SettlementManagement = () => {
               </div>
             )}
           </div>
-        ))}
+        )})}
       </div>
     )
   );
@@ -562,14 +581,14 @@ const SettlementManagement = () => {
     vendors.length === 0 ? (
       <div className="text-center py-10">
         <FiCheck className="w-12 h-12 mx-auto mb-3 text-gray-200" />
-        <p className="text-gray-500 text-sm font-medium">All vendors are settled!</p>
+        <p className="text-gray-500 text-sm font-medium">All {providersLabel.toLowerCase()} are settled!</p>
       </div>
     ) : (
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse min-w-[800px]">
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50">
-              <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Vendor Details</th>
+              <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">{providerLabel} Details</th>
               <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Cash Limit Status</th>
               <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Amount Due</th>
               <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
@@ -657,7 +676,9 @@ const SettlementManagement = () => {
       </div>
     ) : (
       <div className="space-y-3">
-        {history.map(settlement => (
+        {history.map(settlement => {
+          const providerObj = settlement[providerIdField] || {};
+          return (
           <div
             key={settlement._id}
             className={`bg-white rounded-xl p-4 border transition-all hover:shadow-md ${settlement.status === 'approved' ? 'border-l-4 border-l-green-500 border-gray-100' :
@@ -674,8 +695,14 @@ const SettlementManagement = () => {
                   {settlement.status === 'approved' ? <FiCheck /> : settlement.status === 'rejected' ? <FiX /> : <FiClock />}
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-gray-900">{settlement.vendorId?.name || 'Unknown'} <span className="font-normal text-gray-500">paid</span> ₹{settlement.amount?.toLocaleString()}</h4>
-                  <p className="text-xs text-gray-500">{formatDate(settlement.createdAt)} • via {settlement.paymentMethod}</p>
+                  <h4 className="text-sm font-bold text-gray-900">
+                    {settlement.type === 'withdrawal' ? (
+                      <>Payout to {providerObj.name || 'Unknown'} <span className="font-normal text-gray-500">of</span> ₹{settlement.amount?.toLocaleString()}</>
+                    ) : (
+                      <>{providerObj.name || 'Unknown'} <span className="font-normal text-gray-500">paid</span> ₹{settlement.amount?.toLocaleString()}</>
+                    )}
+                  </h4>
+                  <p className="text-xs text-gray-500">{formatDate(settlement.createdAt)} • via {settlement.paymentMethod === 'bank_transfer' ? 'Bank Transfer' : settlement.paymentMethod?.toUpperCase()}</p>
                 </div>
               </div>
               <div className="text-right">
@@ -691,7 +718,7 @@ const SettlementManagement = () => {
               </div>
             </div>
           </div>
-        ))}
+        )})}
       </div>
     )
   );
@@ -704,16 +731,21 @@ const SettlementManagement = () => {
       </div>
     ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {withdrawals.map(request => (
+        {withdrawals.map(request => {
+          const providerObj = request[providerIdField] || {};
+          return (
           <div key={request._id} className="bg-white rounded-xl p-5 shadow-sm border border-gray-200 hover:border-green-200 transition-all group">
             <div className="flex justify-between items-start mb-4">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-full bg-green-50 text-green-600 flex items-center justify-center font-bold text-lg">
-                  {request.vendorId?.name?.charAt(0)}
+                  {providerObj.name?.charAt(0)}
                 </div>
                 <div>
-                  <h3 className="font-bold text-gray-900">{request.vendorId?.name}</h3>
-                  <p className="text-xs text-gray-500">{request.vendorId?.businessName}</p>
+                  <h3 className="font-bold text-gray-900">{providerObj.name}</h3>
+                  <div className="text-xs text-gray-500 flex flex-col mt-0.5">
+                    {!isWorkerMode && providerObj.businessName && <span>{providerObj.businessName}</span>}
+                    {providerObj.phone && <span>{providerObj.phone}</span>}
+                  </div>
                 </div>
               </div>
               <div className="text-right">
@@ -724,8 +756,14 @@ const SettlementManagement = () => {
 
             <div className="bg-gray-50 rounded-lg p-3 mb-4 space-y-2">
               <div className="flex justify-between text-xs">
-                <span className="text-gray-500">Available Earnings</span>
-                <span className="font-bold text-gray-700">₹{request.vendorId?.wallet?.earnings?.toLocaleString() || 0}</span>
+                <span className="text-gray-500">
+                  {isWorkerMode ? 'Available Balance' : 'Available Earnings'}
+                </span>
+                <span className="font-bold text-gray-700">
+                  ₹{isWorkerMode 
+                    ? (providerObj.wallet?.balance?.toLocaleString() || 0)
+                    : (providerObj.wallet?.earnings?.toLocaleString() || 0)}
+                </span>
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-gray-500">Requested Date</span>
@@ -763,7 +801,7 @@ const SettlementManagement = () => {
               <p className="mt-3 text-xs text-gray-500 italic text-center">"{request.adminNotes}"</p>
             )}
           </div>
-        ))}
+        )})}
       </div>
     )
   );
@@ -818,7 +856,7 @@ const SettlementManagement = () => {
           <p className="text-gray-600">
             Are you sure you want to approve this settlement of
             <span className="font-bold text-gray-900 mx-1">₹{selectedItem?.amount?.toLocaleString()}</span>
-            from {selectedItem?.vendorId?.name}?
+            from {selectedItem?.[providerIdField]?.name}?
           </p>
           <div className="flex justify-end gap-3 mt-6">
             <Button variant="ghost" onClick={closeModals}>Cancel</Button>
@@ -866,7 +904,7 @@ const SettlementManagement = () => {
       <Modal
         isOpen={activeModal === 'block_vendor'}
         onClose={closeModals}
-        title="Block Vendor"
+        title={`Block ${providerLabel}`}
         size="sm"
       >
         <div className="space-y-4">
@@ -887,7 +925,7 @@ const SettlementManagement = () => {
               isLoading={actionLoading}
               className="bg-red-600 hover:bg-red-700 text-white"
             >
-              Block Vendor
+              Block {providerLabel}
             </Button>
           </div>
         </div>
@@ -897,7 +935,7 @@ const SettlementManagement = () => {
       <Modal
         isOpen={activeModal === 'unblock_vendor'}
         onClose={closeModals}
-        title="Unblock Vendor"
+        title={`Unblock ${providerLabel}`}
         size="sm"
       >
         <div className="space-y-4">
@@ -958,58 +996,24 @@ const SettlementManagement = () => {
         <div className="space-y-5">
           <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-white font-black text-sm">
-              {selectedItem?.vendorId?.name?.charAt(0) || 'V'}
+              {selectedItem?.[providerIdField]?.name?.charAt(0) || providerLabel.charAt(0)}
             </div>
             <div>
-              <p className="font-bold text-gray-900 text-sm">{selectedItem?.vendorId?.name}</p>
-              <p className="text-xs text-gray-500">{selectedItem?.vendorId?.businessName}</p>
+              <p className="font-bold text-gray-900 text-sm">{selectedItem?.[providerIdField]?.name}</p>
+              {!isWorkerMode && <p className="text-xs text-gray-500">{selectedItem?.[providerIdField]?.businessName}</p>}
             </div>
           </div>
 
-          {/* Fee Breakdown */}
-          <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 space-y-3">
-            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Payout Breakdown</h4>
-
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-gray-600">Gross Amount</span>
-              <span className="font-bold text-gray-900">₹{selectedItem?.amount?.toLocaleString()}</span>
-            </div>
-
-            <div className="flex justify-between items-center text-sm">
-              <div className="flex items-center gap-1">
-                <span className="text-gray-600">TDS Deduction</span>
-                <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold">{settings?.tdsPercentage || 1}%</span>
-              </div>
-              <span className="font-bold text-red-600">-₹{Math.round((selectedItem?.amount * (settings?.tdsPercentage || 1)) / 100).toLocaleString()}</span>
-            </div>
-
-            <div className="flex justify-between items-center text-sm">
-              <div className="flex items-center gap-1">
-                <span className="text-gray-600">Platform Charge</span>
-                <span className="text-[10px] bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded font-bold">{settings?.platformFeePercentage || 1}%</span>
-              </div>
-              <span className="font-bold text-red-600">-₹{Math.round((selectedItem?.amount * (settings?.platformFeePercentage || 1)) / 100).toLocaleString()}</span>
-            </div>
-
-            <div className="pt-3 border-t border-gray-200 flex justify-between items-center">
-              <span className="font-bold text-gray-800">Final Net Payout</span>
+          {/* Payout Amount */}
+          <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+            <div className="flex justify-between items-center">
+              <span className="font-bold text-gray-800">Payout Amount</span>
               <span className="text-xl font-black text-green-600">
-                ₹{Math.round(selectedItem?.amount - (selectedItem?.amount * (settings?.tdsPercentage || 1) / 100) - (selectedItem?.amount * (settings?.platformFeePercentage || 1) / 100)).toLocaleString()}
+                ₹{selectedItem?.amount?.toLocaleString()}
               </span>
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Transaction Reference</label>
-            <input
-              type="text"
-              value={modalInput}
-              onChange={(e) => setModalInput(e.target.value)}
-              placeholder="Enter Transaction ID / Ref No."
-              className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none"
-            />
-            <p className="text-xs text-gray-400 mt-1">Reference ID for the manual bank transfer.</p>
-          </div>
 
           <div className="flex justify-end gap-3 mt-4">
             <Button variant="ghost" onClick={closeModals}>Cancel</Button>

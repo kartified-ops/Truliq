@@ -68,21 +68,21 @@ const HelpSupport = () => {
     },
     {
       id: 'payment',
-      title: 'Payments & Wallet',
+      title: 'Payments',
       icon: FiClock,
       color: '#10B981',
       questions: [
         {
-          q: 'How do I add money to my wallet?',
-          a: 'Go to Wallet page, click on "Add Money", enter amount, and complete the payment using your preferred method.'
+          q: 'How do I pay for a service?',
+          a: 'Once your service is complete, the worker will collect payment directly from you. You can pay by cash or via online payment (UPI, Card, etc.) — whichever is convenient for you.'
         },
         {
-          q: 'Is my payment information secure?',
-          a: 'Yes, we use industry-standard encryption and never store your complete card details on our servers.'
+          q: 'Can I pay online instead of cash?',
+          a: 'Yes! After the worker completes the job, you can pay online using UPI, debit/credit card, or any digital payment method. The worker will share payment details at the time of collection.'
         },
         {
-          q: 'How long does refund take?',
-          a: 'Refunds are processed within 5-7 business days and will be credited to your original payment method or wallet.'
+          q: 'When do I pay — before or after the service?',
+          a: 'Payment is collected after the work is complete. The worker will visit your location, finish the job, and then collect the payment — either in cash or through online transfer.'
         },
       ]
     },
@@ -110,6 +110,7 @@ const HelpSupport = () => {
 
   // Quick actions
   const quickActions = [
+    /*
     {
       id: 'chat',
       title: 'WhatsApp Chat',
@@ -125,6 +126,7 @@ const HelpSupport = () => {
         }
       }
     },
+    */
     {
       id: 'email',
       title: 'Email Us',
@@ -245,14 +247,14 @@ const HelpSupport = () => {
           </div>
         </div>
 
-        {/* Submit a Request Button */}
-        <button
+        {/* Submit a Request Button - temporarily hidden */}
+        {/* <button
           onClick={() => setShowContactForm(true)}
           className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl p-4 font-semibold shadow-lg hover:shadow-xl transition-all active:scale-98 mb-6 flex items-center justify-center gap-2"
         >
           <FiSend className="w-5 h-5" />
           Submit a Request
-        </button>
+        </button> */}
 
         {/* FAQ Categories */}
         {searchQuery === '' && (

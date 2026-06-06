@@ -105,6 +105,35 @@ const Checkout = () => {
     return () => window.removeEventListener('focus', loadUserData);
   }, []);
 
+  // Restore active searching booking on reload/mount
+  useEffect(() => {
+    const activeBookingStr = localStorage.getItem('activeSearchingBooking');
+    if (activeBookingStr) {
+      try {
+        const activeBooking = JSON.parse(activeBookingStr);
+        const bookingId = activeBooking._id || activeBooking.id;
+        if (bookingId) {
+          bookingService.getById(bookingId).then((res) => {
+            if (res.success && (res.data.status === 'PENDING' || res.data.status === 'SEARCHING' || res.data.status === 'REQUESTED')) {
+              setBookingRequest(res.data);
+              setCurrentStep('waiting');
+              setSearchingVendors(true);
+              setShowVendorModal(true);
+            } else {
+              localStorage.removeItem('activeSearchingBooking');
+            }
+          }).catch((err) => {
+            console.error('Error fetching active booking details on reload', err);
+            localStorage.removeItem('activeSearchingBooking');
+          });
+        }
+      } catch (e) {
+        console.error('Error restoring active searching booking', e);
+        localStorage.removeItem('activeSearchingBooking');
+      }
+    }
+  }, []);
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -124,7 +153,7 @@ const Checkout = () => {
           const response = await userAuthService.getCheckoutData();
           if (response.success) {
             setVisitedFee(0); // Plans usually have 0 visitor fee
-            setGstPercentage(response.settings?.serviceGstPercentage || 18);
+            setGstPercentage(response.settings?.serviceGstPercentage ?? 18);
 
             if (response.user?.addresses?.length > 0) {
               const defaultAddr = response.user.addresses.find(a => a.isDefault) || response.user.addresses[0];
@@ -145,8 +174,8 @@ const Checkout = () => {
           const response = await userAuthService.getCheckoutData();
           if (response.success) {
             // Set Config
-            setVisitedFee(response.settings?.visitedCharges || 29);
-            setGstPercentage(response.settings?.serviceGstPercentage || 18);
+            setVisitedFee(response.settings?.visitedCharges ?? 29);
+            setGstPercentage(response.settings?.serviceGstPercentage ?? 18);
             setBookingModel('worker'); // Force 'worker' model for UI display
 
             // Set Addresses
@@ -361,6 +390,8 @@ const Checkout = () => {
         brandName: firstItem.sectionTitle || firstItem.brand || '',
         brandIcon: firstItem.sectionIcon || null,
 
+        bookingModel: bookingModel,
+
         contactDetails: {
           name: contactDetails.name,
           phone: contactDetails.phone.length === 10 && !contactDetails.phone.includes('+') ? `+91${contactDetails.phone}` : contactDetails.phone
@@ -385,6 +416,7 @@ const Checkout = () => {
           setSearchingVendors(false); // Finished search
         } else {
           // Normal flow: Entered pooling/searching
+          localStorage.setItem('activeSearchingBooking', JSON.stringify(response.data));
           setCurrentStep('waiting'); // Waiting for vendor acceptance
           // Keep searchingVendors = true to disable buttons and show progress
         }
@@ -431,6 +463,7 @@ const Checkout = () => {
         setAcceptedVendor(vendorData);
         setCurrentStep('accepted');
         setSearchingVendors(false);
+        localStorage.removeItem('activeSearchingBooking');
         toast.success(`${vendorData.businessName} accepted your booking!`);
 
         // Close modal after 2 seconds and navigate to confirmation
@@ -447,6 +480,7 @@ const Checkout = () => {
       if (data.bookingId === bookingRequest._id) {
         setSearchingVendors(false);
         setCurrentStep('failed');
+        localStorage.removeItem('activeSearchingBooking');
         toast.error(data.message || 'No workers available at the moment.');
 
         // Auto-cancel and refresh on failure
@@ -471,6 +505,19 @@ const Checkout = () => {
       socket.disconnect();
     };
   }, [currentStep, bookingRequest]);
+
+  const handleSearchTimeout = async () => {
+    if (!bookingRequest) return;
+    setSearchingVendors(false);
+    setCurrentStep('failed');
+    localStorage.removeItem('activeSearchingBooking');
+    toast.error('No workers accepted the booking request within the time limit.');
+    try {
+      await bookingService.cancel(bookingRequest._id, 'No vendors found after search timeout');
+    } catch (err) {
+      console.error('Auto-cancel failed on timeout:', err);
+    }
+  };
 
   // Search for nearby vendors
   const handleSearchVendors = async () => {
@@ -594,6 +641,7 @@ const Checkout = () => {
         brandName: firstItem.sectionTitle || firstItem.brand || '',
         brandIcon: firstItem.sectionIcon || null,
 
+        bookingModel: bookingModel,
         bookedItems: bookedItemsData
       });
 
@@ -608,6 +656,9 @@ const Checkout = () => {
 
       const booking = bookingResponse.data;
       setBookingRequest(booking);
+      if (!bookingResponse.noVendorsFound) {
+        localStorage.setItem('activeSearchingBooking', JSON.stringify(booking));
+      }
       toast.dismiss();
 
       // Clear cart immediately as search starts (consumes items) - ONLY if vendors found
@@ -656,21 +707,9 @@ const Checkout = () => {
           setTimeout(() => window.location.reload(), 2000);
         }
       } else {
-        // If online payment is selected, trigger it before moving to waiting state
-        if (paymentMethod === 'online' && amountToPay > 0) {
-          // We need to pass the booking request to the payment handler
-          // The handleOnlinePayment function uses acceptedVendor and bookingRequest from state
-          // So we ensure they are set first
-          setCurrentStep('payment'); // New step for payment processing
-          toast.dismiss();
-
-          // Custom inline payment trigger to avoid state timing issues
-          await handlePaymentForBooking(booking);
-        } else {
-          // Move to waiting state - alerts sent to nearby partners
-          setCurrentStep('waiting');
-          toast.success(`Finding nearby ${bookingModel}s... Alerts sent to ${bookingModel}s within 10km!`);
-        }
+        // Move to waiting state - alerts sent to nearby partners
+        setCurrentStep('waiting');
+        toast.success(`Finding nearby ${bookingModel}s... Alerts sent to ${bookingModel}s within 10km!`);
       }
 
       // REMOVED local setCartItems([]) - The summary should remain visible while searching
@@ -1511,7 +1550,7 @@ const Checkout = () => {
         <div className="bg-white border border-gray-200 rounded-lg p-4 mb-4">
           <h3 className="text-base font-bold text-black mb-2">Cancellation policy</h3>
           <p className="text-sm text-gray-700 mb-2">
-            Free cancellations if done more than 12 hrs before the service or if a professional isn't assigned. A fee will be charged otherwise.
+            You can cancel the booking before journey start.
           </p>
           <button
             onClick={() => navigate('/user/cancellation-policy')}
@@ -1660,9 +1699,11 @@ const Checkout = () => {
         currentStep={currentStep}
         acceptedVendor={acceptedVendor}
         bookingModel={bookingModel}
+        createdAt={bookingRequest?.createdAt}
         onRetry={() => {
           handleSearchVendors();
         }}
+        onTimeout={handleSearchTimeout}
       />
 
       {/* Contact Details Edit Modal */}

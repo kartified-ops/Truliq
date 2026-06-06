@@ -205,17 +205,16 @@ const Bookings = () => {
                 <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Status</th>
                 <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Payment</th>
                 <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Order Date</th>
-                <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {loading ? (
                 <tr>
-                  <td colSpan="8" className="px-4 py-8 text-center text-xs text-gray-500">Loading bookings...</td>
+                  <td colSpan="7" className="px-4 py-8 text-center text-xs text-gray-500">Loading bookings...</td>
                 </tr>
               ) : bookings.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="px-4 py-8 text-center text-xs text-gray-500">No bookings found</td>
+                  <td colSpan="7" className="px-4 py-8 text-center text-xs text-gray-500">No bookings found</td>
                 </tr>
               ) : (
                 bookings.map((booking) => (
@@ -243,7 +242,7 @@ const Bookings = () => {
                           booking.status === 'cancelled' ? 'bg-red-100 text-red-700' :
                             booking.status === 'in_progress' ? 'bg-purple-100 text-purple-700' :
                               'bg-yellow-100 text-yellow-700'}`}>
-                        {booking.status?.replace('_', ' ')}
+                        {booking.status === 'no_vendors' ? 'no worker' : booking.status?.replace('_', ' ')}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -255,11 +254,6 @@ const Bookings = () => {
                           year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
                         })}
                       </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <button className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors">
-                        <FiMoreVertical className="w-4 h-4" />
-                      </button>
                     </td>
                   </tr>
                 ))

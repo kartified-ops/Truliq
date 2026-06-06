@@ -9,6 +9,7 @@ import { OtpVerificationModal, ScanAndPayModal } from '../../components/common';
 import workerBillService from '../../../../services/workerBillService';
 import workerService from '../../../../services/workerService';
 import { publicCatalogService } from '../../../../services/catalogService';
+import { configService } from '../../../../services/configService';
 
 const BillingPage = () => {
   const { id } = useParams();
@@ -116,11 +117,24 @@ const BillingPage = () => {
         setIsOtpSent(true);
       }
 
-      const [servicesRes, partsRes, catRes] = await Promise.all([
+      const [servicesRes, partsRes, catRes, configRes] = await Promise.all([
         workerBillService.getServiceCatalog(),
         workerBillService.getPartsCatalog(),
-        publicCatalogService.getCategories().catch(() => ({ success: false }))
+        publicCatalogService.getCategories().catch(() => ({ success: false })),
+        configService.getSettings().catch(() => null)
       ]);
+
+      let gstFromConfig = 18;
+      let partsGstFromConfig = 18;
+      if (configRes && configRes.success && configRes.settings) {
+        gstFromConfig = configRes.settings.serviceGstPercentage ?? 18;
+        partsGstFromConfig = configRes.settings.partsGstPercentage ?? 18;
+      }
+
+      const isDirectWorker = jobData?.bookingModel === 'worker';
+      const defaultServiceSplit = isDirectWorker ? 100 : 90;
+      const defaultPartsSplit = 100;
+
       const services = servicesRes.services || [];
       const parts = partsRes.parts || [];
 
@@ -180,10 +194,17 @@ const BillingPage = () => {
         if (billRes.bill.payoutConfig) {
           const pc = billRes.bill.payoutConfig;
           setPayoutSettings({
-            serviceGstPct: pc.serviceGstPercentage ?? 18,
-            partsGstPct: pc.partsGstPercentage ?? 18,
-            servicePayoutPct: pc.serviceSplitPercentage ?? 90,
-            partsPayoutPct: pc.partsSplitPercentage ?? 100
+            serviceGstPct: pc.serviceGstPercentage ?? gstFromConfig,
+            partsGstPct: pc.partsGstPercentage ?? partsGstFromConfig,
+            servicePayoutPct: pc.serviceSplitPercentage ?? defaultServiceSplit,
+            partsPayoutPct: pc.partsSplitPercentage ?? defaultPartsSplit
+          });
+        } else {
+          setPayoutSettings({
+            serviceGstPct: gstFromConfig,
+            partsGstPct: partsGstFromConfig,
+            servicePayoutPct: defaultServiceSplit,
+            partsPayoutPct: defaultPartsSplit
           });
         }
 
@@ -201,6 +222,13 @@ const BillingPage = () => {
         else if (currentData.selectedServices?.length > 0) reachedStep = 1;
 
         setMaxStep(prev => Math.max(prev, reachedStep));
+      } else {
+        setPayoutSettings({
+          serviceGstPct: gstFromConfig,
+          partsGstPct: partsGstFromConfig,
+          servicePayoutPct: defaultServiceSplit,
+          partsPayoutPct: defaultPartsSplit
+        });
       }
     } catch (error) {
       console.error('Error loading billing data:', error);
@@ -467,10 +495,10 @@ const BillingPage = () => {
       const res = await workerService.initiateOnlineCollection(id, calculations.finalBillAmount, [...selectedParts, ...validCustomItems]);
       if (res.success) {
         setOnlinePaymentData(res.data);
-        setShowQrModal(true);
+        // setShowQrModal(true); // Don't show QR modal to worker
         setIsOtpSent(true); // Generated OTP is available concurrently
         setPaymentMode('online');
-        toast.success('QR Code and OTP generated!');
+        toast.success('payment notification send to user');
       } else {
         toast.error(res.message || 'Failed to initiate online payment');
       }
@@ -488,12 +516,12 @@ const BillingPage = () => {
       const res = await workerService.verifyOnlineCollection(id);
       if (res.success) {
         setShowQrModal(false);
-        toast.success('Payment verified successfully!');
+        toast.success('User successfully paid amount');
         localStorage.removeItem(`worker_billing_step_${id}`);
         localStorage.removeItem(`worker_billing_max_step_${id}`);
         localStorage.removeItem(`worker_billing_data_${id}`);
         fetchData();
-        navigate(`/worker/job/${id}`);
+        navigate('/worker');
       } else {
         toast.error(res.message || 'Payment not yet confirmed');
       }
@@ -505,20 +533,25 @@ const BillingPage = () => {
   // Listen for Real-Time Job Updates (e.g. Online Payment Success)
   useEffect(() => {
     if (socket && id) {
+      // Explicitly join room for this booking to receive real-time updates
+      socket.emit('join_tracking', id);
+
       const handleJobUpdate = (data) => {
-        if (data.bookingId === id || data.relatedId === id || data._id === id) {
+        const dataBookingId = data.bookingId?.toString() || data.relatedId?.toString() || data._id?.toString();
+        const targetId = id.toString();
+        if (dataBookingId === targetId) {
           const isPaymentSuccess =
             data.paymentStatus === 'SUCCESS' ||
             data.paymentStatus === 'paid' ||
             data.type === 'payment_success';
 
           if (isPaymentSuccess) {
-            toast.success('Online Payment Received!');
-            // Clean up and navigate back to job details
+            toast.success('User successfully paid amount');
+            // Clean up and navigate back to worker home
             localStorage.removeItem(`worker_billing_step_${id}`);
             localStorage.removeItem(`worker_billing_max_step_${id}`);
             localStorage.removeItem(`worker_billing_data_${id}`);
-            setTimeout(() => navigate(`/worker/job/${id}`), 1000);
+            setTimeout(() => navigate('/worker'), 1000);
           }
         }
       };
@@ -691,7 +724,13 @@ const BillingPage = () => {
     <div className="min-h-screen bg-gray-50 pb-0 flex flex-col">
       <div className="sticky top-0 z-50 bg-white">
         <div className="px-4 py-4 shadow-sm border-b border-gray-100 flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-full">
+          <button onClick={() => {
+            if (job.paymentStatus === 'paid' || job.paymentStatus === 'SUCCESS' || job.status === 'completed') {
+              navigate('/worker');
+            } else {
+              navigate(-1);
+            }
+          }} className="p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-full">
             <FiArrowLeft className="w-5 h-5" />
           </button>
           <div>
@@ -713,7 +752,13 @@ const BillingPage = () => {
             const isReached = step.id <= maxStep;
 
             return (
-              <button key={step.id} onClick={() => isReached && setCurrentStep(step.id)}
+              <button key={step.id} onClick={() => {
+                if (job.paymentStatus === 'paid' || job.paymentStatus === 'SUCCESS' || job.status === 'completed') {
+                  navigate('/worker');
+                } else if (isReached) {
+                  setCurrentStep(step.id);
+                }
+              }}
                 className={`flex flex-col items-center gap-1 z-10 relative transition-all ${isActive ? 'opacity-100 scale-105' : isReached ? 'opacity-80' : 'opacity-40'}`}>
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${(isActive || isCompleted) ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-gray-100 text-gray-400'} ${isActive ? 'ring-4 ring-blue-50' : ''}`}>
                   {isCompleted ? <FiCheck className="w-4 h-4" /> : <step.icon />}
@@ -1004,25 +1049,49 @@ const BillingPage = () => {
         )}
         {currentStep === 2 && (
           <>
-            <button onClick={() => setCurrentStep(1)} className="flex-1 py-3 text-gray-600 font-bold bg-white border border-gray-200 rounded-xl">Back</button>
+            <button onClick={() => {
+              if (job.paymentStatus === 'paid' || job.paymentStatus === 'SUCCESS' || job.status === 'completed') {
+                navigate('/worker');
+              } else {
+                setCurrentStep(1);
+              }
+            }} className="flex-1 py-3 text-gray-600 font-bold bg-white border border-gray-200 rounded-xl">Back</button>
             <button onClick={() => setCurrentStep(3)} className="flex-[2] py-3.5 bg-gray-900 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg">Next: Extras <FiArrowRight /></button>
           </>
         )}
         {currentStep === 3 && (
           <>
-            <button onClick={() => setCurrentStep(2)} className="flex-1 py-3 text-gray-600 font-bold bg-white border border-gray-200 rounded-xl">Back</button>
+            <button onClick={() => {
+              if (job.paymentStatus === 'paid' || job.paymentStatus === 'SUCCESS' || job.status === 'completed') {
+                navigate('/worker');
+              } else {
+                setCurrentStep(2);
+              }
+            }} className="flex-1 py-3 text-gray-600 font-bold bg-white border border-gray-200 rounded-xl">Back</button>
             <button onClick={() => setCurrentStep(4)} className="flex-[2] py-3.5 bg-gray-900 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg">Next: Transport <FiArrowRight /></button>
           </>
         )}
         {currentStep === 4 && (
           <>
-            <button onClick={() => setCurrentStep(3)} className="flex-1 py-3 text-gray-600 font-bold bg-white border border-gray-200 rounded-xl">Back</button>
+            <button onClick={() => {
+              if (job.paymentStatus === 'paid' || job.paymentStatus === 'SUCCESS' || job.status === 'completed') {
+                navigate('/worker');
+              } else {
+                setCurrentStep(3);
+              }
+            }} className="flex-1 py-3 text-gray-600 font-bold bg-white border border-gray-200 rounded-xl">Back</button>
             <button onClick={() => setCurrentStep(5)} className="flex-[2] py-3.5 bg-gray-900 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg">Next: Final Review <FiArrowRight /></button>
           </>
         )}
         {currentStep === 5 && (
           <>
-            <button onClick={() => setCurrentStep(4)} disabled={submitting || otpLoading} className="flex-1 py-3 text-gray-600 font-bold bg-white border border-gray-200 rounded-xl disabled:opacity-50">Back</button>
+            <button onClick={() => {
+              if (job.paymentStatus === 'paid' || job.paymentStatus === 'SUCCESS' || job.status === 'completed') {
+                navigate('/worker');
+              } else {
+                setCurrentStep(4);
+              }
+            }} disabled={submitting || otpLoading} className="flex-1 py-3 text-gray-600 font-bold bg-white border border-gray-200 rounded-xl disabled:opacity-50">Back</button>
             <div className="flex-[2] grid grid-cols-2 gap-2">
               {(isOtpSent && paymentMode === 'cash') ? (
                 <button onClick={() => setShowOtpModal(true)} disabled={otpLoading || qrLoading} className="py-3 bg-gray-900 text-white font-bold rounded-xl shadow-lg flex flex-col items-center justify-center gap-1 active:scale-95 transition-all text-[10px]">

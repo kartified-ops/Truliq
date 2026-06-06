@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, lazy, Suspense } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { FiMapPin, FiPhone, FiClock, FiUser, FiCheck, FiX, FiArrowRight, FiNavigation, FiTool, FiCheckCircle, FiDollarSign, FiCamera, FiPlus, FiTrash, FiXCircle, FiAward, FiFileText } from 'react-icons/fi';
+import { FiMapPin, FiPhone, FiClock, FiUser, FiCheck, FiX, FiArrowRight, FiNavigation, FiTool, FiCheckCircle, FiDollarSign, FiCamera, FiPlus, FiTrash, FiXCircle, FiAward, FiFileText, FiKey } from 'react-icons/fi';
 import { workerTheme as themeColors } from '../../../../theme';
 import Header from '../../components/layout/Header';
 import { SkeletonCard } from '../../../../components/common/SkeletonLoaders';
@@ -315,18 +315,36 @@ const JobDetails = () => {
 
   return (
     <div className="min-h-screen pb-20" style={{ background: themeColors.backgroundGradient }}>
-      <Header title="Job Details" />
+      <Header
+        title="Job Details"
+        onBack={() => {
+          if (window.history.state && window.history.state.idx > 0) {
+            navigate(-1);
+          } else {
+            navigate('/worker/dashboard');
+          }
+        }}
+      />
 
       <main className="px-4 py-6">
         {/* View Timeline Button */}
         <div className="mb-6">
-          <button
-            onClick={() => navigate(`/worker/job/${id}/timeline`)}
-            className="w-full bg-white border border-gray-200 py-4 rounded-2xl font-bold text-gray-700 flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all text-lg mb-4"
-          >
-            <FiClock className="w-5 h-5 text-gray-500" />
-            View Job Timeline
-          </button>
+          {job.status?.toLowerCase() === 'cancelled' ? (
+            <div className="w-full bg-red-50 border border-red-200 py-4 rounded-2xl font-bold text-red-600 flex items-center justify-center gap-2 shadow-sm text-lg mb-4">
+              <FiXCircle className="w-5 h-5 text-red-500" />
+              {job.workerResponse !== 'ACCEPTED' || job.cancellationReason?.toLowerCase().includes('timeout')
+                ? 'Request Expired / Not Accepted'
+                : 'User Cancelled Booking'}
+            </div>
+          ) : (
+            <button
+              onClick={() => navigate(`/worker/job/${id}/timeline`)}
+              className="w-full bg-white border border-gray-200 py-4 rounded-2xl font-bold text-gray-700 flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all text-lg mb-4"
+            >
+              <FiClock className="w-5 h-5 text-gray-500" />
+              View Job Timeline
+            </button>
+          )}
 
           {(!job.workerResponse || job.workerResponse === 'PENDING') && (job.status === 'confirmed' || job.status === 'assigned' || job.status === 'pending') && (
             <div className="flex gap-3 mb-4 animate-in slide-in-from-top-2">

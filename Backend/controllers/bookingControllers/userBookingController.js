@@ -58,7 +58,7 @@ const createBooking = async (req, res) => {
       requirementImages
     } = req.body;
 
-    let visitingCharges = reqVisitingCharges !== undefined ? reqVisitingCharges : (reqVisitationFee || 0);
+    let visitingCharges = reqVisitingCharges ?? reqVisitationFee;
 
     // Calculate total value from booked items or fallback to base (Move to top)
     let totalServiceValue = 0;
@@ -238,7 +238,7 @@ const createBooking = async (req, res) => {
           discount = reqDiscount || 0;
           const currentPromoDiscount = reqPromoDiscount || 0;
           tax = reqTax;
-          visitingCharges = (reqVisitingCharges !== undefined) ? reqVisitingCharges : (visitingCharges || 49);
+          visitingCharges = (reqVisitingCharges !== undefined) ? reqVisitingCharges : (visitingCharges ?? 49);
           finalAmount = Math.max(0, (basePrice - discount - currentPromoDiscount + tax + visitingCharges) + pendingPenalty);
         } else {
           // Backward compatibility: Reverse calculate
@@ -572,8 +572,9 @@ const createBooking = async (req, res) => {
               },
               pushData: {
                 type: 'new_booking',
+                bookingId: bookingForBackground._id.toString(),
                 dataOnly: false,
-                link: `/${bookingModel}/bookings/${bookingForBackground._id}`
+                link: bookingModel === 'worker' ? `/worker/job/${bookingForBackground._id}` : `/vendor/booking/${bookingForBackground._id}`
               }
             })
           );
@@ -812,7 +813,7 @@ const cancelBooking = async (req, res) => {
 
       if (hasReached) {
         // Professional Reached -> Full Visiting Charges
-        cancellationFee = booking.visitingCharges || 49;
+        cancellationFee = booking.visitingCharges ?? 49;
       } else {
         // Before Arrival (Journey Started) -> Dynamic Penalty
         cancellationFee = settingsPenalty;

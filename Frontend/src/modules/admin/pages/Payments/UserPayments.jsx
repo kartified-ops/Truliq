@@ -141,7 +141,7 @@ const UserPayments = () => {
       animate={{ opacity: 1, y: 0 }}
       className="space-y-6"
     >
-      {/* Stats Cards */}
+      {/* Stats Cards
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -205,6 +205,7 @@ const UserPayments = () => {
           </h3>
         </motion.div>
       </div>
+      */}
       {/* Filters & Search */}
       <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="relative w-full md:w-96">

@@ -26,7 +26,7 @@ function App() {
       window.dispatchEvent(new Event('userBookingsUpdated'));
 
       // Also dispatch generic one if needed
-      window.dispatchEvent(new Event('appNotificationReceived'));
+      window.dispatchEvent(new CustomEvent('appNotificationReceived', { detail: payload }));
 
       // REDUNDANT: We now have a rich SwipeableNotification in SocketContext.jsx 
       // which handles all internal socket notifications (emitted by Backend along with Push).

@@ -16,6 +16,8 @@ import {
   FiCheck
 } from 'react-icons/fi';
 import api from '../../../../services/api';
+import { getSettings } from '../../services/settingsService';
+import { toast } from 'react-hot-toast';
 
 // Report Card Component
 const ReportCard = ({ title, description, icon: Icon, color, status, onGenerate, loading }) => {
@@ -194,6 +196,25 @@ const PaymentReports = () => {
     return d.toISOString().split('T')[0];
   });
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [settings, setSettings] = useState(null);
+
+  const isWorkerMode = settings?.bookingModel === 'worker';
+  const providerLabel = isWorkerMode ? 'Worker' : 'Vendor';
+  const providersLabel = isWorkerMode ? 'Workers' : 'Vendors';
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const res = await getSettings();
+        if (res.success) {
+          setSettings(res.settings);
+        }
+      } catch (error) {
+        console.error('Failed to fetch settings:', error);
+      }
+    };
+    fetchSettings();
+  }, []);
 
   // Fetch Overview Stats
   useEffect(() => {
@@ -208,7 +229,8 @@ const PaymentReports = () => {
   const fetchOverview = async () => {
     try {
       setLoading(true);
-      const response = await api.get(`/admin/payments/overview?startDate=${startDate}&endDate=${endDate}`);
+      const modelParam = settings?.bookingModel ? `&model=${settings.bookingModel}` : '';
+      const response = await api.get(`/admin/payments/overview?startDate=${startDate}&endDate=${endDate}${modelParam}`);
       if (response.data.success) {
         setOverview(response.data.data);
       }
@@ -224,22 +246,23 @@ const PaymentReports = () => {
       setReportLoading(true);
       const token = localStorage.getItem('adminToken') || sessionStorage.getItem('adminToken');
 
+      const modelParam = settings?.bookingModel ? `&model=${settings.bookingModel}` : '';
       let endpoint = '';
       switch (activeReport) {
         case 'transactions':
-          endpoint = `/admin/payments/reports?startDate=${startDate}&endDate=${endDate}`;
+          endpoint = `/admin/payments/reports?startDate=${startDate}&endDate=${endDate}${modelParam}`;
           break;
         case 'gst':
-          endpoint = `/admin/payments/reports/gst?startDate=${startDate}&endDate=${endDate}`;
+          endpoint = `/admin/payments/reports/gst?startDate=${startDate}&endDate=${endDate}${modelParam}`;
           break;
         case 'tds':
-          endpoint = `/admin/payments/reports/tds?startDate=${startDate}&endDate=${endDate}`;
+          endpoint = `/admin/payments/reports/tds?startDate=${startDate}&endDate=${endDate}${modelParam}`;
           break;
         case 'cod':
-          endpoint = `/admin/payments/reports/cod`;
+          endpoint = `/admin/payments/reports/cod?startDate=${startDate}&endDate=${endDate}${modelParam}`;
           break;
         default:
-          endpoint = `/admin/payments/reports?startDate=${startDate}&endDate=${endDate}`;
+          endpoint = `/admin/payments/reports?startDate=${startDate}&endDate=${endDate}${modelParam}`;
       }
 
       const response = await api.get(endpoint);
@@ -262,22 +285,23 @@ const PaymentReports = () => {
       setDownloadingReport(reportType);
       const token = localStorage.getItem('adminToken') || sessionStorage.getItem('adminToken');
 
+      const modelParam = settings?.bookingModel ? `&model=${settings.bookingModel}` : '';
       let endpoint = '';
       switch (reportType) {
         case 'transactions':
-          endpoint = `/admin/payments/reports?startDate=${startDate}&endDate=${endDate}&format=csv`;
+          endpoint = `/admin/payments/reports?startDate=${startDate}&endDate=${endDate}&format=csv${modelParam}`;
           break;
         case 'gst':
-          endpoint = `/admin/payments/reports/gst?startDate=${startDate}&endDate=${endDate}&format=csv`;
+          endpoint = `/admin/payments/reports/gst?startDate=${startDate}&endDate=${endDate}&format=csv${modelParam}`;
           break;
         case 'tds':
-          endpoint = `/admin/payments/reports/tds?startDate=${startDate}&endDate=${endDate}&format=csv`;
+          endpoint = `/admin/payments/reports/tds?startDate=${startDate}&endDate=${endDate}&format=csv${modelParam}`;
           break;
         case 'cod':
-          endpoint = `/admin/payments/reports/cod?format=csv`;
+          endpoint = `/admin/payments/reports/cod?startDate=${startDate}&endDate=${endDate}&format=csv${modelParam}`;
           break;
         default:
-          endpoint = `/admin/payments/reports?startDate=${startDate}&endDate=${endDate}&format=csv`;
+          endpoint = `/admin/payments/reports?startDate=${startDate}&endDate=${endDate}&format=csv${modelParam}`;
       }
 
       const response = await api.get(endpoint, {
@@ -331,8 +355,8 @@ const PaymentReports = () => {
     },
     {
       id: 'cod',
-      title: 'Cash Collected by Vendor',
-      description: 'Track cash collected by vendors vs commission owed. Identify high-risk vendors.',
+      title: `Cash Collected by ${providerLabel}`,
+      description: `Track cash collected by ${providersLabel.toLowerCase()} vs commission owed. Identify high-risk ${providersLabel.toLowerCase()}.`,
       icon: FiAlertTriangle,
       color: 'orange',
       status: 'available'
@@ -348,7 +372,7 @@ const PaymentReports = () => {
           { key: 'bookingNumber', header: 'Booking ID' },
           { key: 'service', header: 'Service' },
           { key: 'customer', header: 'Customer' },
-          { key: 'vendor', header: 'Vendor' },
+          { key: 'providerName', header: providerLabel },
           { key: 'amount', header: 'Amount', render: (val) => `₹${(val || 0).toLocaleString('en-IN')}` },
           { key: 'platformFee', header: 'Platform Fee', render: (val) => `₹${(val || 0).toLocaleString('en-IN')}` },
           { key: 'paymentMethod', header: 'Method' },
@@ -375,7 +399,7 @@ const PaymentReports = () => {
         ];
       case 'tds':
         return [
-          { key: 'vendorName', header: 'Vendor Name' },
+          { key: 'providerName', header: `${providerLabel} Name` },
           { key: 'panNumber', header: 'PAN Number' },
           { key: 'grossSales', header: 'Gross Sales', render: (val) => `₹${(val || 0).toLocaleString('en-IN')}` },
           { key: 'tdsRate', header: 'Rate (%)', render: (val) => `${val}%` },
@@ -384,7 +408,7 @@ const PaymentReports = () => {
         ];
       case 'cod':
         return [
-          { key: 'vendorName', header: 'Vendor Name' },
+          { key: 'vendorName', header: `${providerLabel} Name` },
           { key: 'phone', header: 'Phone' },
           { key: 'totalCashCollected', header: 'Cash Collected', render: (val) => `₹${(val || 0).toLocaleString('en-IN')}` },
           {
@@ -446,9 +470,9 @@ const PaymentReports = () => {
           color="indigo"
         />
         <StatsCard
-          title="Vendor Earnings"
+          title={`${providerLabel} Earnings`}
           value={`₹${(overview?.revenue?.totalVendorEarnings || 0).toLocaleString('en-IN')}`}
-          subtitle="Total Vendors Gross"
+          subtitle={`Total ${providersLabel} Gross`}
           icon={FiDollarSign}
           color="teal"
         />
@@ -457,28 +481,28 @@ const PaymentReports = () => {
         <StatsCard
           title="Settlements Received"
           value={`₹${(overview?.revenue?.totalSettlementReceived || 0).toLocaleString('en-IN')}`}
-          subtitle="Vendors paid Platform"
+          subtitle={`${providersLabel} paid Platform`}
           icon={FiTrendingUp}
           color="emerald"
         />
         <StatsCard
           title="Pending Settlements (Owed)"
           value={`₹${(overview?.revenue?.totalPendingSettlement || 0).toLocaleString('en-IN')}`}
-          subtitle="Vendors negative balance"
+          subtitle={`${providersLabel} negative balance`}
           icon={FiAlertTriangle}
           color="orange"
         />
         <StatsCard
           title="Payouts Completed"
           value={`₹${(overview?.revenue?.totalAmountPaidToVendors || 0).toLocaleString('en-IN')}`}
-          subtitle="Platform paid Vendors"
+          subtitle={`Platform paid ${providersLabel}`}
           icon={FiCheck}
           color="blue"
         />
         <StatsCard
           title="Pending Payouts"
           value={`₹${(overview?.revenue?.totalPendingPayout || 0).toLocaleString('en-IN')}`}
-          subtitle="Vendors awaiting withdrawal"
+          subtitle={`${providersLabel} awaiting withdrawal`}
           icon={FiAlertTriangle}
           color="red"
         />
@@ -564,7 +588,7 @@ const PaymentReports = () => {
                 <>
                   <div><span className="text-gray-500">Total Gross Sales:</span> <span className="font-semibold">₹{(reportSummary.totalGrossSales || 0).toLocaleString('en-IN')}</span></div>
                   <div><span className="text-gray-500">Total TDS Liability:</span> <span className="font-semibold text-purple-600">₹{(reportSummary.totalTDS || 0).toFixed(2)}</span></div>
-                  <div><span className="text-gray-500">Vendors:</span> <span className="font-semibold">{reportSummary.vendorCount || 0}</span></div>
+                  <div><span className="text-gray-500">{providersLabel}:</span> <span className="font-semibold">{reportSummary.vendorCount || 0}</span></div>
                 </>
               )}
               {activeReport === 'cod' && (
@@ -578,7 +602,7 @@ const PaymentReports = () => {
                     <span className="font-semibold text-red-600 text-lg">₹{(reportSummary.totalOutstandingDues || 0).toLocaleString('en-IN')}</span>
                   </div>
                   <div>
-                    <span className="text-gray-500 block text-xs">High Risk Vendors</span>
+                    <span className="text-gray-500 block text-xs">High Risk {providersLabel}</span>
                     <span className="font-semibold text-red-600 text-lg">{reportSummary.highRiskCount || 0}</span>
                   </div>
                 </div>
@@ -587,7 +611,7 @@ const PaymentReports = () => {
                 <>
                   <div><span className="text-gray-500">Total Amount:</span> <span className="font-semibold">₹{(reportSummary.totalAmount || 0).toLocaleString('en-IN')}</span></div>
                   <div><span className="text-gray-500">Platform Commission:</span> <span className="font-semibold text-green-600">₹{(reportSummary.totalCommission || 0).toLocaleString('en-IN')}</span></div>
-                  <div><span className="text-gray-500">Vendor Earnings:</span> <span className="font-semibold">₹{(reportSummary.totalVendorEarnings || 0).toLocaleString('en-IN')}</span></div>
+                  <div><span className="text-gray-500">{providerLabel} Earnings:</span> <span className="font-semibold">₹{(reportSummary.totalVendorEarnings || 0).toLocaleString('en-IN')}</span></div>
                 </>
               )}
             </div>

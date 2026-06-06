@@ -2,6 +2,7 @@ const Booking = require('../../models/Booking');
 const VendorBill = require('../../models/VendorBill');
 const Settlement = require('../../models/Settlement');
 const Vendor = require('../../models/Vendor');
+const Worker = require('../../models/Worker');
 const User = require('../../models/User');
 const Settings = require('../../models/Settings');
 const PlatformEarning = require('../../models/PlatformEarning');
@@ -13,7 +14,10 @@ const { BOOKING_STATUS, PAYMENT_STATUS } = require('../../utils/constants');
  */
 const getFinanceOverview = async (req, res) => {
   try {
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, model = 'vendor' } = req.query;
+
+    const isWorker = model === 'worker';
+    const providerIdField = isWorker ? 'workerId' : 'vendorId';
 
     // Build date filter string for PlatformEarning Model (YYYY-MM-DD)
     const dateFilter = {};
@@ -61,12 +65,17 @@ const getFinanceOverview = async (req, res) => {
     revenueStats.totalPendingSettlement = latestSnapshot?.totalPendingSettlement || 0;
     revenueStats.totalPendingPayout = latestSnapshot?.totalPendingAmountToVendors || 0;
 
-    // 2. Pending Settlements (What we owe vendors)
+    // 2. Pending Settlements (What we owe providers)
+    const settlementQuery = { status: 'PENDING' };
+    
+    // In worker mode, we look for pending withdrawals by workers.
+    // In vendor mode, we look for pending settlements by vendors.
+    // Assuming Settlement model has workerId or vendorId.
+    settlementQuery[providerIdField] = { $ne: null };
+
     const pendingSettlements = await Settlement.aggregate([
       {
-        $match: {
-          status: 'PENDING'
-        }
+        $match: settlementQuery
       },
       {
         $group: {
@@ -131,7 +140,10 @@ const getFinanceOverview = async (req, res) => {
  */
 const getPaymentTransactions = async (req, res) => {
   try {
-    const { startDate, endDate, paymentMethod, status, page = 1, limit = 50, format = 'json' } = req.query;
+    const { startDate, endDate, paymentMethod, status, page = 1, limit = 50, format = 'json', model = 'vendor' } = req.query;
+
+    const isWorker = model === 'worker';
+    const providerIdField = isWorker ? 'workerId' : 'vendorId';
 
     const query = {};
 
@@ -149,7 +161,7 @@ const getPaymentTransactions = async (req, res) => {
 
     const bookings = await Booking.find(query)
       .populate('userId', 'name phone')
-      .populate('vendorId', 'businessName phone')
+      .populate(providerIdField, isWorker ? 'name phone' : 'businessName phone')
       .populate('serviceId', 'title')
       .select('bookingNumber finalAmount paymentMethod paymentStatus status createdAt completedAt razorpayPaymentId vendorBillId')
       .sort({ createdAt: -1 })
@@ -172,7 +184,7 @@ const getPaymentTransactions = async (req, res) => {
         bookingNumber: b.bookingNumber,
         service: b.serviceId?.title || 'N/A',
         customer: b.userId?.name || 'Guest',
-        vendor: b.vendorId?.businessName || 'Unassigned',
+        providerName: b[providerIdField]?.name || b[providerIdField]?.businessName || 'Unassigned',
         amount: bill?.grandTotal || b.finalAmount || 0,
         platformFee: bill?.companyRevenue || (b.finalAmount ? b.finalAmount * 0.2 : 0),
         vendorEarnings: bill?.vendorTotalEarning || (b.finalAmount ? b.finalAmount * 0.8 : 0),
@@ -318,16 +330,20 @@ const getGSTRReport = async (req, res) => {
  */
 const getTDSReport = async (req, res) => {
   try {
-    const { startDate, endDate, format = 'json' } = req.query;
+    const { startDate, endDate, format = 'json', model = 'vendor' } = req.query;
+
+    const isWorker = model === 'worker';
+    const providerIdField = isWorker ? 'workerId' : 'vendorId';
+    const collectionName = isWorker ? 'workers' : 'vendors';
 
     // Fetch TDS setting
     const settings = await Settings.findOne({ type: 'global' });
     const tdsRate = settings?.tdsPercentage || 1; // Default 1% if not set
 
     const query = {
-      status: BOOKING_STATUS.COMPLETED,
-      vendorId: { $ne: null }
+      status: BOOKING_STATUS.COMPLETED
     };
+    query[providerIdField] = { $ne: null };
 
     if (startDate && endDate) {
       query.completedAt = {
@@ -341,25 +357,25 @@ const getTDSReport = async (req, res) => {
       { $match: query },
       {
         $group: {
-          _id: '$vendorId',
+          _id: `$${providerIdField}`,
           grossSales: { $sum: '$finalAmount' },
           bookingCount: { $sum: 1 }
         }
       },
       {
         $lookup: {
-          from: 'vendors',
+          from: collectionName,
           localField: '_id',
           foreignField: '_id',
-          as: 'vendor'
+          as: 'provider'
         }
       },
-      { $unwind: '$vendor' },
+      { $unwind: '$provider' },
       {
         $project: {
-          vendorName: '$vendor.businessName',
-          vendorPhone: '$vendor.phone',
-          panNumber: { $ifNull: ['$vendor.panNumber', 'Not Provided'] },
+          providerName: isWorker ? '$provider.name' : '$provider.businessName',
+          providerPhone: '$provider.phone',
+          panNumber: { $ifNull: ['$provider.panNumber', 'Not Provided'] },
           grossSales: 1,
           tdsRate: { $literal: tdsRate },
           tdsAmount: { $multiply: ['$grossSales', (tdsRate / 100)] }, // Use Admin Setting Rate
@@ -399,7 +415,10 @@ const getTDSReport = async (req, res) => {
  */
 const getCODReport = async (req, res) => {
   try {
-    const { startDate, endDate, format = 'json' } = req.query;
+    const { startDate, endDate, format = 'json', model = 'vendor' } = req.query;
+
+    const isWorker = model === 'worker';
+    const providerIdField = isWorker ? 'workerId' : 'vendorId';
 
     const dateFilter = {};
     if (startDate && endDate) {
@@ -411,16 +430,16 @@ const getCODReport = async (req, res) => {
       };
     }
 
-    // Get all vendors (even if blocked/unapproved, as they might owe money)
-    const vendors = await Vendor.find({})
-      .select('businessName phone walletBalance')
-      .lean();
+    // Get all providers (even if blocked/unapproved, as they might owe money)
+    const providers = isWorker 
+      ? await Worker.find({}).select('name phone wallet.dues').lean()
+      : await Vendor.find({}).select('businessName phone walletBalance').lean();
 
-    // For each vendor, calculate their cash-related bookings
-    const reportData = await Promise.all(vendors.map(async (v) => {
+    // For each provider, calculate their cash-related bookings
+    const reportData = await Promise.all(providers.map(async (v) => {
       // Build match query
       const matchQuery = {
-        vendorId: v._id,
+        [providerIdField]: v._id,
         $or: [
           { cashCollected: true },
           { paymentMethod: { $in: ['pay_at_home', 'cash', 'COD', 'cod'] } }
@@ -446,7 +465,7 @@ const getCODReport = async (req, res) => {
 
       // Get company revenue from VendorBills for these cash bookings
       const vendorBillStats = await VendorBill.aggregate([
-        { $match: { vendorId: v._id, status: 'paid' } },
+        { $match: { [providerIdField]: v._id, status: 'paid' } },
         {
           $group: {
             _id: null,
@@ -458,17 +477,26 @@ const getCODReport = async (req, res) => {
       const cashData = cashBookings[0] || { totalCashCollected: 0, count: 0 };
       const billData = vendorBillStats[0] || { platformCommission: 0 };
 
-      // Outstanding dues = Commission they owe platform (if negative wallet, they owe)
-      const outstandingDues = v.walletBalance < 0 ? Math.abs(v.walletBalance) : 0;
+      // Outstanding dues
+      let outstandingDues = 0;
+      let walletBalance = 0;
+      if (isWorker) {
+        outstandingDues = v.wallet?.dues || 0;
+        walletBalance = -outstandingDues;
+      } else {
+        outstandingDues = v.walletBalance < 0 ? Math.abs(v.walletBalance) : 0;
+        walletBalance = v.walletBalance;
+      }
+      
       const riskLevel = outstandingDues > 5000 ? 'HIGH' : (outstandingDues > 1000 ? 'MEDIUM' : 'LOW');
 
       return {
-        vendorName: v.businessName || 'Unknown',
+        vendorName: isWorker ? v.name : (v.businessName || 'Unknown'),
         phone: v.phone,
         totalCashCollected: cashData.totalCashCollected,
         platformCommissionDue: billData.platformCommission,
         cashBookingCount: cashData.count,
-        walletBalance: v.walletBalance, // Current live wallet status
+        walletBalance: walletBalance, // Current live wallet status
         outstandingDues,
         riskLevel
       };

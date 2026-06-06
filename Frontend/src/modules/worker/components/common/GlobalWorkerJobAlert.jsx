@@ -165,12 +165,55 @@ export default function GlobalWorkerJobAlert() {
       }
     };
 
+    const handlePushNotification = async (e) => {
+      const payload = e.detail || {};
+      const data = payload.data || {};
+
+      if ((data.type === 'job_assigned' || data.type === 'new_booking') && data.bookingId && data.bookingId !== 'test-id') {
+        try {
+          const res = await workerService.getJobById(data.bookingId);
+          if (res.data) {
+            const jobData = res.data;
+            const newJob = {
+              id: jobData._id,
+              _id: jobData._id,
+              serviceType: jobData.serviceId?.title || jobData.serviceName || 'Service Job',
+              customerName: jobData.userId?.name || 'Customer',
+              customerPhone: jobData.userId?.phone,
+              location: {
+                address: jobData.address?.addressLine1 || jobData.address?.address || 'Location shared',
+              },
+              price: jobData.finalAmount || jobData.price,
+              scheduledDate: jobData.scheduledDate,
+              scheduledTime: jobData.scheduledTime,
+              timeSlot: {
+                date: jobData.scheduledDate ? new Date(jobData.scheduledDate).toLocaleDateString() : '',
+                time: jobData.scheduledTime
+              },
+              status: jobData.status,
+              createdAt: new Date().toISOString()
+            };
+
+            setActiveAlerts(prev => {
+              if (prev.find(b => String(b.id || b._id) === String(newJob.id))) return prev;
+              playAlertRing(true);
+              return [newJob, ...prev];
+            });
+          }
+        } catch (err) {
+          console.error("Failed to fetch job details for push notification", err);
+        }
+      }
+    };
+
     window.addEventListener('showWorkerJobAlert', handleShowAlert);
     window.addEventListener('removeWorkerJobAlert', handleRemoveAlert);
+    window.addEventListener('appNotificationReceived', handlePushNotification);
 
     return () => {
       window.removeEventListener('showWorkerJobAlert', handleShowAlert);
       window.removeEventListener('removeWorkerJobAlert', handleRemoveAlert);
+      window.removeEventListener('appNotificationReceived', handlePushNotification);
       stopAlertRing();
     };
   }, []);

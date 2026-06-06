@@ -230,7 +230,9 @@ const AssignedJobs = () => {
                               boxShadow: `0 2px 8px ${hexToRgba(statusColor, 0.3)}`,
                             }}
                           >
-                            {getStatusLabel(job.status)}
+                            {job.status?.toLowerCase() === 'cancelled' && (job.workerResponse !== 'ACCEPTED' || job.cancellationReason?.toLowerCase().includes('timeout'))
+                              ? 'Expired'
+                              : getStatusLabel(job.status)}
                           </span>
                         </div>
                       </div>

@@ -9,7 +9,6 @@ import { registerFCMToken } from '../../../../services/pushNotificationService';
 import { SkeletonProfileHeader, SkeletonDashboardStats, SkeletonList } from '../../../../components/common/SkeletonLoaders';
 import OptimizedImage from '../../../../components/common/OptimizedImage';
 import { useSocket } from '../../../../context/SocketContext';
-import WorkerJobAlertModal from '../../components/bookings/WorkerJobAlertModal';
 import LogoLoader from '../../../../components/common/LogoLoader';
 
 
@@ -77,8 +76,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const socket = useSocket();
-
-  const [alertJobId, setAlertJobId] = useState(null);
+  const [socketStatus, setSocketStatus] = useState('Checking...');
   const [isOnline, setIsOnline] = useState(false);
   const [togglingOnline, setTogglingOnline] = useState(false);
   const [locationWatchId, setLocationWatchId] = useState(null);
@@ -214,6 +212,8 @@ const Dashboard = () => {
             time: job.scheduledTime || 'N/A',
             status: job.status,
             price: job.finalAmount,
+            workerResponse: job.workerResponse,
+            cancellationReason: job.cancellationReason,
           })));
         }
       }
@@ -254,44 +254,10 @@ const Dashboard = () => {
   // Socket Listener for New Jobs
   useEffect(() => {
     if (!socket) return;
-
-    const handleNotification = (notif) => {
-      // Listen for new job assignments
-      if ((notif.type === 'booking_created' || notif.type === 'job_assigned') && notif.relatedId) {
-        setAlertJobId(notif.relatedId);
-      }
-    };
-
-    socket.on('notification', handleNotification);
-
-    // Listen for real-time alert events from SocketContext
-    const handleJobAlert = (e) => {
-      const jobData = e.detail;
-      if (jobData && jobData.id) {
-        setAlertJobId(jobData.id);
-      }
-    };
-
-    window.addEventListener('showWorkerJobAlert', handleJobAlert);
-
-    // Listen for push notifications in foreground
-    const handlePushNotification = (e) => {
-      const payload = e.detail || {};
-      const data = payload.data || {};
-
-      // Only open modal for real job assignments with a valid bookingId
-      if (data.type === 'job_assigned' && data.bookingId && data.bookingId !== 'test-id') {
-        setAlertJobId(data.bookingId);
-      }
-      // 'test' type notifications just show the toast - no modal
-    };
-
-    window.addEventListener('appNotificationReceived', handlePushNotification);
-
+    
+    // Test type notifications or other minor notifications can be handled here if needed in future
+    
     return () => {
-      socket.off('notification', handleNotification);
-      window.removeEventListener('showWorkerJobAlert', handleJobAlert);
-      window.removeEventListener('appNotificationReceived', handlePushNotification);
     };
   }, [socket, recentJobs]);
 
@@ -538,6 +504,28 @@ const Dashboard = () => {
               ) : isOnline ? 'Go Offline' : 'Go Online'}
             </button>
           </div>
+        </div>
+
+        <div className="px-4 pt-2 pb-1">
+          <button
+            onClick={() => {
+              const testJob = {
+                id: 'test-id-' + Date.now(),
+                _id: 'test-id-' + Date.now(),
+                serviceType: 'AC Service (Test)',
+                customerName: 'Test Customer',
+                customerPhone: '9876543210',
+                location: { address: '123 Test Street, Test City' },
+                price: 499,
+                status: 'ASSIGNED',
+                createdAt: new Date().toISOString()
+              };
+              window.dispatchEvent(new CustomEvent('showWorkerJobAlert', { detail: testJob }));
+            }}
+            className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all"
+          >
+            TEST CALL CARD
+          </button>
         </div>
 
         {/* Notification Status & Debug - NEW */}
@@ -876,7 +864,9 @@ const Dashboard = () => {
                                 border: `1px solid ${accentColor}30`,
                               }}
                             >
-                              {getStatusLabel(job.status)}
+                              {job.status?.toLowerCase() === 'cancelled' && (job.workerResponse !== 'ACCEPTED' || job.cancellationReason?.toLowerCase().includes('timeout'))
+                                ? 'Expired'
+                                : getStatusLabel(job.status)}
                             </span>
                           </div>
                         </div>
@@ -941,17 +931,6 @@ const Dashboard = () => {
           <FiBell className="w-7 h-7 text-white" />
         </button>
       </div>
-
-      <WorkerJobAlertModal
-        isOpen={!!alertJobId}
-        jobId={alertJobId}
-        onClose={() => setAlertJobId(null)}
-        onJobAccepted={(id) => {
-          fetchDashboardData();
-          navigate(`/worker/job/${id}`);
-        }}
-      />
-
 
     </div >
   );

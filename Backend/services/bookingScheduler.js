@@ -106,10 +106,11 @@ class BookingScheduler {
         console.error('[BookingScheduler] Settings fetch error:', sErr);
       }
 
-      // --- CIRCUIT BREAKER: Fast query to detect if any work is needed ---
       const activeBookings = await Booking.find(
         {
-          status: BOOKING_STATUS.SEARCHING,
+          status: { $in: [BOOKING_STATUS.SEARCHING, BOOKING_STATUS.CONFIRMED] },
+          vendorId: null,
+          workerId: null,
           waveStartedAt: { $ne: null },
           $or: [
             { potentialVendors: { $exists: true, $not: { $size: 0 } } },
@@ -122,6 +123,7 @@ class BookingScheduler {
       if (activeBookings.length === 0) {
         return false; // Idle — caller will use longer interval
       }
+
 
       const now = Date.now();
 
@@ -145,12 +147,41 @@ class BookingScheduler {
             if (totalElapsed > MAX_SEARCH_TIME_MS) {
               console.log(`[BookingScheduler] ${booking.bookingNumber}: Search timed out. Cancelling.`);
 
-              await Booking.findByIdAndUpdate(booking._id, {
-                $set: {
-                  status: BOOKING_STATUS.NO_VENDORS,
-                  cancellationReason: `No ${bookingModel} accepted within time limit`
+              const bookingDoc = await Booking.findById(booking._id);
+              if (bookingDoc) {
+                let refundAmount = 0;
+                if (bookingDoc.paymentStatus === 'SUCCESS' && ['wallet', 'razorpay', 'upi', 'card'].includes(bookingDoc.paymentMethod)) {
+                  refundAmount = bookingDoc.finalAmount;
                 }
-              });
+
+                if (refundAmount > 0) {
+                  const User = require('../models/User');
+                  const Transaction = require('../models/Transaction');
+                  const user = await User.findById(bookingDoc.userId);
+                  if (user) {
+                    user.wallet.balance = (user.wallet.balance || 0) + refundAmount;
+                    await user.save();
+
+                    await Transaction.create({
+                      userId: user._id,
+                      type: 'refund',
+                      amount: refundAmount,
+                      status: 'completed',
+                      paymentMethod: 'wallet',
+                      description: `Auto-refund for timed-out booking #${bookingDoc.bookingNumber}`,
+                      bookingId: bookingDoc._id,
+                      balanceAfter: user.wallet.balance
+                    });
+                  }
+                  bookingDoc.paymentStatus = 'REFUNDED';
+                }
+
+                bookingDoc.status = BOOKING_STATUS.NO_VENDORS;
+                bookingDoc.cancellationReason = `No ${bookingModel} accepted within time limit`;
+                bookingDoc.cancelledAt = new Date();
+                bookingDoc.cancelledBy = 'system';
+                await bookingDoc.save();
+              }
 
               // Notify User
               if (this.io) {

@@ -291,8 +291,8 @@ const Account = () => {
             </div>
           </motion.div>
 
-          {/* Designer Active Plan Card */}
-          {userProfile.plans && userProfile.plans.isActive && (
+          {/* Designer Active Plan Card - temporarily hidden */}
+          {/* {userProfile.plans && userProfile.plans.isActive && (
             <motion.div
               variants={itemVariants}
               onClick={() => navigate('/user/my-plan')}
@@ -302,7 +302,6 @@ const Account = () => {
                 boxShadow: `0 20px 40px -12px ${themeColors.brand.teal}40`
               }}
             >
-              {/* Decorative elements */}
               <div className="absolute -right-6 -top-6 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:scale-125 transition-transform duration-700"></div>
               <div className="absolute -left-10 -bottom-10 w-40 h-40 bg-black/10 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-500"></div>
 
@@ -329,10 +328,10 @@ const Account = () => {
                 <FiChevronRight className="w-5 h-5 opacity-70 group-hover:translate-x-1 transition-transform" />
               </div>
             </motion.div>
-          )}
+          )} */}
 
-          {/* Quick Actions Grid */}
-          <motion.div variants={itemVariants} className="grid grid-cols-2 gap-3 mb-6">
+          {/* Quick Actions Grid - Balance, Rewards & Earn cards temporarily hidden */}
+          {/* <motion.div variants={itemVariants} className="grid grid-cols-2 gap-3 mb-6">
             <button
               onClick={() => navigate('/user/wallet')}
               className="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all text-left group"
@@ -363,24 +362,19 @@ const Account = () => {
                 </div>
               </div>
             </button>
-          </motion.div>
+          </motion.div> */}
 
           {/* Menu Groups */}
 
-          {/* Shopping */}
-          <motion.div variants={itemVariants} className="mb-6">
+          {/* Shopping - temporarily hidden */}
+          {/* <motion.div variants={itemVariants} className="mb-6">
             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 pl-2">Shopping</h3>
-            {/* <MenuItem
-              icon={FiShoppingBag}
-              label="Scrap Deals"
-              onClick={() => navigate('/user/scrap')}
-            /> */}
             <MenuItem
               icon={FiFileText}
               label="My Plans"
               onClick={() => navigate('/user/my-plan')}
             />
-          </motion.div>
+          </motion.div> */}
 
           {/* Activity */}
           <motion.div variants={itemVariants} className="mb-6">

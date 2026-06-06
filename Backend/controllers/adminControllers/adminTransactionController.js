@@ -243,7 +243,7 @@ const getTransactionStats = async (req, res) => {
         {
           $group: {
             _id: null,
-            totalRevenue: { $sum: '$totalRevenue' },
+            totalRevenue: { $sum: '$totalWorkerSubscriptionRevenue' },
             totalCommission: { $sum: '$platformCommission' },
             totalGST: { $sum: '$totalGST' },
             totalVendorEarnings: { $sum: '$vendorEarnings' }

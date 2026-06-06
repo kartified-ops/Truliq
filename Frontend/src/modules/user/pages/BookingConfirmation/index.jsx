@@ -113,9 +113,11 @@ const BookingConfirmation = () => {
           }
           setBooking(data);
 
-          // Check if vendor is already assigned
+          // Check if vendor/worker is already assigned or in terminal status
           const currentStatus = data.status?.toLowerCase();
-          if (data.vendorId || (currentStatus !== 'requested' && currentStatus !== 'searching')) {
+          const hasProvider = !!(data.vendorId || data.workerId);
+          const isTerminal = ['expired', 'cancelled', 'rejected', 'failed', 'timeout', 'completed'].includes(currentStatus);
+          if (hasProvider || isTerminal || (currentStatus !== 'requested' && currentStatus !== 'searching' && currentStatus !== 'confirmed')) {
             setIsSearching(false);
           }
         } else {
@@ -152,9 +154,11 @@ const BookingConfirmation = () => {
           }
 
           setBooking(updatedBooking);
-          // If vendor accepted or status changed
+          // If vendor accepted or status changed to terminal/assigned
           const currentStatus = updatedBooking.status?.toLowerCase();
-          if (updatedBooking.vendorId || (currentStatus !== 'requested' && currentStatus !== 'searching')) {
+          const hasProvider = !!(updatedBooking.vendorId || updatedBooking.workerId);
+          const isTerminal = ['expired', 'cancelled', 'rejected', 'failed', 'timeout', 'completed'].includes(currentStatus);
+          if (hasProvider || isTerminal || (currentStatus !== 'requested' && currentStatus !== 'searching' && currentStatus !== 'confirmed')) {
             setIsSearching(false);
             clearInterval(pollInterval);
           }
@@ -283,8 +287,8 @@ const BookingConfirmation = () => {
             </div>
           )}
 
-          {/* Success Icon - Show when confirmed */}
-          {!isSearching && ['confirmed', 'assigned', 'journey_started', 'work_in_progress', 'visited', 'work_done', 'completed'].includes(booking?.status?.toLowerCase()) && (
+          {/* Success Icon - Show when confirmed and worker/vendor is assigned */}
+          {!isSearching && (booking?.vendorId || booking?.workerId) && ['confirmed', 'assigned', 'journey_started', 'work_in_progress', 'visited', 'work_done', 'completed'].includes(booking?.status?.toLowerCase()) && (
             <div className="flex flex-col items-center justify-center mb-6">
               <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mb-4">
                 <FiCheckCircle className="w-12 h-12 text-green-600" />
@@ -296,15 +300,15 @@ const BookingConfirmation = () => {
             </div>
           )}
 
-          {/* Request Sent Icon - Show when status is requested but searching animation is stopped */}
-          {!isSearching && booking?.status?.toLowerCase() === 'requested' && (
+          {/* Request Pending Icon - Show when no worker/vendor is assigned yet and searching animation is stopped */}
+          {!isSearching && (!booking?.vendorId && !booking?.workerId) && !['expired', 'cancelled', 'rejected', 'failed', 'timeout'].includes(booking?.status?.toLowerCase()) && (
             <div className="flex flex-col items-center justify-center mb-6">
               <div className="w-20 h-20 rounded-full bg-amber-50 flex items-center justify-center mb-4 border border-amber-100 shadow-sm">
                 <FiBell className="w-10 h-10 text-amber-500 animate-pulse" />
               </div>
-              <h1 className="text-2xl font-black text-gray-900 mb-2 italic tracking-tight">REQUEST SENT!</h1>
-              <p className="text-sm text-gray-500 text-center max-w-[260px] font-medium leading-relaxed">
-                Your request has been broadcasted to all nearby experts. We'll notify you the moment someone accepts.
+              <h1 className="text-2xl font-black text-amber-600 mb-2 tracking-tight">Booking Request Pending!</h1>
+              <p className="text-sm text-gray-500 text-center max-w-[280px] font-medium leading-relaxed">
+                We will let you know when the worker accepts your booking.
               </p>
             </div>
           )}
@@ -336,12 +340,12 @@ const BookingConfirmation = () => {
                 <p className="text-xs text-gray-500 mb-1">Booking ID</p>
                 <p className="text-base font-bold text-black">{booking.bookingNumber || booking._id || booking.id}</p>
               </div>
-              <div className={`px-3 py-1.5 rounded-full ${(isSearching || booking?.status?.toLowerCase() === 'requested')
+              <div className={`px-3 py-1.5 rounded-full ${(isSearching || booking?.status?.toLowerCase() === 'requested' || (!booking.vendorId && !booking.workerId))
                 ? 'bg-amber-50 text-amber-700 border border-amber-200'
                 : 'bg-green-50 text-green-700 border border-green-200'
                 }`}>
                 <span className="text-sm font-semibold">
-                  {isSearching ? 'Finding Vendor...' : (booking?.status?.toLowerCase() === 'requested' ? 'Request Sent' : 'Confirmed')}
+                  {(isSearching || (!booking.vendorId && !booking.workerId)) ? 'Booking Pending' : 'Confirmed'}
                 </span>
               </div>
             </div>

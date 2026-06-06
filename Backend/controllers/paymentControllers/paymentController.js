@@ -130,9 +130,7 @@ const verifyPaymentWebhook = async (req, res) => {
     booking.paymentId = razorpay_payment_id;
 
     // Update booking status based on current state
-    if ([BOOKING_STATUS.PENDING, BOOKING_STATUS.SEARCHING, BOOKING_STATUS.AWAITING_PAYMENT].includes(booking.status)) {
-      booking.status = BOOKING_STATUS.CONFIRMED;
-    } else if (booking.status === BOOKING_STATUS.WORK_DONE) {
+    if (booking.status === BOOKING_STATUS.WORK_DONE) {
       booking.status = BOOKING_STATUS.COMPLETED;
       booking.completedAt = new Date();
     }
@@ -160,9 +158,10 @@ const verifyPaymentWebhook = async (req, res) => {
     // Fetch VendorBill for earnings (only if bill exists = post-completion payment)
     const bill = await VendorBill.findOne({ bookingId: booking._id });
 
+    const isWorkerBooking = booking.bookingModel === 'worker';
+
     if (bill) {
-      const isWorkerBooking = booking.bookingModel === 'worker';
-      const partnerEarning = bill.vendorTotalEarning;
+      const partnerEarning = isWorkerBooking ? bill.grandTotal : bill.vendorTotalEarning;
 
       // Mark bill as paid
       bill.status = 'paid';
@@ -261,15 +260,39 @@ const verifyPaymentWebhook = async (req, res) => {
       });
     }
 
-    if (booking.workerId) {
-      await createNotification({
-        workerId: booking.workerId,
-        type: 'payment_success',
-        title: vendorTitle,
-        message: vendorMsg,
-        relatedId: booking._id,
-        relatedType: 'booking',
-        priority: 'high'
+    // --- SOCKET EMISSION ---
+    const io = req.app.get('io');
+    if (io) {
+      const bookingIdStr = booking._id.toString();
+      const workerIdStr = booking.workerId ? booking.workerId.toString() : '';
+      const vendorIdStr = booking.vendorId ? booking.vendorId.toString() : '';
+      const userIdStr = booking.userId ? booking.userId.toString() : '';
+
+      // Emit to booking-specific room
+      io.to(`booking_${bookingIdStr}`).emit('payment_success', {
+        bookingId: bookingIdStr,
+        paymentStatus: 'SUCCESS',
+        status: booking.status
+      });
+
+      if (workerIdStr) {
+        io.to(`worker_${workerIdStr}`).emit('payment_success', {
+          bookingId: bookingIdStr,
+          paymentStatus: 'SUCCESS',
+          status: booking.status
+        });
+      }
+      if (vendorIdStr) {
+        io.to(`vendor_${vendorIdStr}`).emit('payment_success', {
+          bookingId: bookingIdStr,
+          paymentStatus: 'SUCCESS',
+          status: booking.status
+        });
+      }
+      io.to(`user_${userIdStr}`).emit('payment_success', {
+        bookingId: bookingIdStr,
+        paymentStatus: 'SUCCESS',
+        status: booking.status
       });
     }
 
@@ -360,9 +383,7 @@ const processWalletPayment = async (req, res) => {
     booking.paymentId = `WALLET_${Date.now()}`;
 
     // Update booking status
-    if ([BOOKING_STATUS.PENDING, BOOKING_STATUS.SEARCHING, BOOKING_STATUS.AWAITING_PAYMENT].includes(booking.status)) {
-      booking.status = BOOKING_STATUS.CONFIRMED;
-    } else if (booking.status === BOOKING_STATUS.WORK_DONE) {
+    if (booking.status === BOOKING_STATUS.WORK_DONE) {
       booking.status = BOOKING_STATUS.COMPLETED;
       booking.completedAt = new Date();
     }
@@ -376,9 +397,10 @@ const processWalletPayment = async (req, res) => {
 
     const bill = await VendorBill.findOne({ bookingId: booking._id });
 
+    const isWorkerBooking = booking.bookingModel === 'worker';
+
     if (bill) {
-      const isWorkerBooking = booking.bookingModel === 'worker';
-      const partnerEarning = bill.vendorTotalEarning;
+      const partnerEarning = isWorkerBooking ? bill.grandTotal : bill.vendorTotalEarning;
 
       // Mark bill as paid
       bill.status = 'paid';
@@ -474,16 +496,39 @@ const processWalletPayment = async (req, res) => {
         priority: 'high'
       });
     }
+    // --- SOCKET EMISSION ---
+    const io = req.app.get('io');
+    if (io) {
+      const bookingIdStr = booking._id.toString();
+      const workerIdStr = booking.workerId ? booking.workerId.toString() : '';
+      const vendorIdStr = booking.vendorId ? booking.vendorId.toString() : '';
+      const userIdStr = booking.userId ? booking.userId.toString() : '';
 
-    if (booking.workerId) {
-      await createNotification({
-        workerId: booking.workerId,
-        type: 'payment_success',
-        title: vendorTitle,
-        message: vendorMsg,
-        relatedId: booking._id,
-        relatedType: 'booking',
-        priority: 'high'
+      // Emit to booking-specific room
+      io.to(`booking_${bookingIdStr}`).emit('payment_success', {
+        bookingId: bookingIdStr,
+        paymentStatus: 'SUCCESS',
+        status: booking.status
+      });
+
+      if (workerIdStr) {
+        io.to(`worker_${workerIdStr}`).emit('payment_success', {
+          bookingId: bookingIdStr,
+          paymentStatus: 'SUCCESS',
+          status: booking.status
+        });
+      }
+      if (vendorIdStr) {
+        io.to(`vendor_${vendorIdStr}`).emit('payment_success', {
+          bookingId: bookingIdStr,
+          paymentStatus: 'SUCCESS',
+          status: booking.status
+        });
+      }
+      io.to(`user_${userIdStr}`).emit('payment_success', {
+        bookingId: bookingIdStr,
+        paymentStatus: 'SUCCESS',
+        status: booking.status
       });
     }
 

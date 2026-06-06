@@ -161,6 +161,7 @@ const AdminRevenue = () => {
           </h3>
         </motion.div>
 
+        {/* Commented out Total Commissions and Net Income cards
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -202,6 +203,7 @@ const AdminRevenue = () => {
             )}
           </h3>
         </motion.div>
+        */}
       </div>
 
       {/* Filters & Search */}

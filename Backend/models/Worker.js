@@ -107,6 +107,26 @@ const workerSchema = new mongoose.Schema({
       type: Number,
       default: 0 // Lifetime earnings
     },
+    dues: {
+      type: Number,
+      default: 0 // Amount worker owes to platform
+    },
+    cashLimit: {
+      type: Number,
+      default: 10000 // Limit before worker is blocked
+    },
+    isBlocked: {
+      type: Boolean,
+      default: false // Blocked from receiving cash bookings due to high dues
+    },
+    blockedAt: {
+      type: Date,
+      default: null
+    },
+    blockReason: {
+      type: String,
+      default: null
+    },
     totalCashCollected: {
       type: Number,
       default: 0

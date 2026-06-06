@@ -34,7 +34,7 @@ const AllWorkers = () => {
           name: worker.name,
           email: worker.email,
           phone: worker.phone,
-          serviceCategory: worker.serviceCategory || worker.service || 'N/A',
+          serviceCategory: worker.serviceCategories?.length ? worker.serviceCategories.join(', ') : worker.serviceCategory || worker.service || 'N/A',
           approvalStatus: worker.approvalStatus,
           aadhar: worker.aadhar?.number,
           pan: worker.pan?.number,

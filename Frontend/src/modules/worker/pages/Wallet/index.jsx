@@ -20,6 +20,7 @@ const Wallet = () => {
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
+  const [duesPaymentLoading, setDuesPaymentLoading] = useState(false);
   
   const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
@@ -78,6 +79,73 @@ const Wallet = () => {
     }
   };
 
+  const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+      if (window.Razorpay) return resolve(true);
+      if (document.getElementById('razorpay-script')) return resolve(true);
+      const script = document.createElement('script');
+      script.id = 'razorpay-script';
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  const handlePayDues = async () => {
+    if (duesPaymentLoading) return;
+    try {
+      setDuesPaymentLoading(true);
+
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded) {
+        toast.error('Failed to load payment gateway');
+        setDuesPaymentLoading(false);
+        return;
+      }
+
+      // 1. Create order
+      const orderRes = await workerWalletService.createDuesOrder();
+      
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+        amount: orderRes.data.amount * 100,
+        currency: orderRes.data.currency,
+        name: 'Homster',
+        description: 'Platform Dues Payment',
+        order_id: orderRes.data.orderId,
+        handler: async function (response) {
+          try {
+            toast.loading('Verifying payment...', { id: 'verify-dues' });
+            await workerWalletService.verifyDuesPayment({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature
+            });
+            toast.success('Dues paid successfully!', { id: 'verify-dues' });
+            loadWalletData();
+          } catch (error) {
+            toast.error(error.message || 'Payment verification failed', { id: 'verify-dues' });
+          }
+        },
+        theme: {
+          color: themeColors.primary || '#0D9488'
+        }
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.on('payment.failed', function (response) {
+        toast.error(response.error.description || 'Payment failed');
+      });
+      rzp.open();
+
+    } catch (error) {
+      toast.error(error.message || 'Failed to initiate payment');
+    } finally {
+      setDuesPaymentLoading(false);
+    }
+  };
+
   const handleRequestPayout = async (bookingId) => {
     if (payoutLoading) return;
     try {
@@ -102,9 +170,59 @@ const Wallet = () => {
       return;
     }
 
+    const { upiId, accountNumber, ifscCode, accountHolderName } = withdrawForm;
+    const hasUpi = upiId && upiId.trim() !== '';
+    const hasBank = (accountNumber && accountNumber.trim() !== '') || 
+                    (ifscCode && ifscCode.trim() !== '') || 
+                    (accountHolderName && accountHolderName.trim() !== '');
+
+    if (!hasUpi && !hasBank) {
+      toast.error('Please fill either UPI ID or Bank Account details');
+      return;
+    }
+
+    // 1. Validate UPI ID if filled
+    if (hasUpi) {
+      const upiRegex = /^[\w.\-_]{2,256}@[\w]{2,64}$/;
+      if (!upiRegex.test(upiId.trim())) {
+        toast.error('Please enter a valid UPI ID (e.g. name@bank)');
+        return;
+      }
+    }
+
+    // 2. Validate Bank Details if filled or if UPI is not provided
+    if (hasBank || !hasUpi) {
+      if (!accountHolderName || accountHolderName.trim().length < 3) {
+        toast.error('Please enter a valid Account Holder Name (minimum 3 characters)');
+        return;
+      }
+      const nameRegex = /^[a-zA-Z\s]{3,60}$/;
+      if (!nameRegex.test(accountHolderName.trim())) {
+        toast.error('Account Holder Name should contain only letters and spaces');
+        return;
+      }
+
+      if (!accountNumber || !/^\d{9,18}$/.test(accountNumber.trim())) {
+        toast.error('Please enter a valid Account Number (9 to 18 digits)');
+        return;
+      }
+
+      if (!ifscCode || !/^[A-Za-z]{4}0[A-Za-z0-9]{6}$/.test(ifscCode.trim())) {
+        toast.error('Please enter a valid 11-digit IFSC code (e.g. SBIN0001234)');
+        return;
+      }
+    }
+
+    const normalizedForm = {
+      upiId: upiId ? upiId.trim() : '',
+      accountNumber: accountNumber ? accountNumber.trim() : '',
+      ifscCode: ifscCode ? ifscCode.trim().toUpperCase() : '',
+      accountHolderName: accountHolderName ? accountHolderName.trim() : ''
+    };
+
     try {
       setPayoutLoading(true);
-      await workerWalletService.requestWithdrawal(withdrawAmount, withdrawForm);
+      await workerWalletService.requestWithdrawal(withdrawAmount, normalizedForm);
       toast.success('Withdrawal request submitted successfully!');
       setWithdrawModalOpen(false);
       loadWalletData(); // Refresh balance
@@ -124,8 +242,8 @@ const Wallet = () => {
     switch (type) {
       case 'worker_payment':
       case 'earnings_credit':
-        return <FiArrowDown className="w-5 h-5 text-green-500" />;
       case 'cash_collected':
+        return <FiArrowDown className="w-5 h-5 text-green-500" />;
       case 'withdrawal':
         return <FiArrowUp className="w-5 h-5 text-red-500" />;
       default:
@@ -224,6 +342,7 @@ const Wallet = () => {
           </div>
         </div>
 
+
         {/* Pending Payouts List */}
         {wallet.pendingBookings?.length > 0 && (
           <div className="mb-8">
@@ -305,14 +424,14 @@ const Wallet = () => {
                   onClick={() => handleTransactionClick(txn)}
                   className={`bg-white rounded-xl p-4 shadow-md border-l-4 ${txn.type === 'worker_payment' ? 'cursor-pointer hover:shadow-lg active:scale-[0.98] transition-all' : ''}`}
                   style={{
-                    borderLeftColor: txn.type === 'cash_collected' ? '#DC2626' : '#10B981'
+                    borderLeftColor: ['withdrawal', 'tds_deduction', 'platform_fee'].includes(txn.type) ? '#DC2626' : '#10B981'
                   }}
                 >
                   <div className="flex items-center gap-3">
                     <div
                       className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
                       style={{
-                        background: txn.type === 'cash_collected' ? '#FEE2E2' : '#D1FAE5'
+                        background: ['withdrawal', 'tds_deduction', 'platform_fee'].includes(txn.type) ? '#FEE2E2' : '#D1FAE5'
                       }}
                     >
                       {getTransactionIcon(txn.type)}
@@ -323,9 +442,8 @@ const Wallet = () => {
                         <p className="font-bold text-gray-900 text-sm">
                           {getTransactionLabel(txn.type)}
                         </p>
-                        <p className={`text-lg font-bold ${txn.type === 'cash_collected' ? 'text-red-600' : 'text-green-600'
-                          }`}>
-                          {txn.type === 'cash_collected' ? 'Collected' : '+'} ₹{Math.abs(txn.amount).toLocaleString()}
+                        <p className={`text-lg font-bold ${['withdrawal', 'tds_deduction', 'platform_fee'].includes(txn.type) ? 'text-red-600' : 'text-green-600'}`}>
+                          ₹{Math.abs(txn.amount).toLocaleString()}
                         </p>
                       </div>
 
@@ -358,7 +476,7 @@ const Wallet = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[10000] flex items-end sm:items-center justify-center p-4"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[10000] flex items-end sm:items-center justify-center p-4 pb-24 sm:pb-4"
             onClick={() => setSelectedTransaction(null)}
           >
             <motion.div
@@ -536,7 +654,7 @@ const Wallet = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[10000] flex items-end sm:items-center justify-center p-4"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[10000] flex items-end sm:items-center justify-center p-4 pb-24 sm:pb-4"
             onClick={() => setWithdrawModalOpen(false)}
           >
             <motion.div
@@ -568,16 +686,23 @@ const Wallet = () => {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-500 uppercase ml-1">Amount to Withdraw</label>
+                  <label 
+                    onClick={() => setWithdrawAmount(wallet.balance)}
+                    className="text-xs font-bold text-gray-500 uppercase ml-1 cursor-pointer hover:text-teal-600 transition-colors"
+                  >
+                    Amount to Withdraw <span className="text-[10px] text-teal-600 font-bold lowercase normal-case">(Click to fill max)</span>
+                  </label>
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">₹</span>
                     <input
                       type="number"
+                      step="any"
                       required
                       min="1"
                       max={wallet.balance}
                       value={withdrawAmount}
                       onChange={(e) => setWithdrawAmount(e.target.value)}
+                      onClick={() => { if (!withdrawAmount) setWithdrawAmount(wallet.balance); }}
                       placeholder="Enter amount"
                       className="w-full pl-8 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-teal-500 outline-none font-bold text-gray-800"
                     />

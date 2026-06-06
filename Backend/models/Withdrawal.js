@@ -30,7 +30,7 @@ const withdrawalSchema = new mongoose.Schema({
   },
   processedBy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User' // Admin ID
+    ref: 'Admin' // Admin ID
   },
   transactionReference: {
     type: String // Bank reference number or UPI ID used

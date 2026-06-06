@@ -203,10 +203,22 @@ const ReviewsPage = () => {
                     </td>
                     <td className="px-4 py-3">
                       <div className="space-y-1">
-                        <div className="flex items-center gap-1.5 text-[10px]">
-                          <FiBriefcase className="text-slate-400 w-3 h-3" />
-                          <span className="font-bold text-slate-700">{review.vendorId?.businessName || 'N/A'}</span>
-                        </div>
+                        {review.vendorId ? (
+                          <div className="flex items-center gap-1.5 text-[10px]">
+                            <FiBriefcase className="text-slate-400 w-3 h-3" />
+                            <span className="font-bold text-slate-700">{review.vendorId.businessName}</span>
+                          </div>
+                        ) : review.workerId ? (
+                          <div className="flex items-center gap-1.5 text-[10px]">
+                            <FiUser className="text-slate-400 w-3 h-3" />
+                            <span className="font-bold text-slate-700">{review.workerId.name} (Worker)</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-[10px]">
+                            <FiBriefcase className="text-slate-400 w-3 h-3" />
+                            <span className="font-bold text-slate-700">N/A</span>
+                          </div>
+                        )}
                         <div className="flex items-center gap-1.5 text-[10px]">
                           <FiBox className="text-slate-400 w-3 h-3" />
                           <span className="text-slate-600">{review.serviceId?.title || 'N/A'}</span>
