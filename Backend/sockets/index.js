@@ -9,7 +9,35 @@ const initializeSocket = (server) => {
     pingTimeout: 60000,
     pingInterval: 25000,
     cors: {
-      origin: [process.env.FRONTEND_URL, 'http://localhost:5173', 'http://127.0.0.1:5173'].filter(Boolean),
+      origin: function (origin, callback) {
+        const allowedOrigins = [
+          'http://localhost:5173',
+          'http://localhost:5174',
+          'https://www.homster.in',
+          'https://homster.in',
+          'https://api.homster.in',
+          'https://www.truliq.com',
+          'https://truliq.com',
+          'https://api.truliq.com',
+          ''
+        ];
+        
+        if (process.env.FRONTEND_URL) {
+          const envOrigins = process.env.FRONTEND_URL.split(',').map(url => url.trim());
+          envOrigins.forEach(envOrigin => {
+            if (!allowedOrigins.includes(envOrigin)) {
+              allowedOrigins.push(envOrigin);
+            }
+          });
+        }
+
+        if (!origin || allowedOrigins.includes(origin) || origin.includes('.vercel.app')) {
+          callback(null, true);
+        } else {
+          console.log('[Socket.io] BLOCKED CORS ORIGIN:', origin);
+          callback(new Error('Not allowed by CORS'));
+        }
+      },
       credentials: true,
       methods: ["GET", "POST"]
     },
