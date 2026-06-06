@@ -122,9 +122,12 @@ let currentAudio = null; // Global variable to track current playing audio
 
 export const playAlertRing = (loop = false) => {
   try {
-    // If audio is already playing, do nothing if we want to sustain it, or restart ??
-    // Actually, proper behavior: if playing, stop previous and start new to ensure fresh start
+    // If audio is already playing and looping, DO NOT overwrite it with a non-looping call!
+    // This prevents delayed push notifications from stopping the continuous ringing of the UI card.
     if (currentAudio) {
+      if (currentAudio.loop && !loop) {
+        return true; // Keep playing the looping audio
+      }
       currentAudio.pause();
       currentAudio.currentTime = 0;
     }
