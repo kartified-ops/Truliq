@@ -448,13 +448,16 @@ const Checkout = () => {
     socket.on('booking_accepted', (data) => {
       if (data.bookingId === bookingRequest._id) {
 
+        // Extract provider info whether it's a vendor or a worker
+        const provider = data.vendor || data.worker || {};
+
         // Construct vendor object from event data
         // Note: Real backend should send full details, falling back to defaults for display
         const vendorData = {
-          id: data.vendor.id,
-          name: data.vendor.name || 'Vendor',
-          businessName: data.vendor.businessName || 'Service Provider',
-          rating: 4.8, // Default if not sent
+          id: provider.id || provider._id || 'unknown',
+          name: provider.name || 'Professional',
+          businessName: provider.businessName || 'Service Provider',
+          rating: provider.rating || 4.8, // Default if not sent
           distance: 'Nearby', // Default if not sent
           estimatedTime: '15-20 mins',
           price: bookingRequest.amount
@@ -1380,7 +1383,7 @@ const Checkout = () => {
                   {!item.isPlan && (
                     <button
                       onClick={() => handleRemoveItem(item._id)}
-                      className="absolute top-3 right-3 p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                      className="absolute top-3 right-3 p-1.5 text-red-500 hover:bg-red-50 rounded-full transition-colors"
                     >
                       <FiTrash2 className="w-4 h-4" />
                     </button>

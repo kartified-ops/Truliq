@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, lazy, Suspense } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { themeColors } from '../../../../theme';
 import Header from '../../components/layout/Header';
@@ -232,11 +232,22 @@ const Home = () => {
     registerFCMToken('user', true).catch(err => {/* Silent fail */ });
   }, []);
 
-  const [categories, setCategories] = useState([]);
-  const [homeContent, setHomeContent] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Check if we have cached data (i.e., returning via back navigation or subsequent visit)
+  const cachedData = useRef(null);
+  const isReturning = useRef(false);
+  try {
+    const cached = sessionStorage.getItem('homeDataCache');
+    if (cached) {
+      cachedData.current = JSON.parse(cached);
+      isReturning.current = true; // Skip entrance animations if we already have cache
+    }
+  } catch (e) { /* ignore parse errors */ }
 
-  // Handle scroll separately (only when needed)
+  const [categories, setCategories] = useState(cachedData.current?.categories || []);
+  const [homeContent, setHomeContent] = useState(cachedData.current?.homeContent || null);
+  const [loading, setLoading] = useState(!cachedData.current);
+
+  // Scroll to top if specifically requested
   useEffect(() => {
     if (location.state?.scrollToTop) {
       window.scrollTo({ top: 0, behavior: 'instant' });
@@ -251,14 +262,16 @@ const Home = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        setLoading(true);
+        // Only show full loader if we don't have cached data
+        if (!cachedData.current) setLoading(true);
         const cityId = currentCity?._id || currentCity?.id;
 
         const response = await publicCatalogService.getHomeData(cityId);
 
         if (response.success) {
+          let mappedCategories = [];
           if (response.categories) {
-            const mappedCategories = response.categories.map(cat => ({
+            mappedCategories = response.categories.map(cat => ({
               id: cat.id,
               title: cat.title,
               slug: cat.slug,
@@ -272,6 +285,14 @@ const Home = () => {
           if (response.homeContent) {
             setHomeContent(response.homeContent);
           }
+
+          // Cache data for scroll restoration on back navigation
+          try {
+            sessionStorage.setItem('homeDataCache', JSON.stringify({
+              categories: mappedCategories,
+              homeContent: response.homeContent
+            }));
+          } catch (e) { /* ignore quota errors */ }
         }
 
         setLoading(false);
@@ -459,7 +480,7 @@ const Home = () => {
 
       <motion.div
         className="relative z-10"
-        initial="hidden"
+        initial={isReturning.current ? "visible" : "hidden"}
         animate="visible"
         variants={containerVariants}
       >
@@ -538,7 +559,7 @@ const Home = () => {
 
               {/* Advertisement Section */}
               <motion.section variants={itemVariants}>
-                <AdvertisementCard onClick={() => {}} />
+                <AdvertisementCard onClick={() => { }} />
               </motion.section>
 
 

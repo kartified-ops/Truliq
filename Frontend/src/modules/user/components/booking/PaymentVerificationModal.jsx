@@ -209,10 +209,12 @@ const PaymentVerificationModal = ({ isOpen, onClose, booking, onPayOnline }) => 
                         <span className="font-medium font-mono">₹{(c.price * c.quantity).toFixed(2)}</span>
                       </div>
                     ))}
-                    <div className="flex justify-between text-xs text-slate-500 border-t border-dashed border-slate-100 pt-1 mt-1">
-                      <span>GST (18%)</span>
-                      <span className="font-mono">₹{partsGST.toFixed(2)}</span>
-                    </div>
+                    {partsGST > 0 && (
+                      <div className="flex justify-between text-xs text-slate-500 border-t border-dashed border-slate-100 pt-1 mt-1">
+                        <span>GST (18%)</span>
+                        <span className="font-mono">₹{partsGST.toFixed(2)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between text-xs font-bold text-slate-800 pt-1">
                       <span>Total Parts</span>
                       <span>₹{(partsBase + partsGST).toFixed(2)}</span>

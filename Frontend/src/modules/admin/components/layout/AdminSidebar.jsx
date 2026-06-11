@@ -17,6 +17,7 @@ import {
   FiPackage,
   FiTrash2,
   FiStar,
+  FiShield,
 } from "react-icons/fi";
 import adminMenu from "../../config/adminMenu.json";
 import dashboardService from "../../services/dashboardService";
@@ -42,6 +43,7 @@ const iconMap = {
   Settings: FiSettings,
   Plans: FiPackage,
   "Worker Plans": FiBriefcase,
+  Legal: FiShield,
 };
 
 // Helper function to convert child name to route path
@@ -105,6 +107,10 @@ const getChildRoute = (parentRoute, childName) => {
       "Withdrawals": "/admin/settlements/withdrawals",
       "Vendors with Due": "/admin/settlements/vendors",
       "History": "/admin/settlements/history",
+    },
+    "/admin/legal": {
+      "Terms & Conditions": "/admin/legal/terms",
+      "Privacy Policy": "/admin/legal/privacy",
     },
   };
 

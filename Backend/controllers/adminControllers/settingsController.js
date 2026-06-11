@@ -50,7 +50,10 @@ exports.updateSettings = async (req, res, next) => {
       // Booking Timing
       maxSearchTime, waveDuration, searchRadius,
       // Payment Control
-      isOnlinePaymentEnabled
+      isOnlinePaymentEnabled,
+      // Legal
+      termsAndConditions,
+      privacyPolicy
     } = req.body;
 
     let settings = await Settings.findOne({ type: 'global' });
@@ -72,7 +75,9 @@ exports.updateSettings = async (req, res, next) => {
         razorpayWebhookSecret,
         cloudinaryCloudName,
         cloudinaryApiKey,
-        cloudinaryApiSecret
+        cloudinaryApiSecret,
+        termsAndConditions,
+        privacyPolicy
       });
     } else {
       // Update fields if provided
@@ -117,6 +122,8 @@ exports.updateSettings = async (req, res, next) => {
       if (waveDuration !== undefined) settings.waveDuration = waveDuration;
       if (searchRadius !== undefined) settings.searchRadius = searchRadius;
       if (isOnlinePaymentEnabled !== undefined) settings.isOnlinePaymentEnabled = isOnlinePaymentEnabled;
+      if (termsAndConditions !== undefined) settings.termsAndConditions = termsAndConditions;
+      if (privacyPolicy !== undefined) settings.privacyPolicy = privacyPolicy;
 
       await settings.save();
     }
@@ -157,10 +164,10 @@ exports.updateSettings = async (req, res, next) => {
     });
   }
 };
-// Get Public Settings (Visited Charges, GST)
+// Get Public Settings (Visited Charges, GST, Legal)
 exports.getPublicSettings = async (req, res, next) => {
   try {
-    let settings = await Settings.findOne({ type: 'global' }).select('visitedCharges serviceGstPercentage partsGstPercentage supportEmail supportPhone supportWhatsapp cancellationPenalty companyName companyAddress companyCity companyState companyPincode companyPhone companyEmail isOnlinePaymentEnabled');
+    let settings = await Settings.findOne({ type: 'global' }).select('visitedCharges serviceGstPercentage partsGstPercentage supportEmail supportPhone supportWhatsapp cancellationPenalty companyName companyAddress companyCity companyState companyPincode companyPhone companyEmail isOnlinePaymentEnabled termsAndConditions privacyPolicy');
 
     // Default if not found (fallback values)
     if (!settings) {

@@ -172,7 +172,8 @@ const BookingDetails = () => {
   // Socket Listener for Real-time Updates
   useEffect(() => {
     if (socket && id) {
-      // Handler for booking updates
+      // Handler for booking updates — only refreshes UI data.
+      // Toast/notification display is handled globally by SocketContext to avoid duplicates.
       const handleUpdate = (data) => {
         // Check if update relates to this booking
         if (data.bookingId === id || data.relatedId === id || data.data?.bookingId === id) {
@@ -193,9 +194,9 @@ const BookingDetails = () => {
           // Fetch full data to ensure consistency
           loadBooking();
 
-          if (data.message) {
-            toast(data.message, { icon: '🔔' });
-          }
+          // NOTE: Do NOT call toast() here. The global SocketContext 'notification' listener
+          // already shows the SwipeableNotification for this same event. Toasting here too
+          // would result in a duplicate notification for the user.
         }
       };
 

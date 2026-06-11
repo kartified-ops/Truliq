@@ -31,8 +31,8 @@ const Footer = () => {
         { label: 'About Us', path: '/user/about-Truliq' },
         { label: 'Help & Support', path: '/user/help-support' },
         // { label: 'Cancellation Policy', path: '/user/cancellation-policy' },
-        { label: 'Terms & Conditions', path: '#' },
-        { label: 'Privacy Policy', path: '#' },
+        { label: 'Terms & Conditions', path: '/user/terms' },
+        { label: 'Privacy Policy', path: '/user/privacy' },
       ]
     },
     {
@@ -42,7 +42,7 @@ const Footer = () => {
         // { label: 'My Wallet', path: '/user/wallet' },
         // { label: 'My Plan', path: '/user/my-plan' },
         // { label: 'Register as Vendor', path: '/vendor/signup' },
-        { label: 'Register as Worker', path: '/worker/signup' },
+        // { label: 'Register as Worker', path: '/worker/signup' },
       ]
     },
     {

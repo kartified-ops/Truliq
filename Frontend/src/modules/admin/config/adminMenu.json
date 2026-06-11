@@ -147,6 +147,17 @@
     "children": []
   },
   {
+    "title": "Legal",
+    "route": "/admin/legal",
+    "allowedRoles": [
+      "super_admin"
+    ],
+    "children": [
+      "Terms & Conditions",
+      "Privacy Policy"
+    ]
+  },
+  {
     "title": "Settings",
     "route": "/admin/settings",
     "allowedRoles": [

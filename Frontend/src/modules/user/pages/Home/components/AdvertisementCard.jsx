@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { FiArrowRight, FiPercent, FiTrendingUp } from 'react-icons/fi';
+import { FiPercent, FiTrendingUp } from 'react-icons/fi';
 import { themeColors } from '../../../../../theme';
 
 const AdvertisementCard = ({ onClick }) => {
@@ -25,10 +25,7 @@ const AdvertisementCard = ({ onClick }) => {
 
       <div className="relative z-10 p-6 lg:p-8 flex flex-col md:flex-row items-center justify-between gap-6">
         <div className="flex-1 text-center md:text-left">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-white text-xs font-bold uppercase tracking-wider mb-4 border border-white/10">
-            <FiPercent className="animate-pulse" />
-            <span>Exclusive Offer</span>
-          </div>
+
 
           <h2 className="text-2xl lg:text-3xl font-black text-white mb-2 leading-tight">
             Supercharge Your <span className="text-teal-300">Home</span> with <br className="hidden md:block" />
@@ -44,14 +41,13 @@ const AdvertisementCard = ({ onClick }) => {
               className="px-6 py-3 bg-white rounded-xl font-bold shadow-lg hover:shadow-white/20 transition-all flex items-center gap-2 group/btn"
               style={{ color: themeColors.brand.teal }}
             >
-              Book Service Now
-              <FiArrowRight className="transition-transform group-hover/btn:translate-x-1" />
+              Scroll Up for Services
             </button>
             <div className="flex items-center gap-2 text-white/90 text-sm font-semibold">
               <div className="w-8 h-8 rounded-full bg-amber-400/20 flex items-center justify-center">
                 <FiTrendingUp className="text-amber-400" />
               </div>
-              Offers Available
+              Services Available
             </div>
           </div>
         </div>

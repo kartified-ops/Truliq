@@ -154,8 +154,11 @@ const createOrUpdateBill = async (req, res) => {
 
         const base = unitBasePrice * quantity;
         // Honour the worker's GST toggle — if applyPartsGST=false, force zero GST on custom items too
-        const effectiveCGstPct = applyPartsGST ? cGstPct : 0;
-        const gst = applyPartsGST ? parseFloat(((base * cGstPct) / 100).toFixed(2)) : 0;
+        const itemGstApplicable = item.gstApplicable !== undefined ? item.gstApplicable : true;
+        const finalGstApplicable = applyPartsGST && itemGstApplicable;
+
+        const effectiveCGstPct = finalGstApplicable ? cGstPct : 0;
+        const gst = finalGstApplicable ? parseFloat(((base * cGstPct) / 100).toFixed(2)) : 0;
 
         processedCustomItems.push({
           name,
@@ -165,7 +168,7 @@ const createOrUpdateBill = async (req, res) => {
           gstAmount: gst,
           total: parseFloat((base + gst).toFixed(2)),
           hsnCode: item.hsnCode || '',
-          gstApplicable: applyPartsGST
+          gstApplicable: finalGstApplicable
         });
 
         // Add to PARTS totals

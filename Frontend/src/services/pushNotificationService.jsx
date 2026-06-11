@@ -310,52 +310,9 @@ function setupForegroundNotificationHandler(handler) {
       }
     }
 
-    // 3. ALWAYS Show Internal Alert in Foreground (Premium Toast)
-    try {
-      console.log('[FCM] 🎨 Rendering custom toast...');
-      toast.custom((t) => (
-        <div 
-          className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-white/95 backdrop-blur-sm shadow-2xl rounded-2xl pointer-events-auto flex ring-1 ring-black ring-opacity-5 border-l-4 border-orange-500 overflow-hidden cursor-pointer`}
-          onClick={() => {
-            toast.dismiss(t.id);
-            if (data.link) window.location.href = data.link;
-          }}
-        >
-          <div className="flex-1 w-0 p-4">
-            <div className="flex items-start">
-              <div className="flex-shrink-0 pt-0.5">
-                <div className="h-12 w-12 rounded-full bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center text-white shadow-lg">
-                  <img className="h-10 w-10 rounded-full border-2 border-white/50" src={icon} alt="" onError={(e) => e.target.src = '/truliq-logo.png'} />
-                </div>
-              </div>
-              <div className="ml-3 flex-1">
-                <p className="text-sm font-bold text-gray-900 leading-tight">{title}</p>
-                <p className="mt-1 text-xs text-gray-600 font-medium line-clamp-2">{body}</p>
-                <div className="mt-2 flex items-center gap-2">
-                   <span className="text-[10px] font-black text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full uppercase tracking-widest border border-orange-100">
-                     {type.replace('_', ' ')}
-                   </span>
-                   <span className="text-[10px] font-bold text-gray-400">Just now</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="flex border-l border-gray-100">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                toast.dismiss(t.id);
-              }}
-              className="w-full border border-transparent rounded-none rounded-r-2xl p-4 flex items-center justify-center text-sm font-bold text-gray-400 hover:text-gray-600 focus:outline-none bg-gray-50/50"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-      ), { duration: 8000, position: 'top-right' });
-    } catch (toastErr) {
-      console.error('[FCM] ❌ Toast fallback failed:', toastErr);
-    }
+    // 3. Toast is handled by SW message relay listener in initializePushNotifications.
+    // Do NOT show a toast here to avoid duplicate notifications.
+    console.log('[FCM] onMessage fired — toast deferred to SW relay handler.');
 
     // 4. Fallback: Use native Notification API if needed
     if (!notificationShown && Notification.permission === 'granted') {
@@ -464,7 +421,7 @@ async function initializePushNotifications() {
               </button>
             </div>
           </div>
-        ), { duration: 8000, position: 'top-right', id: `fcm-${payload.notificationId || Date.now()}` });
+        ), { duration: 3000, position: 'top-right', id: `fcm-${payload.notificationId || Date.now()}` });
       } catch (toastErr) {
         console.error('[FCM] Toast error:', toastErr);
       }

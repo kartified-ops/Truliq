@@ -50,13 +50,17 @@ const ServiceCategories = React.memo(({ categories, onCategoryClick, onSeeAllCli
               <CategoryCard
                 title={category.title}
                 icon={
-                  <img
-                    src={iconSrc}
-                    alt={category.title}
-                    className="w-12 h-12 object-contain group-hover:rotate-12 transition-transform duration-500 will-change-transform"
-                    loading="lazy"
-                    decoding="async"
-                  />
+                  iconSrc ? (
+                    <img
+                      src={iconSrc}
+                      alt={category.title}
+                      className="w-12 h-12 object-contain group-hover:rotate-12 transition-transform duration-500 will-change-transform"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 bg-gray-100 rounded-full" />
+                  )
                 }
                 onClick={() => onCategoryClick?.(category)}
                 hasSaleBadge={category.hasSaleBadge}

@@ -188,7 +188,7 @@ const AboutTruliq = () => {
         </div>
       </main>
 
-      <style jsx>{`
+      <style jsx="true">{`
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }

@@ -5,7 +5,7 @@ import React, { forwardRef } from 'react';
  * Usage: <Logo className="h-8 w-auto" />
  * Supports ref for animations
  */
-const Logo = forwardRef(({ className = "h-9 sm:h-12 w-auto", ...props }, ref) => {
+const Logo = forwardRef(({ className = "h-14 sm:h-20 w-auto", ...props }, ref) => {
   return (
     <img
       ref={ref}

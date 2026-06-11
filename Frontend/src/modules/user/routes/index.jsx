@@ -80,6 +80,8 @@ const AddScrap = lazyLoad(() => import('../pages/Scrap/AddScrap'));
 const Notifications = lazyLoad(() => import('../pages/Notifications'));
 const HelpSupport = lazyLoad(() => import('../pages/HelpSupport'));
 const CancellationPolicy = lazyLoad(() => import('../pages/CancellationPolicy'));
+const TermsAndConditions = lazyLoad(() => import('../pages/TermsAndConditions'));
+const PrivacyPolicy = lazyLoad(() => import('../pages/PrivacyPolicy'));
 
 // Loading fallback component
 import LogoLoader from '../../../components/common/LogoLoader';
@@ -147,6 +149,8 @@ const UserRoutes = () => {
               <Route path="/notifications" element={<ProtectedRoute userType="user"><Notifications /></ProtectedRoute>} />
               <Route path="/help-support" element={<ProtectedRoute userType="user"><HelpSupport /></ProtectedRoute>} />
               <Route path="/cancellation-policy" element={<ProtectedRoute userType="user"><CancellationPolicy /></ProtectedRoute>} />
+              <Route path="/terms" element={<ProtectedRoute userType="user"><TermsAndConditions /></ProtectedRoute>} />
+              <Route path="/privacy" element={<ProtectedRoute userType="user"><PrivacyPolicy /></ProtectedRoute>} />
             </Routes>
           </PageTransition>
         </Suspense>

@@ -4,7 +4,6 @@ import { io } from 'socket.io-client';
 import { motion, useMotionValue, useTransform } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import { playNotificationSound, isSoundEnabled, playAlertRing } from '../utils/notificationSound';
-import { registerFCMToken, setupForegroundNotificationHandler } from '../services/pushNotificationService';
 
 const SwipeableNotification = ({ t, data, onClick }) => {
   const x = useMotionValue(0);
@@ -157,25 +156,8 @@ export const SocketProvider = ({ children }) => {
       // console.log(`✅ ${userType?.toUpperCase()} App Socket connected`);
       // console.log(`[DEBUG] userType: ${userType}, hasToken: ${!!currentToken}`);
       
-      // Register FCM token for push notifications (on page load/refresh)
-      if (userType && currentToken) {
-        // Setup foreground notification listener
-        setupForegroundNotificationHandler((payload) => {
-          // Play sound and show notification (handled internally by the service)
-        });
-
-        // console.log(`[SocketContext] Registering FCM token for ${userType}...`);
-
-        registerFCMToken(userType, true).then((fcmToken) => {
-          if (fcmToken) {
-            // console.log(`[SocketContext] ✅ FCM token registered for ${userType}`);
-          } else {
-            // console.log(`[SocketContext] ⚠️ FCM token registration returned null for ${userType}`);
-          }
-        }).catch((err) => {
-          // console.error(`[SocketContext] ❌ FCM token registration failed for ${userType}:`, err);
-        });
-      }
+      // FCM token registration and foreground handler are set up once in App.jsx
+      // Do NOT call them here to avoid duplicate handlers on every socket reconnect
 
 
       // If vendor, join vendor-specific room just in case backend expects it
@@ -222,8 +204,7 @@ export const SocketProvider = ({ children }) => {
           }}
         />
       ), {
-        id: 'socket-notification', // Prevent stacking
-        duration: 3500, // Slightly longer to allow interaction/reading since it's dismissible
+        duration: 3000,
         position: 'top-right'
       });
 
