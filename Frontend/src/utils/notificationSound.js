@@ -53,10 +53,20 @@ const createNotificationSound = (type = 'chime') => {
   return primaryGain;
 };
 
-// Play notification sound (Premium Chime)
+// Helper to get user type from path
+const getUserTypeFromPath = () => {
+  const path = window.location.pathname;
+  if (path.startsWith('/worker')) return 'worker';
+  if (path.startsWith('/admin')) return 'admin';
+  if (path.startsWith('/user')) return 'user';
+  return 'vendor'; // default
+};
+
 // Play notification sound (Premium Alert)
 export const playNotificationSound = async () => {
   try {
+    if (!isSoundEnabled(getUserTypeFromPath())) return false;
+
     initAudio();
 
     // Ensure AudioContext is running (fix for 'suspended' state restriction)
@@ -108,6 +118,8 @@ export const playNotificationSound = async () => {
 // Play single beep for small interactions
 export const playSingleBeep = () => {
   try {
+    if (!isSoundEnabled(getUserTypeFromPath())) return false;
+    
     initAudio();
     createNotificationSound('beep');
     return true;
@@ -122,6 +134,8 @@ let currentAudio = null; // Global variable to track current playing audio
 
 export const playAlertRing = (loop = false) => {
   try {
+    if (!isSoundEnabled(getUserTypeFromPath())) return false;
+
     // If audio is already playing and looping, DO NOT overwrite it with a non-looping call!
     // This prevents delayed push notifications from stopping the continuous ringing of the UI card.
     if (currentAudio) {

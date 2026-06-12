@@ -215,8 +215,44 @@ const getCheckoutData = async (req, res) => {
   }
 };
 
+/**
+ * Delete user profile
+ */
+const deleteProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // Check if user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Optional: Delete user's cart
+    await Cart.findOneAndDelete({ userId });
+
+    // Delete user
+    await User.findByIdAndDelete(userId);
+
+    res.status(200).json({
+      success: true,
+      message: 'Account deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete account. Please try again.'
+    });
+  }
+};
+
 module.exports = {
   getProfile,
   updateProfile,
-  getCheckoutData
+  getCheckoutData,
+  deleteProfile
 };

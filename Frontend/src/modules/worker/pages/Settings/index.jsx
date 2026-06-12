@@ -145,32 +145,7 @@ const Settings = () => {
           <h3 className="font-bold text-gray-800 mb-4">Notifications</h3>
 
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <FiBell className="w-5 h-5" style={{ color: themeColors.icon }} />
-                <span className="text-gray-800">Push Notifications</span>
-              </div>
-              <button
-                onClick={() => handleToggle('notifications')}
-                className={`w-12 h-6 rounded-full transition-all ${settings.notifications ? '' : 'bg-gray-300'
-                  }`}
-                style={
-                  settings.notifications
-                    ? {
-                      background: themeColors.button,
-                    }
-                    : {}
-                }
-              >
-                <div
-                  className={`w-5 h-5 rounded-full bg-white transition-all ${settings.notifications ? 'translate-x-6' : 'translate-x-0.5'
-                    }`}
-                  style={{
-                    marginTop: '2px',
-                  }}
-                />
-              </button>
-            </div>
+
 
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">

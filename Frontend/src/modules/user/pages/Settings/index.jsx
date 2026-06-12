@@ -181,14 +181,17 @@ const Settings = () => {
             </button>
 
             <button
-              onClick={() => {
+              onClick={async () => {
                 if (window.confirm('Are you sure you want to delete your account? This action is irreversible.')) {
-                  toast.loading('Processing deletion...');
-                  // Add actual delete logic here or navigate to a dedicated page
-                  setTimeout(() => {
-                    toast.dismiss();
-                    toast.error('Please contact support to delete account for security reasons.');
-                  }, 1000);
+                  const toastId = toast.loading('Processing deletion...');
+                  try {
+                    await userAuthService.deleteAccount();
+                    toast.success('Account deleted successfully', { id: toastId });
+                    navigate('/user/login', { replace: true });
+                  } catch (error) {
+                    console.error('Delete account failed', error);
+                    toast.error(error.response?.data?.message || 'Failed to delete account. Please try again.', { id: toastId });
+                  }
                 }
               }}
               className="w-full bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3 hover:bg-gray-50 active:scale-[0.98] transition-all"

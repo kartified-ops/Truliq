@@ -112,6 +112,24 @@ export const userAuthService = {
   getCheckoutData: async () => {
     const response = await api.get('/users/checkout-data');
     return response.data;
+  },
+
+  // Delete account
+  deleteAccount: async () => {
+    try {
+      const response = await api.delete('/users/profile');
+      
+      // Cleanup locally
+      await removeFCMToken('user');
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('userData');
+      
+      return response.data;
+    } catch (error) {
+      console.error('Delete account error:', error);
+      throw error;
+    }
   }
 };
 
