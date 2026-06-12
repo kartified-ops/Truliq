@@ -11,7 +11,9 @@ import { z } from "zod";
 
 // Zod schema
 const profileSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
+  name: z.string()
+    .min(2, "Name must be at least 2 characters")
+    .refine((val) => !/^\d+$/.test(val), "Name cannot contain only numbers"),
   email: z.string().email("Please enter a valid email address").refine(val => val.includes('@'), "Invalid email address"),
 });
 
@@ -170,7 +172,8 @@ const UpdateProfile = () => {
     });
 
     if (!validationResult.success) {
-      toast.error(validationResult.error.errors[0].message);
+      const errorMsg = validationResult.error?.issues?.[0]?.message || validationResult.error?.errors?.[0]?.message || "Validation failed";
+      toast.error(errorMsg);
       return;
     }
 

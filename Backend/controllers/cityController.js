@@ -117,13 +117,7 @@ exports.deleteCity = catchAsync(async (req, res) => {
     });
   }
 
-  // Prevent deleting the default city
-  if (city.isDefault) {
-    return res.status(400).json({
-      success: false,
-      message: 'Cannot delete the default city. Please set another city as default first.'
-    });
-  }
+
 
   await city.deleteOne();
 

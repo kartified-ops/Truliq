@@ -574,8 +574,8 @@ const HomePage = ({ catalog, setCatalog, selectedCity }) => {
                     <th className="text-left py-2 px-3 text-sm font-bold text-gray-700 w-12">#</th>
                     <th className="text-left py-2 px-3 text-sm font-bold text-gray-700 w-24">Image</th>
                     <th className="text-left py-2 px-3 text-sm font-bold text-gray-700">Text</th>
-                    <th className="text-left py-2 px-3 text-sm font-bold text-gray-700">Redirect</th>
-                    <th className="text-left py-2 px-3 text-sm font-bold text-gray-700">Scroll To</th>
+                    {/* <th className="text-left py-2 px-3 text-sm font-bold text-gray-700">Redirect</th>
+                    <th className="text-left py-2 px-3 text-sm font-bold text-gray-700">Scroll To</th> */}
                     <th className="text-center py-2 px-3 text-sm font-bold text-gray-700 w-32">Actions</th>
                   </tr>
                 </thead>
@@ -595,7 +595,7 @@ const HomePage = ({ catalog, setCatalog, selectedCity }) => {
                       <td className="py-2.5 px-3">
                         <div className="text-sm text-gray-900">{b.text || "—"}</div>
                       </td>
-                      <td className="py-2.5 px-3">
+                      {/* <td className="py-2.5 px-3">
                         <div className="text-sm text-gray-600">
                           {b.slug
                             ? `Service: ${allServices.find(s => s.slug === b.slug)?.title || b.slug}`
@@ -605,7 +605,7 @@ const HomePage = ({ catalog, setCatalog, selectedCity }) => {
                       </td>
                       <td className="py-2.5 px-3">
                         <div className="text-sm text-gray-600">{b.scrollToSection || "—"}</div>
-                      </td>
+                      </td> */}
                       <td className="py-2.5 px-3">
                         <div className="flex items-center justify-center gap-1.5">
                           <button
@@ -687,8 +687,8 @@ const HomePage = ({ catalog, setCatalog, selectedCity }) => {
                     <th className="text-left py-2 px-3 text-sm font-bold text-gray-700 w-24">Image</th>
                     <th className="text-left py-2 px-3 text-sm font-bold text-gray-700">Title</th>
                     <th className="text-left py-2 px-3 text-sm font-bold text-gray-700">Subtitle</th>
-                    <th className="text-left py-2 px-3 text-sm font-bold text-gray-700">Button Text</th>
-                    <th className="text-left py-2 px-3 text-sm font-bold text-gray-700">Redirect</th>
+                    {/* <th className="text-left py-2 px-3 text-sm font-bold text-gray-700">Button Text</th>
+                    <th className="text-left py-2 px-3 text-sm font-bold text-gray-700">Redirect</th> */}
                     <th className="text-center py-2 px-3 text-sm font-bold text-gray-700 w-32">Actions</th>
                   </tr>
                 </thead>
@@ -711,12 +711,12 @@ const HomePage = ({ catalog, setCatalog, selectedCity }) => {
                       <td className="py-2.5 px-3">
                         <div className="text-sm text-gray-600">{p.subtitle || "—"}</div>
                       </td>
-                      <td className="py-2.5 px-3">
+                      {/* <td className="py-2.5 px-3">
                         <div className="text-sm text-gray-600">{p.buttonText || "—"}</div>
                       </td>
                       <td className="py-2.5 px-3">
                         <div className="text-sm text-gray-600">{p.targetCategoryId ? getCategoryTitle(p.targetCategoryId) : "—"}</div>
-                      </td>
+                      </td> */}
                       <td className="py-2.5 px-3">
                         <div className="flex items-center justify-center gap-1.5">
                           <button
@@ -1381,7 +1381,7 @@ const HomePage = ({ catalog, setCatalog, selectedCity }) => {
               placeholder="Winter offers"
             />
           </div>
-          <RedirectionSelector
+          {/* <RedirectionSelector
             categories={categories}
             allServices={allServices}
             targetCategoryId={bannerForm.targetCategoryId}
@@ -1397,7 +1397,7 @@ const HomePage = ({ catalog, setCatalog, selectedCity }) => {
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all bg-white"
               placeholder="Waxing & threading"
             />
-          </div>
+          </div> */}
           <div className="flex gap-3 pt-4">
             <button
               onClick={saveBanner}
@@ -1510,7 +1510,7 @@ const HomePage = ({ catalog, setCatalog, selectedCity }) => {
               />
             </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-base font-bold text-gray-900 mb-2">Button Text</label>
               <input
@@ -1546,7 +1546,7 @@ const HomePage = ({ catalog, setCatalog, selectedCity }) => {
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all bg-white"
               placeholder="Waxing & threading"
             />
-          </div>
+          </div> */}
           <div className="flex gap-3 pt-4">
             <button
               onClick={savePromo}

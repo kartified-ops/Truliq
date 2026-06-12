@@ -50,6 +50,8 @@ const JobTimeline = lazyLoad(() => import('../pages/JobTimeline'));
 const Wallet = lazyLoad(() => import('../pages/Wallet'));
 const BillingPage = lazyLoad(() => import('../pages/BillingPage'));
 const Subscription = lazyLoad(() => import('../pages/Subscription'));
+const PrivacyPolicy = lazyLoad(() => import('../pages/PrivacyPolicy'));
+const TermsAndConditions = lazyLoad(() => import('../pages/TermsAndConditions'));
 
 // Loading fallback component
 import LogoLoader from '../../../components/common/LogoLoader';
@@ -71,6 +73,8 @@ const WorkerRoutes = () => {
   const shouldHideBottomNav =
     location.pathname === '/worker/login' ||
     location.pathname === '/worker/signup' ||
+    location.pathname.includes('/terms') ||
+    location.pathname.includes('/privacy') ||
     location.pathname.endsWith('/map') ||
     location.pathname.includes('/billing');
 
@@ -101,6 +105,10 @@ const WorkerRoutes = () => {
               <Route path="/notifications" element={<ProtectedRoute userType="worker"><Notifications /></ProtectedRoute>} />
               <Route path="/wallet" element={<ProtectedRoute userType="worker"><Wallet /></ProtectedRoute>} />
               <Route path="/subscription" element={<ProtectedRoute userType="worker"><Subscription /></ProtectedRoute>} />
+              
+              {/* Common public pages accessible anywhere */}
+              <Route path="/terms" element={<TermsAndConditions />} />
+              <Route path="/privacy" element={<PrivacyPolicy />} />
             </Routes>
           </PageTransition>
         </Suspense>

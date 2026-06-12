@@ -135,7 +135,7 @@ const UserBookings = () => {
                     </div>
                     <div className="flex flex-col items-end gap-2">
                       <div className="text-lg font-bold text-gray-900">₹{booking.finalAmount}</div>
-                      <button className="text-sm text-blue-600 font-semibold hover:underline">View Details</button>
+                      {/* <button className="text-sm text-blue-600 font-semibold hover:underline">View Details</button> */}
                     </div>
                   </div>
                 </motion.div>

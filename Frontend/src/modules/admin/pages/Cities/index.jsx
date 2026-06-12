@@ -39,6 +39,15 @@ const CityManagement = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (/\d/.test(formData.name)) {
+      return toast.error('City name cannot contain digits');
+    }
+    if (formData.state && /\d/.test(formData.state)) {
+      return toast.error('State cannot contain digits');
+    }
+    if (formData.country && /\d/.test(formData.country)) {
+      return toast.error('Country cannot contain digits');
+    }
     try {
       if (editingCity) {
         await cityService.update(editingCity._id, formData);
@@ -163,14 +172,12 @@ const CityManagement = () => {
                     >
                       <HiPencil className="w-5 h-5" />
                     </button>
-                    {!city.isDefault && (
-                      <button
-                        onClick={() => handleDelete(city._id)}
-                        className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      >
-                        <HiTrash className="w-5 h-5" />
-                      </button>
-                    )}
+                    <button
+                      onClick={() => handleDelete(city._id)}
+                      className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <HiTrash className="w-5 h-5" />
+                    </button>
                   </div>
                 </td>
               </tr>

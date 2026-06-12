@@ -305,7 +305,7 @@ const Profile = () => {
         </div>
 
         {/* Stats */}
-        <div
+        {/* <div
           className="bg-white rounded-xl p-4 mb-4 shadow-md"
           style={{
             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
@@ -322,7 +322,7 @@ const Profile = () => {
               <p className="text-2xl font-bold text-gray-800">{profile.completedJobs}</p>
             </div>
           </div>
-        </div>
+        </div> */}
 
         {/* Settings Button */}
         <button

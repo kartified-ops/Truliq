@@ -437,7 +437,7 @@ const EditProfile = () => {
                 onClick={() => setIsCategoryOpen(!isCategoryOpen)}
                 className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-between cursor-pointer"
               >
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 flex-1 mr-2">
                   {formData.serviceCategories && formData.serviceCategories.length > 0 ? (
                     formData.serviceCategories.map((cat, idx) => (
                       <span key={idx} className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs font-bold">
@@ -448,7 +448,9 @@ const EditProfile = () => {
                     <span className="text-gray-400">Select Categories</span>
                   )}
                 </div>
-                <FiChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${isCategoryOpen ? 'rotate-180' : ''}`} />
+                <div className="flex-shrink-0 bg-gray-100 p-1.5 rounded-md">
+                  <FiChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${isCategoryOpen ? 'rotate-180' : ''}`} />
+                </div>
               </div>
 
               {isCategoryOpen && (

@@ -279,6 +279,17 @@ const Login = () => {
                     Create an account
                   </Link>
                 </div>
+
+                <div className="mt-4 text-center text-xs text-gray-500">
+                  By continuing, you agree to our{' '}
+                  <Link to="/user/terms" className="font-medium hover:underline" style={{ color: brandColor }}>
+                    Terms & Conditions
+                  </Link>
+                  {' '}and{' '}
+                  <Link to="/user/privacy" className="font-medium hover:underline" style={{ color: brandColor }}>
+                    Privacy Policy
+                  </Link>
+                </div>
               </div>
             </form>
           ) : (

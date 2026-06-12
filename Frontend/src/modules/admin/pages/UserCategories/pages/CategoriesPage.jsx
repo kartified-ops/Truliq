@@ -617,17 +617,9 @@ const CategoriesPage = ({ catalog, setCatalog, selectedCity }) => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-base font-bold text-gray-900 mb-2">Home Badge (optional)</label>
-              <input
-                value={form.homeBadge}
-                onChange={(e) => setForm((p) => ({ ...p, homeBadge: e.target.value }))}
-                placeholder="NEW / SALE / etc."
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-              />
-            </div>
-            <div className="flex items-center gap-3 pt-8">
+          <div className="grid grid-cols-1 sm:grid-cols-1 gap-3">
+            {/* Home Badge (optional) input removed as requested */}
+            <div className="flex items-center gap-3 pt-4">
               <input
                 id="hasSaleBadge"
                 type="checkbox"

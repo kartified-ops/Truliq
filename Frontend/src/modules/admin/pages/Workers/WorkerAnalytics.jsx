@@ -104,7 +104,7 @@ const WorkerAnalytics = () => {
         </CardShell>
 
         {/* Availability Pie Chart */}
-        <CardShell className="bg-white p-3.5" title="Worker Status Distribution" icon={FiUsers}>
+        {/* <CardShell className="bg-white p-3.5" title="Worker Status Distribution" icon={FiUsers}>
           <div className="h-[250px]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -127,7 +127,7 @@ const WorkerAnalytics = () => {
               </PieChart>
             </ResponsiveContainer>
           </div>
-        </CardShell>
+        </CardShell> */}
       </div>
     </div>
   );

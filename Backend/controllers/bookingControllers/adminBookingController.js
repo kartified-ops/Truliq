@@ -1,4 +1,5 @@
 const Booking = require('../../models/Booking');
+const User = require('../../models/User');
 const { validationResult } = require('express-validator');
 const { BOOKING_STATUS } = require('../../utils/constants');
 
@@ -35,11 +36,15 @@ const getAllBookings = async (req, res) => {
       if (endDate) query.scheduledDate.$lte = new Date(endDate);
     }
 
-    // Search by booking number or service name
+    // Search by booking number, service name, or customer name
     if (search) {
+      const matchingUsers = await User.find({ name: { $regex: search, $options: 'i' } }).select('_id');
+      const userIds = matchingUsers.map(u => u._id);
+
       query.$or = [
         { bookingNumber: { $regex: search, $options: 'i' } },
-        { serviceName: { $regex: search, $options: 'i' } }
+        { serviceName: { $regex: search, $options: 'i' } },
+        { userId: { $in: userIds } }
       ];
     }
 

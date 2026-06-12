@@ -69,14 +69,14 @@ const RecentBookings = ({ bookings = [], onViewBooking }) => {
               <div className="text-right">
                 <p className="font-bold text-gray-800">{formatCurrency(b.price || 0)}</p>
               </div>
-              {onViewBooking && (
+              {/* {onViewBooking && (
                 <button
                   onClick={() => onViewBooking(b)}
                   className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
                 >
                   <FiEye className="text-gray-600" />
                 </button>
-              )}
+              )} */}
             </div>
           </motion.div>
         ))}

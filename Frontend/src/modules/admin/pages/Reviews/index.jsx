@@ -155,21 +155,21 @@ const ReviewsPage = () => {
                 <th className="px-4 py-3 text-[10px] font-bold text-gray-600 uppercase tracking-wider">Customer</th>
                 <th className="px-4 py-3 text-[10px] font-bold text-gray-600 uppercase tracking-wider">Feedback</th>
                 <th className="px-4 py-3 text-[10px] font-bold text-gray-600 uppercase tracking-wider">Entity</th>
-                <th className="px-4 py-3 text-[10px] font-bold text-gray-600 uppercase tracking-wider">Status</th>
-                <th className="px-4 py-3 text-[10px] font-bold text-gray-600 uppercase tracking-wider">Actions</th>
+                {/* <th className="px-4 py-3 text-[10px] font-bold text-gray-600 uppercase tracking-wider">Status</th> */}
+                {/* <th className="px-4 py-3 text-[10px] font-bold text-gray-600 uppercase tracking-wider">Actions</th> */}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan="5" className="px-4 py-8 text-center">
+                  <td colSpan="3" className="px-4 py-8 text-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
                     <p className="text-gray-500 mt-2 text-xs font-medium">Loading reviews...</p>
                   </td>
                 </tr>
               ) : reviews.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan="3" className="px-4 py-8 text-center text-gray-500">
                     <FiSearch className="w-10 h-10 mx-auto mb-2 opacity-20" />
                     <p className="text-base font-medium">No reviews found</p>
                   </td>
@@ -225,15 +225,15 @@ const ReviewsPage = () => {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3">
+                    {/* <td className="px-4 py-3">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${review.status === 'active'
                         ? 'bg-green-100 text-green-700 border border-green-200'
                         : 'bg-amber-100 text-amber-700 border border-amber-200'
                         }`}>
                         {review.status}
                       </span>
-                    </td>
-                    <td className="px-4 py-3">
+                    </td> */}
+                    {/* <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
                         {review.status === 'active' ? (
                           <button
@@ -264,7 +264,7 @@ const ReviewsPage = () => {
                           <FiTrash2 size={16} />
                         </button>
                       </div>
-                    </td>
+                    </td> */}
                   </tr>
                 ))
               )}

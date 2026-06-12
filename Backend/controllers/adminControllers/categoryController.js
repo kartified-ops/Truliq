@@ -15,7 +15,13 @@ const getAllCategories = async (req, res) => {
     if (status) query.status = status;
     if (showOnHome !== undefined) query.showOnHome = showOnHome === 'true';
     if (isPopular !== undefined) query.isPopular = isPopular === 'true';
-    if (cityId) query.cityIds = cityId;
+    if (cityId) {
+      query.$or = [
+        { cityIds: cityId },
+        { cityIds: { $size: 0 } },
+        { cityIds: { $exists: false } }
+      ];
+    }
 
     const categories = await Category.find(query)
       .select('-__v')

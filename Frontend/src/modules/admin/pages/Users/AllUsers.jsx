@@ -190,13 +190,13 @@ const AllUsers = () => {
                         >
                           {user.isActive ? <FiSlash className="w-3.5 h-3.5" /> : <FiCheck className="w-3.5 h-3.5" />}
                         </button>
-                        <button
+                        {/* <button
                           onClick={() => handleDeleteUser(user._id)}
                           className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                           title="Delete User"
                         >
                           <FiTrash2 className="w-3.5 h-3.5" />
-                        </button>
+                        </button> */}
                       </div>
                     </td>
                   </tr>

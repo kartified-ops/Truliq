@@ -16,11 +16,27 @@ import { getDashboardStats, getRevenueAnalytics } from '../../../../services/adm
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  const [period, setPeriod] = useState('month');
-  const [customDates, setCustomDates] = useState({
-    start: new Date(new Date().setDate(new Date().getDate() - 7)).toISOString().split('T')[0],
-    end: new Date().toISOString().split('T')[0]
+  const [period, setPeriod] = useState(() => {
+    return localStorage.getItem('adminDashboardPeriod') || 'month';
   });
+  const [customDates, setCustomDates] = useState(() => {
+    const saved = localStorage.getItem('adminDashboardCustomDates');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return {
+      start: new Date(new Date().setDate(new Date().getDate() - 7)).toISOString().split('T')[0],
+      end: new Date().toISOString().split('T')[0]
+    };
+  });
+
+  useEffect(() => {
+    localStorage.setItem('adminDashboardPeriod', period);
+  }, [period]);
+
+  useEffect(() => {
+    localStorage.setItem('adminDashboardCustomDates', JSON.stringify(customDates));
+  }, [customDates]);
   const [revenueData, setRevenueData] = useState([]);
   const [recentBookingsList, setRecentBookingsList] = useState([]);
   const [stats, setStats] = useState({
@@ -56,6 +72,10 @@ const AdminDashboard = () => {
           const customEndDate = new Date(customDates.end);
           customEndDate.setHours(23, 59, 59, 999);
           endDate = customEndDate.toISOString();
+        } else if (period === 'today') {
+          apiPeriod = 'daily';
+          startDate = new Date();
+          startDate.setHours(0, 0, 0, 0);
         } else {
           apiPeriod = 'daily';
           startDate.setDate(startDate.getDate() - 1);
@@ -280,23 +300,23 @@ const AdminDashboard = () => {
         })}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <RevenueLineChart data={revenueData} period={period} />
         <BookingsBarChart data={revenueData} period={period} />
-      </div>
+      </div> */}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <BookingStatusPieChart bookings={recentBookingsList} />
         <PaymentBreakdownPieChart bookings={recentBookingsList} />
       </div>
 
-      <div className="grid grid-cols-1 gap-4">
+      {/* <div className="grid grid-cols-1 gap-4">
         <RevenueVsBookingsChart data={revenueData} period={period} />
-      </div>
+      </div> */}
 
-      <div className="grid grid-cols-1 gap-4">
+      {/* <div className="grid grid-cols-1 gap-4">
         <CustomerGrowthAreaChart timelineData={revenueData} bookings={recentBookingsList} period={period} />
-      </div>
+      </div> */}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <TopServices

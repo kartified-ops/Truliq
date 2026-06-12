@@ -109,8 +109,13 @@ const UserRoutes = () => {
   const isBookingConfirmationPage = location.pathname.includes('/booking-confirmation');
 
 
-  // Check if we are on public pages (login/signup) where we shouldn't fetch bookings
-  const isPublicPage = location.pathname.includes('/login') || location.pathname.includes('/signup');
+  // Check if we are on public pages (login/signup/terms/etc) where we shouldn't fetch bookings
+  const isPublicPage = location.pathname.includes('/login') || 
+                       location.pathname.includes('/signup') ||
+                       location.pathname.includes('/terms') ||
+                       location.pathname.includes('/privacy') ||
+                       location.pathname.includes('/help-support') ||
+                       location.pathname.includes('/cancellation-policy');
 
   return (
     <ErrorBoundary>
@@ -147,10 +152,10 @@ const UserRoutes = () => {
               <Route path="/scrap" element={<ProtectedRoute userType="user"><Scrap /></ProtectedRoute>} />
               <Route path="/scrap/add" element={<ProtectedRoute userType="user"><AddScrap /></ProtectedRoute>} />
               <Route path="/notifications" element={<ProtectedRoute userType="user"><Notifications /></ProtectedRoute>} />
-              <Route path="/help-support" element={<ProtectedRoute userType="user"><HelpSupport /></ProtectedRoute>} />
-              <Route path="/cancellation-policy" element={<ProtectedRoute userType="user"><CancellationPolicy /></ProtectedRoute>} />
-              <Route path="/terms" element={<ProtectedRoute userType="user"><TermsAndConditions /></ProtectedRoute>} />
-              <Route path="/privacy" element={<ProtectedRoute userType="user"><PrivacyPolicy /></ProtectedRoute>} />
+              <Route path="/help-support" element={<HelpSupport />} />
+              <Route path="/cancellation-policy" element={<CancellationPolicy />} />
+              <Route path="/terms" element={<TermsAndConditions />} />
+              <Route path="/privacy" element={<PrivacyPolicy />} />
             </Routes>
           </PageTransition>
         </Suspense>

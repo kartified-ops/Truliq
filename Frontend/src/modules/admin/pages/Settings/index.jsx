@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiSettings, FiGrid, FiDollarSign, FiSave, FiUser, FiMail, FiTrash2, FiPlus, FiUsers, FiShield, FiFileText, FiMapPin, FiPhone, FiHeadphones, FiMessageCircle, FiEdit, FiLock, FiUnlock, FiX } from 'react-icons/fi';
+import { FiSettings, FiGrid, FiDollarSign, FiSave, FiUser, FiMail, FiTrash2, FiPlus, FiUsers, FiShield, FiFileText, FiMapPin, FiPhone, FiHeadphones, FiMessageCircle, FiEdit, FiLock, FiUnlock, FiX, FiEye, FiEyeOff } from 'react-icons/fi';
 import { getSettings, updateSettings, updateAdminProfile, getAdminProfile, getAllAdmins, createAdmin, deleteAdmin, updateAdminDetails, toggleAdminStatus } from '../../services/settingsService';
 import { cityService } from '../../services/cityService';
 import CityManagement from '../Cities';
@@ -71,6 +71,11 @@ const AdminSettings = () => {
   const [loading, setLoading] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
   const [activeView, setActiveView] = useState('main'); // 'main', 'profile', 'financial', 'system', 'admins'
+
+  // Password visibility states
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const isSuperAdmin = profile.role === 'super_admin';
   const isWorkerMode = financialSettings.bookingModel === 'worker';
@@ -297,6 +302,9 @@ const AdminSettings = () => {
   // Save support settings
   const handleSupportSave = async (e) => {
     e.preventDefault();
+    if (supportSettings.supportPhone && !/^\d{10}$/.test(supportSettings.supportPhone)) {
+      return toast.error('Support Phone must be a valid 10-digit number');
+    }
     setSupportLoading(true);
     try {
       await updateSettings(supportSettings);
@@ -315,6 +323,9 @@ const AdminSettings = () => {
     }
     if (profile.newPassword && !profile.currentPassword) {
       return toast.error('Current password required');
+    }
+    if (profile.newPassword && profile.newPassword === profile.currentPassword) {
+      return toast.error('New password cannot be same as current password');
     }
 
     setProfileLoading(true);
@@ -348,8 +359,15 @@ const AdminSettings = () => {
     if (!newAdmin.name || !newAdmin.email) {
       return toast.error('Name and Email are required');
     }
+    if (/^\d+$/.test(newAdmin.name)) {
+      return toast.error('Admin name cannot be only digits');
+    }
+
     if (!isEdit && !newAdmin.password) {
       return toast.error('Password is required for new admin');
+    }
+    if (newAdmin.password && newAdmin.password.length < 6) {
+      return toast.error('Password must be at least 6 characters');
     }
 
     setAdminLoading(true);
@@ -437,7 +455,7 @@ const AdminSettings = () => {
       </div>
 
       {/* Financial Settings Card - Super Admin Only */}
-      {isSuperAdmin && (
+      {/* {isSuperAdmin && (
         <div onClick={() => setActiveView('financial')}
           className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-pointer group">
           <div className="w-12 h-12 bg-green-50 rounded-lg flex items-center justify-center mb-4 group-hover:bg-green-100 transition-colors">
@@ -446,7 +464,7 @@ const AdminSettings = () => {
           <h3 className="text-lg font-bold text-gray-800 mb-2">Financial Info</h3>
           <p className="text-sm text-gray-500">Configure charges, commissions, and billing details</p>
         </div>
-      )}
+      )} */}
 
       {/* System Settings Card - Super Admin Only */}
       {isSuperAdmin && (
@@ -540,16 +558,31 @@ const AdminSettings = () => {
                 <div className="pt-6 border-t border-gray-100 space-y-4">
                   <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Change Password</h3>
                   <div className="space-y-4">
-                    <input type="password" name="currentPassword" value={profile.currentPassword} onChange={handleProfileChange}
-                      placeholder="Current Password"
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-blue-500 transition-all" />
+                    <div className="relative">
+                      <input type={showCurrentPassword ? "text" : "password"} name="currentPassword" value={profile.currentPassword} onChange={handleProfileChange}
+                        placeholder="Current Password"
+                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-blue-500 transition-all pr-12" />
+                      <button type="button" onClick={() => setShowCurrentPassword(!showCurrentPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                        {showCurrentPassword ? <FiEyeOff className="w-5 h-5" /> : <FiEye className="w-5 h-5" />}
+                      </button>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <input type="password" name="newPassword" value={profile.newPassword} onChange={handleProfileChange}
-                        placeholder="New Password"
-                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-blue-500 transition-all" />
-                      <input type="password" name="confirmPassword" value={profile.confirmPassword} onChange={handleProfileChange}
-                        placeholder="Confirm New Password"
-                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-blue-500 transition-all" />
+                      <div className="relative">
+                        <input type={showNewPassword ? "text" : "password"} name="newPassword" value={profile.newPassword} onChange={handleProfileChange}
+                          placeholder="New Password"
+                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-blue-500 transition-all pr-12" />
+                        <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                          {showNewPassword ? <FiEyeOff className="w-5 h-5" /> : <FiEye className="w-5 h-5" />}
+                        </button>
+                      </div>
+                      <div className="relative">
+                        <input type={showConfirmPassword ? "text" : "password"} name="confirmPassword" value={profile.confirmPassword} onChange={handleProfileChange}
+                          placeholder="Confirm New Password"
+                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-blue-500 transition-all pr-12" />
+                        <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                          {showConfirmPassword ? <FiEyeOff className="w-5 h-5" /> : <FiEye className="w-5 h-5" />}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -672,7 +705,7 @@ const AdminSettings = () => {
               </div>
 
               {/* Billing Information - Super Admin Only */}
-              {isSuperAdmin && (
+              {/* isSuperAdmin && (
                 <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 h-fit">
                   <div className="flex items-center gap-3 mb-6">
                     <div className="p-2 bg-indigo-100 rounded-lg">
@@ -766,7 +799,7 @@ const AdminSettings = () => {
                     </div>
                   </form>
                 </div>
-              )}
+              ) */}
             </motion.div>
           )
         }

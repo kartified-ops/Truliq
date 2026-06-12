@@ -114,7 +114,7 @@ const Tracking = () => {
                   <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">CUSTOMER</th>
                   <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">STATUS</th>
                   <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">BOOKING DATE</th>
-                  <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">ACTIONS</th>
+                  {/* <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">ACTIONS</th> */}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -153,7 +153,7 @@ const Tracking = () => {
                           year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
                         })}
                       </td>
-                      <td className="p-4 text-right">
+                      {/* <td className="p-4 text-right">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -163,7 +163,7 @@ const Tracking = () => {
                         >
                           Track
                         </button>
-                      </td>
+                      </td> */}
                     </tr>
                   ))
                 )}
@@ -223,14 +223,14 @@ const Tracking = () => {
                 })}
               </div>
 
-              <div className="pt-6 border-t border-gray-100 mt-auto">
+              {/* <div className="pt-6 border-t border-gray-100 mt-auto">
                 <button
                   onClick={() => navigate(`/admin/bookings/${selectedOrder._id}`)}
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg transition-colors text-sm"
                 >
                   View Full Details
                 </button>
-              </div>
+              </div> */}
             </motion.div>
           ) : (
             <div className="w-full lg:w-96 bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col items-center justify-center h-full text-center text-gray-500">

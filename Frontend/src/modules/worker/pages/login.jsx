@@ -225,6 +225,17 @@ const WorkerLogin = () => {
                   )}
                 </button>
               </div>
+
+              <div className="mt-4 text-center text-xs text-gray-500 animate-stagger-3 animate-fade-in">
+                By continuing, you agree to our{' '}
+                <Link to="/worker/terms" className="font-medium text-[#347989] hover:underline">
+                  Terms & Conditions
+                </Link>
+                {' '}and{' '}
+                <Link to="/worker/privacy" className="font-medium text-[#347989] hover:underline">
+                  Privacy Policy
+                </Link>
+              </div>
             </form>
           ) : (
             <div className="space-y-6">
