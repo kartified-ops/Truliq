@@ -96,9 +96,9 @@ const sendSMS = async (phone, message) => {
  */
 const sendOTP = async (phone, otp) => {
   // DLT-compliant message format (must match registered template)
-  // Template: "Welcome to the ##var## powered by SMSINDIAHUB. Your OTP for registration is ##var##"
-  const appName = 'HOMECARE';
-  const message = `Welcome to the ${appName} powered by SMSINDIAHUB. Your OTP for registration is ${otp}`;
+  // Template: "Welcome to ##var## Powered by IIDMTB. Use OTP ##var## to verify your login."
+  const appName = 'Truliq';
+  const message = `Welcome to ${appName} Powered by IIDMTB. Use OTP ${otp} to verify your login.`;
 
   console.log(`[SMS] Attempting to send OTP to ${phone}`);
   console.log(`[SMS] Message: ${message}`);
