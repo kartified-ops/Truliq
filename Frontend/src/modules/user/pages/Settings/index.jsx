@@ -159,53 +159,7 @@ const Settings = () => {
           </div>
         </div>
 
-        {/* Account Actions Section */}
-        <div className="mb-6">
-          <h2 className="text-base font-bold text-black mb-4">Account</h2>
-          <div className="space-y-3">
-            <button
-              onClick={async () => {
-                const confirmed = window.confirm('Are you sure you want to log out?');
-                if (confirmed) {
-                  await userAuthService.logout();
-                  navigate('/user/login');
-                  toast.success('Logged out successfully');
-                }
-              }}
-              className="w-full bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3 hover:bg-gray-50 active:scale-[0.98] transition-all"
-            >
-              <div className="w-8 h-8 rounded-full flex items-center justify-center bg-red-50">
-                <FiLogOut className="w-5 h-5 text-red-500" />
-              </div>
-              <span className="text-sm font-medium text-red-600">Log Out</span>
-            </button>
-
-            <button
-              onClick={async () => {
-                if (window.confirm('Are you sure you want to delete your account? This action is irreversible.')) {
-                  const toastId = toast.loading('Processing deletion...');
-                  try {
-                    await userAuthService.deleteAccount();
-                    toast.success('Account deleted successfully', { id: toastId });
-                    navigate('/user/login', { replace: true });
-                  } catch (error) {
-                    console.error('Delete account failed', error);
-                    toast.error(error.response?.data?.message || 'Failed to delete account. Please try again.', { id: toastId });
-                  }
-                }
-              }}
-              className="w-full bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3 hover:bg-gray-50 active:scale-[0.98] transition-all"
-            >
-              <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-100">
-                <FiTrash2 className="w-5 h-5 text-gray-500" />
-              </div>
-              <div className="text-left">
-                <span className="text-sm font-medium text-gray-700 block">Delete Account</span>
-                <span className="text-xs text-gray-500">Permanently remove your data</span>
-              </div>
-            </button>
-          </div>
-        </div>
+        {/* Account Actions Section - Moved to Account page */}
 
         {/* Privacy & Data Section - temporarily hidden */}
         {/* <div className="space-y-4 mb-6">

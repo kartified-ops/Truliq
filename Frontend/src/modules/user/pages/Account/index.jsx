@@ -23,7 +23,8 @@ import {
   FiGift,
   FiShield,
   FiZap,
-  FiCheckCircle
+  FiCheckCircle,
+  FiTrash2
 } from 'react-icons/fi';
 import { MdAccountBalanceWallet } from 'react-icons/md';
 import NotificationBell from '../../components/common/NotificationBell';
@@ -437,6 +438,26 @@ const Account = () => {
             >
               <FiLogOut className="w-5 h-5" />
               <span>Log out</span>
+            </motion.button>
+            <motion.button
+              whileTap={{ scale: 0.98 }}
+              onClick={async () => {
+                if (window.confirm('Are you sure you want to delete your account? This action is irreversible.')) {
+                  const toastId = toast.loading('Processing deletion...');
+                  try {
+                    await userAuthService.deleteAccount();
+                    toast.success('Account deleted successfully', { id: toastId });
+                    navigate('/user/login', { replace: true });
+                  } catch (error) {
+                    console.error('Delete account failed', error);
+                    toast.error(error?.response?.data?.message || 'Failed to delete account. Please try again.', { id: toastId });
+                  }
+                }
+              }}
+              className="w-full flex items-center justify-center gap-2 p-4 bg-white border border-gray-200 hover:bg-gray-50 active:bg-gray-100 text-gray-500 font-bold tracking-wide rounded-2xl transition-all mb-3"
+            >
+              <FiTrash2 className="w-5 h-5 text-gray-400" />
+              <span>Delete Account</span>
             </motion.button>
           </motion.div>
 

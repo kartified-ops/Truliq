@@ -500,7 +500,7 @@ const Dashboard = () => {
             <button
               onClick={handleToggleOnline}
               disabled={togglingOnline}
-              className="px-5 py-2.5 rounded-xl font-bold text-sm transition-all active:scale-95 disabled:opacity-60"
+              className="px-4 py-2 rounded-xl font-bold text-xs transition-all active:scale-95 disabled:opacity-60"
               style={{
                 background: isOnline ? 'rgba(255,255,255,0.2)' : 'white',
                 color: isOnline ? 'white' : '#059669',
@@ -603,24 +603,23 @@ const Dashboard = () => {
                 }}
               />
               <div className="relative z-10">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <p className="text-xs text-white font-semibold mb-1 opacity-90 uppercase tracking-wide">This Month</p>
-                    <p className="text-2xl font-bold text-white leading-tight">
-                      ₹{stats.thisMonthEarnings.toLocaleString()}
-                    </p>
-                  </div>
-                  <div
-                    className="p-3 rounded-xl flex-shrink-0"
-                    style={{
-                      background: 'rgba(255, 255, 255, 0.25)',
-                      backdropFilter: 'blur(10px)',
-                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.3)',
-                      border: '1px solid rgba(255, 255, 255, 0.3)',
-                    }}
-                  >
-                    <FaWallet className="w-6 h-6" style={{ color: '#FFFFFF' }} />
-                  </div>
+                {/* Absolutely positioned icon */}
+                <div
+                  className="absolute top-0 right-0 p-2 rounded-xl"
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.25)',
+                    backdropFilter: 'blur(10px)',
+                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.3)',
+                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                  }}
+                >
+                  <FaWallet className="w-4 h-4" style={{ color: '#FFFFFF' }} />
+                </div>
+                <div className="mb-3 pr-8">
+                  <p className="text-xs text-white font-semibold mb-1 opacity-90 uppercase tracking-wide">This Month</p>
+                  <p className="text-xl font-bold text-white leading-tight break-words">
+                    ₹{stats.thisMonthEarnings.toLocaleString()}
+                  </p>
                 </div>
                 <div className="flex items-center gap-1 mt-2">
                   <FiTrendingUp className="w-4 h-4 text-white opacity-80" />
@@ -647,24 +646,23 @@ const Dashboard = () => {
                 }}
               />
               <div className="relative z-10">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <p className="text-xs text-white font-semibold mb-1 opacity-90 uppercase tracking-wide">Pending Jobs</p>
-                    <p className="text-2xl font-bold text-white leading-tight">
-                      {stats.pendingJobs}
-                    </p>
-                  </div>
-                  <div
-                    className="p-3 rounded-xl flex-shrink-0"
-                    style={{
-                      background: 'rgba(255, 255, 255, 0.25)',
-                      backdropFilter: 'blur(10px)',
-                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.3)',
-                      border: '1px solid rgba(255, 255, 255, 0.3)',
-                    }}
-                  >
-                    <FiClock className="w-6 h-6" style={{ color: '#FFFFFF' }} />
-                  </div>
+                {/* Absolutely positioned icon */}
+                <div
+                  className="absolute top-0 right-0 p-2 rounded-xl"
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.25)',
+                    backdropFilter: 'blur(10px)',
+                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.3)',
+                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                  }}
+                >
+                  <FiClock className="w-4 h-4" style={{ color: '#FFFFFF' }} />
+                </div>
+                <div className="mb-3 pr-8">
+                  <p className="text-xs text-white font-semibold mb-1 opacity-90 uppercase tracking-wide">Pending Jobs</p>
+                  <p className="text-xl font-bold text-white leading-tight break-words">
+                    {stats.pendingJobs}
+                  </p>
                 </div>
                 <div className="flex items-center gap-1 mt-2">
                   <FiCheckCircle className="w-4 h-4 text-white opacity-80" />
@@ -691,24 +689,23 @@ const Dashboard = () => {
                 }}
               />
               <div className="relative z-10">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <p className="text-xs text-white font-semibold mb-1 opacity-90 uppercase tracking-wide">Accepted</p>
-                    <p className="text-2xl font-bold text-white leading-tight">
-                      {stats.acceptedJobs}
-                    </p>
-                  </div>
-                  <div
-                    className="p-3 rounded-xl flex-shrink-0"
-                    style={{
-                      background: 'rgba(255, 255, 255, 0.25)',
-                      backdropFilter: 'blur(10px)',
-                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.3)',
-                      border: '1px solid rgba(255, 255, 255, 0.3)',
-                    }}
-                  >
-                    <FiCheckCircle className="w-6 h-6" style={{ color: '#FFFFFF' }} />
-                  </div>
+                {/* Absolutely positioned icon */}
+                <div
+                  className="absolute top-0 right-0 p-2 rounded-xl"
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.25)',
+                    backdropFilter: 'blur(10px)',
+                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.3)',
+                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                  }}
+                >
+                  <FiCheckCircle className="w-4 h-4" style={{ color: '#FFFFFF' }} />
+                </div>
+                <div className="mb-3 pr-8">
+                  <p className="text-xs text-white font-semibold mb-1 opacity-90 uppercase tracking-wide">Accepted</p>
+                  <p className="text-xl font-bold text-white leading-tight break-words">
+                    {stats.acceptedJobs}
+                  </p>
                 </div>
                 <div className="flex items-center gap-1 mt-2">
                   <FiBriefcase className="w-4 h-4 text-white opacity-80" />
@@ -735,24 +732,23 @@ const Dashboard = () => {
                 }}
               />
               <div className="relative z-10">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <p className="text-xs text-white font-semibold mb-1 opacity-90 uppercase tracking-wide">Completed</p>
-                    <p className="text-2xl font-bold text-white leading-tight">
-                      {stats.completedJobs}
-                    </p>
-                  </div>
-                  <div
-                    className="p-3 rounded-xl flex-shrink-0"
-                    style={{
-                      background: 'rgba(255, 255, 255, 0.25)',
-                      backdropFilter: 'blur(10px)',
-                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.3)',
-                      border: '1px solid rgba(255, 255, 255, 0.3)',
-                    }}
-                  >
-                    <FiBriefcase className="w-6 h-6" style={{ color: '#FFFFFF' }} />
-                  </div>
+                {/* Absolutely positioned icon */}
+                <div
+                  className="absolute top-0 right-0 p-2 rounded-xl"
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.25)',
+                    backdropFilter: 'blur(10px)',
+                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.3)',
+                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                  }}
+                >
+                  <FiBriefcase className="w-4 h-4" style={{ color: '#FFFFFF' }} />
+                </div>
+                <div className="mb-3 pr-8">
+                  <p className="text-xs text-white font-semibold mb-1 opacity-90 uppercase tracking-wide">Completed</p>
+                  <p className="text-xl font-bold text-white leading-tight break-words">
+                    {stats.completedJobs}
+                  </p>
                 </div>
                 <div className="flex items-center gap-1 mt-2">
                   <FiCheckCircle className="w-4 h-4 text-white opacity-80" />

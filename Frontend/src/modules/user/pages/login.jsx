@@ -13,23 +13,44 @@ import { z } from "zod";
 
 // Zod schema
 const phoneSchema = z.object({
-  phone: z.string().regex(/^[6-9]\d{9}$/, "Please enter a valid 10-digit Indian phone number"),
+  phone: z.string()
+    .length(10, "Mobile number must be exactly 10 digits")
+    .regex(/^[6-9]/, "Mobile number must start with 6, 7, 8, or 9"),
 });
 
 const Login = () => {
   const navigate = useNavigate();
-  const [step, setStep] = useState('phone'); // 'phone' or 'otp'
+  const [step, setStep] = useState(sessionStorage.getItem('userLoginStep') || 'phone'); // 'phone' or 'otp'
   const [phoneNumber, setPhoneNumber] = useState(sessionStorage.getItem('userLoginPhone') || '');
+  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [otpToken, setOtpToken] = useState(sessionStorage.getItem('userLoginOtpToken') || '');
+  const [isLoading, setIsLoading] = useState(false);
+  const [resendTimer, setResendTimer] = useState(() => {
+    const saved = sessionStorage.getItem('userLoginTimer');
+    if (saved) {
+      const remaining = Math.floor((parseInt(saved, 10) - Date.now()) / 1000);
+      return remaining > 0 ? remaining : 0;
+    }
+    return 0;
+  });
 
-  // update sessionStorage when phoneNumber changes
+  useEffect(() => {
+    sessionStorage.setItem('userLoginStep', step);
+  }, [step]);
+
   useEffect(() => {
     sessionStorage.setItem('userLoginPhone', phoneNumber);
   }, [phoneNumber]);
 
-  const [otp, setOtp] = useState(['', '', '', '', '', '']);
-  const [otpToken, setOtpToken] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [resendTimer, setResendTimer] = useState(0);
+  useEffect(() => {
+    if (otpToken) sessionStorage.setItem('userLoginOtpToken', otpToken);
+  }, [otpToken]);
+
+  useEffect(() => {
+    if (resendTimer > 0) {
+      sessionStorage.setItem('userLoginTimer', Date.now() + resendTimer * 1000);
+    }
+  }, [resendTimer]);
 
   // Timer countdown effect
   useEffect(() => {
@@ -54,12 +75,17 @@ const Login = () => {
       return;
     }
 
-    if (step === 'phone' && phoneInputRef.current) {
-      setTimeout(() => phoneInputRef.current.focus(), 100);
-    } else if (step === 'otp' && otpInputRefs.current[0]) {
+    if (step === 'otp' && otpInputRefs.current[0]) {
       setTimeout(() => otpInputRefs.current[0].focus(), 100);
     }
   }, [step, navigate]);
+
+  const handleFocus = (e) => {
+    const target = e.target;
+    setTimeout(() => {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 300);
+  };
 
   const handlePhoneSubmit = async (e) => {
     e.preventDefault();
@@ -167,6 +193,10 @@ const Login = () => {
           });
         } else {
           toast.success('Welcome back!');
+          sessionStorage.removeItem('userLoginStep');
+          sessionStorage.removeItem('userLoginPhone');
+          sessionStorage.removeItem('userLoginOtpToken');
+          sessionStorage.removeItem('userLoginTimer');
           navigate('/user', { replace: true });
         }
       } else {
@@ -185,8 +215,10 @@ const Login = () => {
   return (
     <div className="min-h-[100dvh] bg-gray-50 flex flex-col justify-start sm:justify-center py-12 sm:px-6 lg:px-8 relative overflow-x-hidden">
       {/* Decorative Background Elements */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[#347989] opacity-[0.03] rounded-full blur-3xl animate-floating" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[#D68F35] opacity-[0.03] rounded-full blur-3xl animate-floating" style={{ animationDelay: '2s' }} />
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[#347989] opacity-[0.03] rounded-full blur-3xl animate-floating" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[#D68F35] opacity-[0.03] rounded-full blur-3xl animate-floating" style={{ animationDelay: '2s' }} />
+      </div>
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center mb-8 relative z-10 animate-fade-in">
         <div className="flex justify-center mb-6">
@@ -241,9 +273,14 @@ const Login = () => {
                     placeholder="98765 43210"
                     value={phoneNumber}
                     onChange={(e) => {
-                      const val = e.target.value.replace(/\D/g, '');
-                      if (val.length <= 10) setPhoneNumber(val);
+                      let val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                      if (val.length > 0 && !/^[6-9]/.test(val[0])) {
+                        toast.error("Mobile number must start with 6, 7, 8, or 9", { id: 'phone-format' });
+                        val = '';
+                      }
+                      setPhoneNumber(val);
                     }}
+                    onFocus={handleFocus}
                     style={{ '--tw-ring-color': brandColor }}
                   />
                 </div>
@@ -325,12 +362,13 @@ const Login = () => {
               <div className="flex items-center justify-between text-sm animate-stagger-2 animate-fade-in">
                 <button
                   type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setOtp(['', '', '', '', '', '']);
-                    setOtpToken('');
+                  onClick={() => {
                     setStep('phone');
+                    sessionStorage.removeItem('userLoginOtpToken');
+                    sessionStorage.removeItem('userLoginTimer');
+                    setOtpToken('');
                     setResendTimer(0);
+                    setOtp(['', '', '', '', '', '']);
                   }}
                   className="flex items-center font-medium text-gray-600 hover:text-[#347989] transition-colors"
                 >
@@ -386,7 +424,7 @@ const Login = () => {
         </div>
       </div>
 
-      <div className="mt-8 text-center text-xs text-gray-400 animate-fade-in animate-stagger-4">
+      <div className="mt-auto sm:mt-8 text-center text-xs text-gray-400 animate-fade-in animate-stagger-4">
         &copy; {new Date().getFullYear()} Truliq. All rights reserved.
       </div>
       <DebugConsole />

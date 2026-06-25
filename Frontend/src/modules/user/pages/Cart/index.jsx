@@ -149,8 +149,8 @@ const Cart = () => {
       </div>
 
       <div className="relative z-10">
-        {/* Modern Glassmorphism Header */}
-        <header className="sticky top-0 z-40 backdrop-blur-xl bg-white/40 border-b border-black/[0.03] px-4 py-4 flex items-center justify-between">
+        {/* Solid Header */}
+        <header className="sticky top-0 z-50 bg-white border-b border-gray-100 px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
               onClick={handleBack}
@@ -263,13 +263,7 @@ const Cart = () => {
                         </div>
                       </div>
 
-                      {/* Delete Category Button */}
-                      <button
-                        onClick={() => handleDeleteCategory(category)}
-                        className="p-2 hover:bg-red-50 rounded-full transition-colors shrink-0"
-                      >
-                        <FiTrash2 className="w-5 h-5 text-red-500" />
-                      </button>
+                      {/* Removed Delete Category Button */}
                     </div>
 
                     {/* Services List */}

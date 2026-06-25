@@ -13,8 +13,14 @@ import { z } from "zod";
 // Zod schema
 const signupSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").regex(/^[a-zA-Z\s]+$/, "Name can only contain letters"),
-  email: z.string().optional().refine(val => !val || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val), "Invalid email address"),
-  phoneNumber: z.string().regex(/^[6-9]\d{9}$/, "Please enter a valid 10-digit Indian phone number"),
+  email: z.string()
+    .email("Please enter a valid email format (e.g. you@example.com)")
+    .refine(val => !val || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val), "Please enter a valid email format (e.g. you@example.com)")
+    .optional()
+    .or(z.literal('')),
+  phoneNumber: z.string()
+    .length(10, "Mobile number must be exactly 10 digits")
+    .regex(/^[6-9]/, "Mobile number must start with 6, 7, 8, or 9"),
 });
 
 const Signup = () => {
@@ -57,12 +63,17 @@ const Signup = () => {
 
   // Auto-focus logic
   useEffect(() => {
-    if (step === 'details' && nameInputRef.current) {
-      setTimeout(() => nameInputRef.current.focus(), 100);
-    } else if (step === 'otp' && otpInputRefs.current[0]) {
+    if (step === 'otp' && otpInputRefs.current[0]) {
       setTimeout(() => otpInputRefs.current[0].focus(), 100);
     }
   }, [step]);
+
+  const handleFocus = (e) => {
+    const target = e.target;
+    setTimeout(() => {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 300);
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -213,8 +224,10 @@ const Signup = () => {
   return (
     <div className="min-h-[100dvh] bg-gray-50 flex flex-col justify-start sm:justify-center py-12 sm:px-6 lg:px-8 relative overflow-x-hidden">
       {/* Decorative Background Elements */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[#347989] opacity-[0.03] rounded-full blur-3xl animate-floating" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[#D68F35] opacity-[0.03] rounded-full blur-3xl animate-floating" style={{ animationDelay: '2s' }} />
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[#347989] opacity-[0.03] rounded-full blur-3xl animate-floating" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[#D68F35] opacity-[0.03] rounded-full blur-3xl animate-floating" style={{ animationDelay: '2s' }} />
+      </div>
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center mb-8 relative z-10 animate-fade-in">
         <Logo className="h-16 w-auto transform hover:scale-110 transition-transform duration-500 mx-auto" />
@@ -242,7 +255,7 @@ const Signup = () => {
           <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#347989] via-[#D68F35] to-[#BB5F36]" />
 
           {step === 'details' ? (
-            <form onSubmit={handleDetailsSubmit} className="space-y-6">
+            <form onSubmit={handleDetailsSubmit} className="space-y-6" noValidate>
               {verificationToken && (
                 <button
                   type="button"
@@ -268,7 +281,11 @@ const Signup = () => {
                     type="text"
                     required
                     value={formData.name}
-                    onChange={handleInputChange}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^a-zA-Z\s]/g, '');
+                      handleInputChange({ target: { name: 'name', value: val } });
+                    }}
+                    onFocus={handleFocus}
                     className="block w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-300 hover:border-gray-400"
                     placeholder="Enter your name"
                     style={{ '--tw-ring-color': brandColor }}
@@ -290,6 +307,7 @@ const Signup = () => {
                     type="email"
                     value={formData.email}
                     onChange={handleInputChange}
+                    onFocus={handleFocus}
                     className="block w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-300 hover:border-gray-400"
                     placeholder="you@example.com"
                     style={{ '--tw-ring-color': brandColor }}
@@ -316,6 +334,7 @@ const Signup = () => {
                       required
                       value={formData.phoneNumber}
                       onChange={(e) => setFormData(prev => ({ ...prev, phoneNumber: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
+                      onFocus={handleFocus}
                       className="block w-full pl-24 pr-4 py-3 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-300 hover:border-gray-400"
                       placeholder="9876543210"
                       style={{ '--tw-ring-color': brandColor }}

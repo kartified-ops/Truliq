@@ -27,7 +27,7 @@ const CategoryCard = memo(({ icon, title, onClick, hasSaleBadge = false, index =
   return (
     <div
       ref={cardRef}
-      className="flex flex-col items-center justify-center p-1 cursor-pointer relative category-card-container group transition-transform duration-300 ease-out active:scale-95 w-full"
+      className="flex flex-col items-center justify-start p-1 cursor-pointer relative category-card-container group transition-transform duration-300 ease-out active:scale-95 w-full h-full"
       onClick={onClick}
       style={{
         opacity: 0, // Start hidden for GSAP

@@ -65,13 +65,13 @@ const TermsAndConditions = () => {
           >
             <FiArrowLeft className="w-5 h-5" />
           </button>
-          <Logo className="h-8 w-auto absolute left-1/2 -translate-x-1/2" />
+          <Logo className="h-10 md:h-12 w-auto absolute left-1/2 -translate-x-1/2" />
           <div className="w-10"></div> {/* Spacer for centering */}
         </div>
       </header>
 
       {/* Hero Section */}
-      <section className="pt-16 pb-12 px-6 overflow-hidden relative">
+      <section className="pt-8 pb-6 px-6 overflow-hidden relative">
         <div className="absolute top-0 right-0 w-64 h-64 bg-[#347989]/5 rounded-full blur-3xl -mr-32 -mt-32" />
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-[#BB5F36]/5 rounded-full blur-3xl -ml-32 -mb-32" />
         
@@ -89,7 +89,7 @@ const TermsAndConditions = () => {
       </section>
 
       {/* Content Section */}
-      <section className="pb-24 px-6 relative z-10 animate-item">
+      <section className="pb-8 px-6 relative z-10 animate-item">
         <div className="max-w-3xl mx-auto">
           <div className="bg-white rounded-3xl p-8 md:p-10 shadow-xl shadow-gray-200/50 border border-gray-100">
             {loading ? (

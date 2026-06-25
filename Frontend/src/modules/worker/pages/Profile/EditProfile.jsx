@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   FiSave, FiUser, FiPhone, FiMail,
   FiMapPin, FiBriefcase, FiCamera, FiCheck,
-  FiChevronDown, FiX
+  FiChevronDown, FiX, FiTrash2
 } from 'react-icons/fi';
 import Header from '../../components/layout/Header';
 import BottomNav from '../../components/layout/BottomNav';
@@ -56,6 +56,7 @@ const EditProfile = () => {
   });
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
+  const [showPhotoOptions, setShowPhotoOptions] = useState(false);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [errors, setErrors] = useState({});
 
@@ -229,7 +230,9 @@ const EditProfile = () => {
         status: formData.status
       };
 
-      if (photoFile) {
+      if (photoFile === 'delete') {
+        payload.profilePhoto = '';
+      } else if (photoFile) {
         try {
           const photoUrl = await uploadFile(photoFile);
           payload.profilePhoto = photoUrl;
@@ -282,7 +285,7 @@ const EditProfile = () => {
           <div className="relative">
             <div
               className="w-24 h-24 rounded-full bg-white border-4 border-white shadow-md overflow-hidden flex items-center justify-center cursor-pointer"
-              onClick={() => flutterBridge.isFlutter ? handleNativeCamera() : document.getElementById('photo-upload').click()}
+              onClick={() => setShowPhotoOptions(!showPhotoOptions)}
             >
               {photoPreview || formData.profilePhoto ? (
                 <img src={photoPreview || formData.profilePhoto} className="w-full h-full object-cover" alt="Profile" />
@@ -295,25 +298,80 @@ const EditProfile = () => {
             {/* Camera Icon */}
             <div
               className="absolute bottom-0 right-0 p-2 bg-blue-600 rounded-full text-white ring-2 ring-white shadow-sm cursor-pointer"
-              onClick={() => flutterBridge.isFlutter ? handleNativeCamera() : document.getElementById('photo-upload').click()}
+              onClick={() => setShowPhotoOptions(!showPhotoOptions)}
             >
               <FiCamera className="w-4 h-4" />
             </div>
-            {!flutterBridge.isFlutter && (
-              <input
-                type="file"
-                id="photo-upload"
-                accept="image/*"
-                className="hidden"
-                onChange={handlePhotoChange}
-              />
+
+            {/* Photo Options Dropdown */}
+            {showPhotoOptions && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowPhotoOptions(false)}></div>
+                <div className="absolute top-28 w-48 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden transform -translate-x-1/4">
+                  <button
+                    onClick={() => { 
+                      setShowPhotoOptions(false); 
+                      if (flutterBridge.isFlutter) {
+                        handleNativeCamera(); 
+                      } else {
+                        document.getElementById('camera-upload').click();
+                      }
+                    }}
+                    className="w-full text-left px-4 py-3 hover:bg-gray-50 border-b border-gray-50 text-sm font-medium text-gray-700 flex items-center gap-2"
+                  >
+                    <FiCamera className="w-4 h-4" /> Take Photo
+                  </button>
+                  <button
+                    onClick={() => { setShowPhotoOptions(false); document.getElementById('photo-upload').click(); }}
+                    className="w-full text-left px-4 py-3 hover:bg-gray-50 border-b border-gray-50 text-sm font-medium text-gray-700 flex items-center gap-2"
+                  >
+                    <FiUser className="w-4 h-4" /> Upload from Gallery
+                  </button>
+                  {(photoPreview || formData.profilePhoto) && (
+                    <button
+                      onClick={() => {
+                        setShowPhotoOptions(false);
+                        setPhotoFile('delete');
+                        setPhotoPreview(null);
+                        setFormData(prev => ({...prev, profilePhoto: ''}));
+                      }}
+                      className="w-full text-left px-4 py-3 hover:bg-gray-50 text-sm font-medium text-red-600 flex items-center gap-2"
+                    >
+                      <FiTrash2 className="w-4 h-4" /> Remove Photo
+                    </button>
+                  )}
+                </div>
+              </>
             )}
+
+            <input
+              type="file"
+              id="camera-upload"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => {
+                handlePhotoChange(e);
+                setShowPhotoOptions(false);
+              }}
+            />
+
+            <input
+              type="file"
+              id="photo-upload"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                handlePhotoChange(e);
+                setShowPhotoOptions(false);
+              }}
+            />
           </div>
           <p className="text-xs text-gray-400 mt-2 font-medium">Tap to change photo</p>
         </div>
 
-        {/* Availability Status */}
-        <div className="bg-white rounded-2xl p-5 shadow-sm space-y-4 border border-gray-100">
+        {/* Availability Status - Commented out as requested, Dashboard handles this better with GPS */}
+        {/* <div className="bg-white rounded-2xl p-5 shadow-sm space-y-4 border border-gray-100">
           <div className="flex items-center gap-2 mb-2">
             <FiCheck className="text-blue-600" />
             <h2 className="text-sm font-bold text-gray-800 uppercase tracking-wide">Availability</h2>
@@ -342,7 +400,7 @@ const EditProfile = () => {
           <p className="text-xs text-gray-400 text-center">
             Set your status to receive new job assignments.
           </p>
-        </div>
+        </div> */}
 
         {/* Personal Details */}
         <div className="bg-white rounded-2xl p-5 shadow-sm space-y-4 border border-gray-100">

@@ -11,8 +11,12 @@ import { z } from "zod";
 // Zod schema for Worker Signup
 const workerSignupSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").regex(/^[a-zA-Z\s]+$/, "Name can only contain letters"),
-  email: z.string().email("Please enter a valid email address"),
-  phoneNumber: z.string().regex(/^[6-9]\d{9}$/, "Please enter a valid 10-digit Indian phone number"),
+  email: z.string()
+    .email("Please enter a valid email format (e.g. you@example.com)")
+    .refine(val => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val), "Please enter a valid email format (e.g. you@example.com)"),
+  phoneNumber: z.string()
+    .length(10, "Mobile number must be exactly 10 digits")
+    .regex(/^[6-9]/, "Mobile number must start with 6, 7, 8, or 9"),
   aadhar: z.string().regex(/^\d{12}$/, "Aadhar number must be exactly 12 digits"),
 });
 
@@ -67,12 +71,17 @@ const WorkerSignup = () => {
 
   // Auto-focus logic
   useEffect(() => {
-    if (step === 'details' && nameInputRef.current) {
-      setTimeout(() => nameInputRef.current.focus(), 100);
-    } else if (step === 'otp' && otpInputRefs.current[0]) {
+    if (step === 'otp' && otpInputRefs.current[0]) {
       setTimeout(() => otpInputRefs.current[0].focus(), 100);
     }
   }, [step]);
+
+  const handleFocus = (e) => {
+    const target = e.target;
+    setTimeout(() => {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 300);
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -284,8 +293,10 @@ const WorkerSignup = () => {
   return (
     <div className="min-h-[100dvh] bg-gray-50 flex flex-col justify-start sm:justify-center py-12 sm:px-6 lg:px-8 relative overflow-x-hidden">
       {/* Decorative Background Elements */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[#347989] opacity-[0.03] rounded-full blur-3xl animate-floating" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[#D68F35] opacity-[0.03] rounded-full blur-3xl animate-floating" style={{ animationDelay: '2s' }} />
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[#347989] opacity-[0.03] rounded-full blur-3xl animate-floating" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[#D68F35] opacity-[0.03] rounded-full blur-3xl animate-floating" style={{ animationDelay: '2s' }} />
+      </div>
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center mb-8 relative z-10 animate-fade-in">
         <Logo className="h-16 w-auto mx-auto transform hover:scale-110 transition-transform duration-500" />
@@ -302,7 +313,7 @@ const WorkerSignup = () => {
           <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#347989] via-[#D68F35] to-[#BB5F36]" />
 
           {step === 'details' ? (
-            <form onSubmit={handleDetailsSubmit} className="space-y-6">
+            <form onSubmit={handleDetailsSubmit} className="space-y-6" noValidate>
               <div className="animate-stagger-1 animate-fade-in">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
                 <div className="relative rounded-xl shadow-sm group">
@@ -315,7 +326,11 @@ const WorkerSignup = () => {
                     name="name"
                     required
                     value={formData.name}
-                    onChange={handleInputChange}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^a-zA-Z\s]/g, '');
+                      handleInputChange({ target: { name: 'name', value: val } });
+                    }}
+                    onFocus={handleFocus}
                     className="block w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-offset-2 outline-none transition-all duration-300 hover:border-gray-400"
                     style={{ '--tw-ring-color': brandColor }}
                     placeholder="Enter your name"
@@ -335,6 +350,7 @@ const WorkerSignup = () => {
                     required
                     value={formData.email}
                     onChange={handleInputChange}
+                    onFocus={handleFocus}
                     className="block w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-offset-2 outline-none transition-all duration-300 hover:border-gray-400"
                     style={{ '--tw-ring-color': brandColor }}
                     placeholder="name@example.com"
@@ -354,6 +370,7 @@ const WorkerSignup = () => {
                       required
                       value={formData.phoneNumber}
                       onChange={(e) => setFormData(p => ({ ...p, phoneNumber: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
+                      onFocus={handleFocus}
                       className="block w-full pl-14 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-offset-2 outline-none transition-all duration-300 hover:border-gray-400"
                       style={{ '--tw-ring-color': brandColor }}
                       placeholder="9876543210"
@@ -373,6 +390,7 @@ const WorkerSignup = () => {
                     required
                     value={formData.aadhar}
                     onChange={(e) => setFormData(p => ({ ...p, aadhar: e.target.value.replace(/\D/g, '').slice(0, 12) }))}
+                    onFocus={handleFocus}
                     className="block w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-offset-2 outline-none transition-all duration-300 hover:border-gray-400"
                     style={{ '--tw-ring-color': brandColor }}
                     placeholder="12-digit Aadhar"

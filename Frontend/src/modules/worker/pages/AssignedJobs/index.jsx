@@ -115,7 +115,7 @@ const AssignedJobs = () => {
   });
 
   return (
-    <div className="min-h-screen pb-20" style={{ background: themeColors.backgroundGradient }}>
+    <div className={`min-h-screen pb-20 ${!loading && filteredJobs.length === 0 ? 'h-[100dvh] overflow-hidden' : ''}`} style={{ background: themeColors.backgroundGradient }}>
       <Header title="My Jobs" showSearch={true} />
 
       <main className="px-4 py-6">

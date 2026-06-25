@@ -379,10 +379,10 @@ const UpdateProfile = () => {
                 className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-300 bg-gray-50 text-gray-600 cursor-not-allowed"
                 placeholder="Phone number cannot be changed"
               />
-              <p className="text-xs text-gray-500 mt-1 ml-1">
-                Phone number cannot be changed for security reasons
-              </p>
             </div>
+            <p className="text-xs text-gray-500 mt-1 ml-1">
+              Phone number cannot be changed for security reasons
+            </p>
           </div>
         </div>
 
