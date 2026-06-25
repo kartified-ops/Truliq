@@ -231,9 +231,13 @@ const WorkerLogin = () => {
                 <Link to="/worker/terms" className="font-medium text-[#347989] hover:underline">
                   Terms & Conditions
                 </Link>
-                {' '}and{' '}
+                {', '}
                 <Link to="/worker/privacy" className="font-medium text-[#347989] hover:underline">
                   Privacy Policy
+                </Link>
+                {' '}and{' '}
+                <Link to="/worker/support" className="font-medium text-[#347989] hover:underline">
+                  Support
                 </Link>
               </div>
             </form>

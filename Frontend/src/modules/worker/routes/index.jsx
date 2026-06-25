@@ -52,6 +52,7 @@ const BillingPage = lazyLoad(() => import('../pages/BillingPage'));
 const Subscription = lazyLoad(() => import('../pages/Subscription'));
 const PrivacyPolicy = lazyLoad(() => import('../pages/PrivacyPolicy'));
 const TermsAndConditions = lazyLoad(() => import('../pages/TermsAndConditions'));
+const Support = lazyLoad(() => import('../pages/Support'));
 
 // Loading fallback component
 import LogoLoader from '../../../components/common/LogoLoader';
@@ -75,6 +76,7 @@ const WorkerRoutes = () => {
     location.pathname === '/worker/signup' ||
     location.pathname.includes('/terms') ||
     location.pathname.includes('/privacy') ||
+    location.pathname.includes('/support') ||
     location.pathname.endsWith('/map') ||
     location.pathname.includes('/billing');
 
@@ -109,6 +111,7 @@ const WorkerRoutes = () => {
               {/* Common public pages accessible anywhere */}
               <Route path="/terms" element={<TermsAndConditions />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
+              <Route path="/support" element={<Support />} />
             </Routes>
           </PageTransition>
         </Suspense>
