@@ -19,7 +19,13 @@ const phoneSchema = z.object({
 const Login = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState('phone'); // 'phone' or 'otp'
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState(sessionStorage.getItem('userLoginPhone') || '');
+
+  // update sessionStorage when phoneNumber changes
+  useEffect(() => {
+    sessionStorage.setItem('userLoginPhone', phoneNumber);
+  }, [phoneNumber]);
+
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [otpToken, setOtpToken] = useState('');
   const [isLoading, setIsLoading] = useState(false);
