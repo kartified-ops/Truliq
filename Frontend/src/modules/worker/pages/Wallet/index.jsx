@@ -661,10 +661,10 @@ const Wallet = () => {
               initial={{ y: 100, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 100, opacity: 0 }}
-              className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden"
+              className="bg-white rounded-3xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="bg-gradient-to-br from-teal-600 to-teal-700 text-white px-6 py-5 flex items-center justify-between">
+              <div className="sticky top-0 z-10 bg-gradient-to-br from-teal-600 to-teal-700 text-white px-6 py-5 flex items-center justify-between rounded-t-3xl">
                 <div>
                   <h3 className="font-bold text-lg">Request Withdrawal</h3>
                   <p className="text-xs text-white/80">Funds will be sent to your bank/UPI</p>

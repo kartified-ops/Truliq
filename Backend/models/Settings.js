@@ -199,6 +199,11 @@ We use the information we collect to provide, maintain, and improve our services
 
 3. Data Sharing
 Your contact information is shared with workers only to the extent necessary to fulfill your service requests. We do not sell your personal data to third parties.`
+  },
+  supportPageContent: {
+    type: String,
+    default: `Welcome to Support
+If you have any questions or need assistance, please feel free to reach out to us at our support email or phone number.`
   }
 }, { timestamps: true });
 

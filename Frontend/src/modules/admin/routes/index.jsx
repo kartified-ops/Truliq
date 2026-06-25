@@ -72,6 +72,7 @@ const AdminRoutes = () => {
           <Route path="worker-plans" element={<WorkerPlans />} />
           <Route path="legal/terms" element={<LegalSettings type="terms" />} />
           <Route path="legal/privacy" element={<LegalSettings type="privacy" />} />
+          <Route path="legal/support" element={<LegalSettings type="support" />} />
           <Route path="reviews" element={<Reviews />} />
           <Route path="settlements/*" element={<Settlements />} />
           <Route path="settings/*" element={<Settings />} />

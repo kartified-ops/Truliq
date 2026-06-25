@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { FiBriefcase, FiClock, FiCheckCircle, FiXCircle, FiMapPin, FiChevronRight, FiUser, FiSearch } from 'react-icons/fi';
 import { workerTheme as themeColors } from '../../../../theme';
 import Header from '../../components/layout/Header';
@@ -8,10 +8,11 @@ import { SkeletonList } from '../../../../components/common/SkeletonLoaders';
 
 const AssignedJobs = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [filter, setFilter] = useState('all'); // all, confirmed, in_progress, completed
+  const [filter, setFilter] = useState(location.state?.filter || 'all'); // all, confirmed, in_progress, completed
   const [searchQuery, setSearchQuery] = useState('');
 
   useLayoutEffect(() => {
@@ -36,7 +37,7 @@ const AssignedJobs = () => {
       setLoading(true);
       setError(null);
 
-      const response = await workerService.getAssignedJobs();
+      const response = await workerService.getAssignedJobs({ limit: 100 });
       if (response.success) {
         setJobs(response.data);
       }

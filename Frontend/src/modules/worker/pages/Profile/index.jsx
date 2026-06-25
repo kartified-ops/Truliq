@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiUser, FiEdit2, FiMapPin, FiPhone, FiMail, FiBriefcase, FiStar, FiChevronRight, FiTag, FiLogOut } from 'react-icons/fi';
+import { FiUser, FiEdit2, FiMapPin, FiPhone, FiMail, FiBriefcase, FiStar, FiChevronRight, FiTag, FiLogOut, FiTrash2 } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 import { workerTheme as themeColors } from '../../../../theme';
 import { workerAuthService } from '../../../../services/authService';
@@ -220,7 +220,7 @@ const Profile = () => {
         </div>
 
         {/* Subscription */}
-        <button
+        {/* <button
           onClick={() => navigate('/worker/subscription')}
           className="w-full rounded-xl p-4 mb-4 flex items-center justify-between shadow-md active:scale-95 transition-all"
           style={{ background: 'linear-gradient(135deg, #302b63, #24243e)', border: '1px solid rgba(108,99,255,0.4)' }}
@@ -235,7 +235,7 @@ const Profile = () => {
             </div>
           </div>
           <FiChevronRight className="text-white/40 w-5 h-5" />
-        </button>
+        </button> */}
 
         {/* Profile Details */}
         <div
@@ -347,7 +347,7 @@ const Profile = () => {
             e.stopPropagation();
             handleLogout();
           }}
-          className="w-full bg-white rounded-xl p-4 flex items-center justify-between shadow-md transition-all active:scale-95"
+          className="w-full bg-white rounded-xl p-4 flex items-center justify-between shadow-md transition-all active:scale-95 mb-4"
           style={{
             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
             cursor: 'pointer'
@@ -356,6 +356,36 @@ const Profile = () => {
           <div className="flex items-center gap-3">
             <FiLogOut className="w-5 h-5 text-red-500" />
             <span className="font-semibold text-red-500">Logout</span>
+          </div>
+          <FiChevronRight className="w-5 h-5 text-gray-400" />
+        </button>
+
+        {/* Delete Account Button */}
+        <button
+          onClick={async () => {
+            if (window.confirm('Are you sure you want to delete your account? This action is irreversible.')) {
+              const toastId = toast.loading('Processing deletion...');
+              try {
+                await workerAuthService.deleteAccount();
+                toast.success('Account deleted successfully', { id: toastId });
+                navigate('/worker/login', { replace: true });
+              } catch (error) {
+                console.error('Delete account failed', error);
+                toast.error(error.response?.data?.message || 'Failed to delete account. Please try again.', { id: toastId });
+              }
+            }
+          }}
+          className="w-full bg-white rounded-xl p-4 flex items-center justify-between shadow-md transition-all active:scale-95"
+          style={{
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+            cursor: 'pointer'
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <FiTrash2 className="w-5 h-5 text-gray-500" />
+            <div className="text-left">
+              <span className="font-semibold text-gray-700 block">Delete Account</span>
+            </div>
           </div>
           <FiChevronRight className="w-5 h-5 text-gray-400" />
         </button>

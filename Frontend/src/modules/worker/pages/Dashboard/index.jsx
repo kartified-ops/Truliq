@@ -192,12 +192,12 @@ const Dashboard = () => {
       }
 
       if (statsRes.success) {
-        const { totalEarnings, activeJobs, completedJobs, rating, recentJobs: apiRecentJobs } = statsRes.data;
+        const { totalEarnings, activeJobs, pendingJobs, completedJobs, rating, recentJobs: apiRecentJobs } = statsRes.data;
         setStats(prev => ({
           ...prev,
           totalEarnings: totalEarnings || 0,
           thisMonthEarnings: totalEarnings || 0,
-          pendingJobs: activeJobs || 0,
+          pendingJobs: pendingJobs || 0,
           acceptedJobs: activeJobs || 0,
           completedJobs: completedJobs || 0,
           rating: rating || 0
@@ -381,27 +381,38 @@ const Dashboard = () => {
         {/* Subscription Status Alert */}
         {subscriptionStatus && (
           <div className="px-4 pt-2 -mb-2">
-            {!subscriptionStatus.isActive ? (
-              <div
-                onClick={() => navigate('/worker/subscription')}
-                className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r shadow-sm cursor-pointer hover:bg-red-100 transition-colors"
-              >
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <FiClock className="h-5 w-5 text-red-500" />
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm font-bold text-red-700">Plan Expired!</p>
-                    <p className="text-xs text-red-600">
-                      Your subscription ended on {new Date(subscriptionStatus.expiryDate).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })}.
-                    </p>
-                  </div>
-                  <div className="ml-auto">
-                    <FiArrowRight className="h-4 w-4 text-red-500" />
+            {!subscriptionStatus.isActive ? (() => {
+              const hasExpiredPlan = subscriptionStatus.expiryDate && new Date(subscriptionStatus.expiryDate).getFullYear() > 2000;
+              return (
+                <div
+                  onClick={() => navigate('/worker/subscription')}
+                  className={`${hasExpiredPlan ? 'bg-red-50 border-red-500 hover:bg-red-100' : 'bg-blue-50 border-blue-500 hover:bg-blue-100'} border-l-4 p-4 rounded-r shadow-sm cursor-pointer transition-colors`}
+                >
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0">
+                      {hasExpiredPlan ? (
+                        <FiClock className="h-5 w-5 text-red-500" />
+                      ) : (
+                        <FiBriefcase className="h-5 w-5 text-blue-500" />
+                      )}
+                    </div>
+                    <div className="ml-3">
+                      <p className={`text-sm font-bold ${hasExpiredPlan ? 'text-red-700' : 'text-blue-700'}`}>
+                        {hasExpiredPlan ? 'Plan Expired!' : 'Buy Plan to start getting booking'}
+                      </p>
+                      <p className={`text-xs mt-0.5 ${hasExpiredPlan ? 'text-red-600' : 'text-blue-600'}`}>
+                        {hasExpiredPlan
+                          ? `Your subscription ended on ${new Date(subscriptionStatus.expiryDate).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })}.`
+                          : 'Get a subscription plan to receive unlimited bookings.'}
+                      </p>
+                    </div>
+                    <div className="ml-auto">
+                      <FiArrowRight className={`h-4 w-4 ${hasExpiredPlan ? 'text-red-500' : 'text-blue-500'}`} />
+                    </div>
                   </div>
                 </div>
-              </div>
-            ) : (() => {
+              );
+            })() : (() => {
               const diff = new Date(subscriptionStatus.expiryDate) - new Date();
               const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
               if (days <= 3) {
@@ -620,7 +631,7 @@ const Dashboard = () => {
 
             {/* Card 2: Pending Jobs - Light Blue Gradient */}
             <div
-              onClick={() => navigate('/worker/jobs')}
+              onClick={() => navigate('/worker/jobs', { state: { filter: 'confirmed' } })}
               className="rounded-xl p-4 relative overflow-hidden cursor-pointer active:scale-95 transition-transform"
               style={{
                 background: 'linear-gradient(135deg, #406788 0%, #304a63 100%)',
@@ -664,7 +675,7 @@ const Dashboard = () => {
 
             {/* Card 3: Accepted Jobs - Light Blue Gradient */}
             <div
-              onClick={() => navigate('/worker/jobs')}
+              onClick={() => navigate('/worker/jobs', { state: { filter: 'in_progress' } })}
               className="rounded-xl p-4 relative overflow-hidden cursor-pointer active:scale-95 transition-transform"
               style={{
                 background: 'linear-gradient(135deg, #406788 0%, #304a63 100%)',
@@ -708,7 +719,7 @@ const Dashboard = () => {
 
             {/* Card 4: Completed Jobs - Dark Blue Gradient */}
             <div
-              onClick={() => navigate('/worker/jobs')}
+              onClick={() => navigate('/worker/jobs', { state: { filter: 'completed' } })}
               className="rounded-xl p-4 relative overflow-hidden cursor-pointer active:scale-95 transition-transform"
               style={{
                 background: 'linear-gradient(135deg, #001947 0%, #003b77 100%)',

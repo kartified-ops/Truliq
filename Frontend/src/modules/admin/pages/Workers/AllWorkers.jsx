@@ -63,13 +63,14 @@ const AllWorkers = () => {
   const filteredWorkers = useMemo(() => {
     return workers.filter(worker => {
       const matchesStatus = filterStatus === 'all' || worker.approvalStatus === filterStatus;
-      const normalizedSearch = searchQuery.trim().toLowerCase();
+      const searchTerms = searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
       
-      const matchesSearch = !normalizedSearch ||
-        worker.name?.toLowerCase().includes(normalizedSearch) ||
-        worker.email?.toLowerCase().includes(normalizedSearch) ||
-        worker.phone?.includes(normalizedSearch) ||
-        worker.serviceCategory?.toLowerCase().includes(normalizedSearch);
+      const matchesSearch = searchTerms.length === 0 || searchTerms.every(term => 
+        worker.name?.toLowerCase().includes(term) ||
+        worker.email?.toLowerCase().includes(term) ||
+        worker.phone?.includes(term) ||
+        worker.serviceCategory?.toLowerCase().includes(term)
+      );
       return matchesStatus && matchesSearch;
     });
   }, [workers, filterStatus, searchQuery]);

@@ -169,7 +169,11 @@ const register = async (req, res) => {
     }
 
     // Check existing
-    const existingWorker = await Worker.findOne({ $or: [{ phone }, { email }] });
+    const queryConditions = [{ phone }];
+    if (email) {
+      queryConditions.push({ email });
+    }
+    const existingWorker = await Worker.findOne({ $or: queryConditions });
     if (existingWorker) {
       return res.status(400).json({
         success: false,

@@ -38,15 +38,29 @@ const getDashboardStats = async (req, res) => {
 
     const totalEarnings = earningStats.length > 0 ? earningStats[0].total : 0;
 
-    // 3. Count Active Jobs (Assigned, Visited, In Progress)
-    const activeJobsCount = await Booking.countDocuments({
+    // 3. Count Pending Jobs (Assigned, Confirmed)
+    const pendingJobsCount = await Booking.countDocuments({
       workerId: worker._id,
       status: {
         $in: [
           BOOKING_STATUS.ASSIGNED,
+          BOOKING_STATUS.CONFIRMED,
+          'PENDING'
+        ]
+      }
+    });
+
+    // 3.5 Count Active Jobs (In Progress, Visited, Work Done, Started)
+    const activeJobsCount = await Booking.countDocuments({
+      workerId: worker._id,
+      status: {
+        $in: [
           BOOKING_STATUS.VISITED,
           BOOKING_STATUS.IN_PROGRESS,
-          BOOKING_STATUS.CONFIRMED
+          BOOKING_STATUS.WORK_DONE,
+          'STARTED',
+          'REACHED',
+          'ON_THE_WAY'
         ]
       }
     });
@@ -54,7 +68,7 @@ const getDashboardStats = async (req, res) => {
     // 4. Count Completed Jobs
     const completedJobsCount = await Booking.countDocuments({
       workerId: worker._id,
-      status: { $in: [BOOKING_STATUS.COMPLETED, BOOKING_STATUS.WORK_DONE] }
+      status: { $in: [BOOKING_STATUS.COMPLETED, 'WORKER_PAID', 'PAID'] }
     });
 
     // 5. Calculate Average Rating
@@ -86,6 +100,7 @@ const getDashboardStats = async (req, res) => {
       success: true,
       data: {
         totalEarnings,
+        pendingJobs: pendingJobsCount,
         activeJobs: activeJobsCount,
         completedJobs: completedJobsCount,
         rating: averageRating,

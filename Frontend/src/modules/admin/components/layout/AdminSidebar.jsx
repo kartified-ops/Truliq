@@ -110,6 +110,7 @@ const getChildRoute = (parentRoute, childName) => {
     "/admin/legal": {
       "Terms & Conditions": "/admin/legal/terms",
       "Privacy Policy": "/admin/legal/privacy",
+      "Support": "/admin/legal/support",
     },
   };
 

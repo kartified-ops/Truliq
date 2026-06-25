@@ -22,7 +22,9 @@ const ServiceCategories = React.memo(({ categories, onCategoryClick, onSeeAllCli
     return null;
   }
 
-  const serviceCategories = categories.map((cat) => ({
+  const serviceCategories = categories
+    .filter(cat => cat.showOnHome !== false)
+    .map((cat) => ({
     ...cat,
     icon: toAssetUrl(cat.icon || cat.image),
   }));

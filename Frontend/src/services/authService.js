@@ -120,7 +120,11 @@ export const userAuthService = {
       const response = await api.delete('/users/profile');
       
       // Cleanup locally
-      await removeFCMToken('user');
+      try {
+        await removeFCMToken('user');
+      } catch (e) {
+        console.warn('FCM token removal failed:', e);
+      }
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
       localStorage.removeItem('userData');
@@ -301,6 +305,28 @@ export const workerAuthService = {
       localStorage.setItem('workerData', JSON.stringify(response.data.worker));
     }
     return response.data;
+  },
+
+  // Delete account
+  deleteAccount: async () => {
+    try {
+      const response = await api.delete('/workers/profile');
+      
+      // Cleanup locally
+      try {
+        await removeFCMToken('worker');
+      } catch (e) {
+        console.warn('FCM token removal failed:', e);
+      }
+      localStorage.removeItem('workerAccessToken');
+      localStorage.removeItem('workerRefreshToken');
+      localStorage.removeItem('workerData');
+      
+      return response.data;
+    } catch (error) {
+      console.error('Delete account error:', error);
+      throw error;
+    }
   }
 };
 

@@ -285,9 +285,13 @@ const Login = () => {
                   <Link to="/user/terms" className="font-medium hover:underline" style={{ color: brandColor }}>
                     Terms & Conditions
                   </Link>
-                  {' '}and{' '}
+                  {', '}
                   <Link to="/user/privacy" className="font-medium hover:underline" style={{ color: brandColor }}>
                     Privacy Policy
+                  </Link>
+                  {' '}and{' '}
+                  <Link to="/user/support" className="font-medium hover:underline" style={{ color: brandColor }}>
+                    Support
                   </Link>
                 </div>
               </div>

@@ -400,7 +400,7 @@ const getPublicHomeData = async (req, res) => {
           ]
         } : {}) 
       })
-        .select('title slug homeIconUrl homeBadge hasSaleBadge')
+        .select('title slug homeIconUrl homeBadge hasSaleBadge showOnHome')
         .sort({ homeOrder: 1 })
         .lean(),
       HomeContent.getHomeContent(cityId)
@@ -412,7 +412,8 @@ const getPublicHomeData = async (req, res) => {
       slug: cat.slug,
       icon: cat.homeIconUrl || '',
       badge: cat.homeBadge || '',
-      hasSaleBadge: cat.hasSaleBadge || false
+      hasSaleBadge: cat.hasSaleBadge || false,
+      showOnHome: cat.showOnHome !== false // default to true if undefined
     }));
 
     let formattedContent = null;

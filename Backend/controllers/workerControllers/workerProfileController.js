@@ -227,9 +227,42 @@ const toggleOnline = async (req, res) => {
   }
 };
 
+/**
+ * Delete worker profile
+ */
+const deleteProfile = async (req, res) => {
+  try {
+    const workerId = req.user.id;
+    
+    // Check if worker exists
+    const worker = await Worker.findById(workerId);
+    if (!worker) {
+      return res.status(404).json({
+        success: false,
+        message: 'Worker not found'
+      });
+    }
+
+    // Delete worker
+    await Worker.findByIdAndDelete(workerId);
+
+    res.status(200).json({
+      success: true,
+      message: 'Account deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete account. Please try again.'
+    });
+  }
+};
+
 module.exports = {
   getProfile,
   updateProfile,
   updateLocation,
-  toggleOnline
+  toggleOnline,
+  deleteProfile
 };

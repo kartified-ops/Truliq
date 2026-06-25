@@ -62,10 +62,10 @@ const geocodeAddress = async (address) => {
 
 const _buildVendorQuery = (filters = {}) => {
   const { VENDOR_STATUS } = require('../utils/constants');
-  
+
   const checkCashLimit = filters.checkCashLimit;
   const serviceCategory = filters.service;
-  
+
   const queryFilters = { ...filters };
   delete queryFilters.checkCashLimit;
   delete queryFilters.service;
@@ -316,7 +316,7 @@ const findNearbyWorkers = async (centerLocation, radiusKm = 10, filters = {}) =>
     }
 
     const serviceCategory = filters.service;
-    
+
     // Base query for Workers
     const baseQuery = {
       approvalStatus: 'approved',

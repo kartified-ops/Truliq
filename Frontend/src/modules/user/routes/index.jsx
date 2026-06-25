@@ -82,6 +82,7 @@ const HelpSupport = lazyLoad(() => import('../pages/HelpSupport'));
 const CancellationPolicy = lazyLoad(() => import('../pages/CancellationPolicy'));
 const TermsAndConditions = lazyLoad(() => import('../pages/TermsAndConditions'));
 const PrivacyPolicy = lazyLoad(() => import('../pages/PrivacyPolicy'));
+const Support = lazyLoad(() => import('../pages/Support'));
 
 // Loading fallback component
 import LogoLoader from '../../../components/common/LogoLoader';
@@ -115,7 +116,8 @@ const UserRoutes = () => {
                        location.pathname.includes('/terms') ||
                        location.pathname.includes('/privacy') ||
                        location.pathname.includes('/help-support') ||
-                       location.pathname.includes('/cancellation-policy');
+                       location.pathname.includes('/cancellation-policy') ||
+                       location.pathname.includes('/support');
 
   return (
     <ErrorBoundary>
@@ -156,6 +158,7 @@ const UserRoutes = () => {
               <Route path="/cancellation-policy" element={<CancellationPolicy />} />
               <Route path="/terms" element={<TermsAndConditions />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
+              <Route path="/support" element={<Support />} />
             </Routes>
           </PageTransition>
         </Suspense>

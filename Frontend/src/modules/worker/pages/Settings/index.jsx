@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiBell, FiVolume2, FiGlobe, FiLogOut, FiStar, FiChevronRight } from 'react-icons/fi';
+import { FiBell, FiVolume2, FiGlobe, FiLogOut, FiStar, FiChevronRight, FiTrash2 } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 import { workerTheme as themeColors } from '../../../../theme';
 import { workerAuthService } from '../../../../services/authService';
@@ -113,22 +113,7 @@ const Settings = () => {
     await updateDBSettings(updated);
   };
 
-  const handleLogout = async () => {
-    if (window.confirm('Are you sure you want to logout?')) {
-      try {
-        await workerAuthService.logout();
-        toast.success('Logged out successfully');
-        navigate('/worker/login');
-      } catch (error) {
-        // Even if API call fails, clear local storage
-        localStorage.removeItem('workerAccessToken');
-        localStorage.removeItem('workerRefreshToken');
-        localStorage.removeItem('workerData');
-        toast.success('Logged out successfully');
-        navigate('/worker/login');
-      }
-    }
-  };
+
 
   return (
     <div className="min-h-screen pb-20" style={{ background: themeColors.backgroundGradient }}>
@@ -216,17 +201,7 @@ const Settings = () => {
         </div>
         */}
 
-        {/* Logout */}
-        <button
-          onClick={handleLogout}
-          className="w-full bg-white rounded-xl p-4 flex items-center justify-center gap-3 shadow-md transition-all active:scale-95"
-          style={{
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-          }}
-        >
-          <FiLogOut className="w-5 h-5 text-red-500" />
-          <span className="font-semibold text-red-500">Logout</span>
-        </button>
+
       </main>
 
       <BottomNav />

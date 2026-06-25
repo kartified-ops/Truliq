@@ -277,7 +277,9 @@ const Home = () => {
               slug: cat.slug,
               icon: toAssetUrl(cat.icon),
               hasSaleBadge: cat.hasSaleBadge,
-              badge: cat.badge
+              badge: cat.badge,
+              showOnHome: cat.showOnHome
+
             }));
             setCategories(mappedCategories);
           }

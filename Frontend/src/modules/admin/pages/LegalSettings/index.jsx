@@ -1,17 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { FiSave, FiShield, FiFileText } from 'react-icons/fi';
+import { FiSave, FiShield, FiFileText, FiLifeBuoy } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { getSettings, updateSettings } from '../../services/settingsService';
+
+const getPageConfig = (type) => {
+  switch(type) {
+    case 'terms': return { title: 'Terms & Conditions', Icon: FiFileText, fieldKey: 'termsAndConditions' };
+    case 'privacy': return { title: 'Privacy Policy', Icon: FiShield, fieldKey: 'privacyPolicy' };
+    case 'support': return { title: 'Support & Help', Icon: FiLifeBuoy, fieldKey: 'supportPageContent' };
+    default: return { title: 'Terms & Conditions', Icon: FiFileText, fieldKey: 'termsAndConditions' };
+  }
+};
 
 const LegalSettings = ({ type }) => {
   const [content, setContent] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
-  const isTerms = type === 'terms';
-  const title = isTerms ? 'Terms & Conditions' : 'Privacy Policy';
-  const Icon = isTerms ? FiFileText : FiShield;
-  const fieldKey = isTerms ? 'termsAndConditions' : 'privacyPolicy';
+  const { title, Icon, fieldKey } = getPageConfig(type);
 
   useEffect(() => {
     fetchContent();
