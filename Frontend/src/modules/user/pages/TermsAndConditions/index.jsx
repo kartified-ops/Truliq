@@ -60,7 +60,7 @@ const TermsAndConditions = () => {
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100 shadow-sm animate-item">
         <div className="max-w-screen-xl mx-auto px-4 h-16 flex items-center justify-between">
           <button 
-            onClick={() => navigate(-1)}
+            onClick={() => navigate('/user/login')}
             className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-50 text-gray-600 hover:bg-[#347989] hover:text-white transition-all shadow-sm"
           >
             <FiArrowLeft className="w-5 h-5" />
