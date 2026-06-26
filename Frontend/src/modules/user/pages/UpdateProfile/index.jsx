@@ -148,6 +148,15 @@ const UpdateProfile = () => {
     }
   };
 
+  const handleRemovePhoto = () => {
+    setPhotoFile(null);
+    setPhotoPreview(null);
+    setFormData(prev => ({
+      ...prev,
+      profilePhoto: ''
+    }));
+  };
+
   // Format phone number for display
   const formatPhoneNumber = (phone) => {
     if (!phone) return '';
@@ -290,6 +299,14 @@ const UpdateProfile = () => {
               </div>
             </div>
             <p className="text-gray-500 text-[10px] mt-3 font-bold uppercase tracking-wider">Tap to change photo</p>
+            {(photoPreview || formData.profilePhoto) && (
+              <button 
+                onClick={handleRemovePhoto}
+                className="text-red-500 text-[11px] mt-2 font-bold uppercase tracking-wider hover:text-red-600 transition-colors"
+              >
+                Remove Photo
+              </button>
+            )}
           </div>
 
           {/* Full Name */}
