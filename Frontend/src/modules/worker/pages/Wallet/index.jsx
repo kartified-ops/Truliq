@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { FiDollarSign, FiArrowUp, FiArrowDown, FiClock, FiBell, FiX, FiImage, FiFileText, FiCreditCard, FiCalendar, FiInfo } from 'react-icons/fi';
 import { AnimatePresence, motion } from 'framer-motion';
 import { workerTheme as themeColors } from '../../../../theme';
@@ -22,7 +23,8 @@ const Wallet = () => {
   const [selectedImage, setSelectedImage] = useState(null);
   const [duesPaymentLoading, setDuesPaymentLoading] = useState(false);
   
-  const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [withdrawModalOpen, setWithdrawModalOpen] = useState(searchParams.get('action') === 'withdraw');
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawForm, setWithdrawForm] = useState({
     upiId: '',
@@ -224,6 +226,8 @@ const Wallet = () => {
       setPayoutLoading(true);
       await workerWalletService.requestWithdrawal(withdrawAmount, normalizedForm);
       toast.success('Withdrawal request submitted successfully!');
+      searchParams.delete('action');
+      setSearchParams(searchParams, { replace: true });
       setWithdrawModalOpen(false);
       loadWalletData(); // Refresh balance
     } catch (error) {
@@ -328,7 +332,10 @@ const Wallet = () => {
                 <p className="text-4xl font-bold">₹{wallet.balance?.toLocaleString() || 0}</p>
               </div>
               <button 
-                onClick={() => setWithdrawModalOpen(true)}
+                onClick={() => {
+                  setSearchParams({ action: 'withdraw' }, { replace: true });
+                  setWithdrawModalOpen(true);
+                }}
                 disabled={wallet.balance <= 0}
                 className={`px-4 py-2 rounded-xl font-bold text-sm shadow-lg active:scale-95 transition-all flex items-center gap-2 ${wallet.balance > 0 ? 'bg-white text-teal-700' : 'bg-white/20 text-white/50 cursor-not-allowed'}`}
               >
@@ -655,7 +662,11 @@ const Wallet = () => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[10000] flex items-end sm:items-center justify-center p-4 pb-24 sm:pb-4"
-            onClick={() => setWithdrawModalOpen(false)}
+            onClick={() => {
+              searchParams.delete('action');
+              setSearchParams(searchParams, { replace: true });
+              setWithdrawModalOpen(false);
+            }}
           >
             <motion.div
               initial={{ y: 100, opacity: 0 }}
@@ -670,7 +681,11 @@ const Wallet = () => {
                   <p className="text-xs text-white/80">Funds will be sent to your bank/UPI</p>
                 </div>
                 <button
-                  onClick={() => setWithdrawModalOpen(false)}
+                  onClick={() => {
+                    searchParams.delete('action');
+                    setSearchParams(searchParams, { replace: true });
+                    setWithdrawModalOpen(false);
+                  }}
                   className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
                 >
                   <FiX className="w-5 h-5" />

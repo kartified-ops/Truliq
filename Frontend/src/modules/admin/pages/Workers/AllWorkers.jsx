@@ -287,9 +287,19 @@ const AllWorkers = () => {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-[11px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                          {worker.serviceCategory}
-                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          {worker.serviceCategory && worker.serviceCategory !== 'N/A' ? (
+                            worker.serviceCategory.split(', ').map((cat, idx) => (
+                              <span key={idx} className="text-[11px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap">
+                                {cat}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-[11px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap">
+                              N/A
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${worker.approvalStatus === 'approved' ? 'bg-green-50 text-green-700 border-green-100' :

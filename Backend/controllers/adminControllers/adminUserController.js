@@ -17,7 +17,7 @@ const getAllUsers = async (req, res) => {
     } = req.query;
 
     // Build query
-    const query = {};
+    const query = { role: 'user' };
 
     if (isActive !== undefined) {
       query.isActive = isActive === 'true';

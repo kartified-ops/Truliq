@@ -164,7 +164,7 @@ const AdminDashboard = () => {
 
   const statsCards = [
     {
-      title: period === 'month' ? 'Monthly Revenue' : period === 'year' ? 'Yearly Revenue' : period === 'today' ? 'Today\'s Revenue' : period === 'week' ? 'Weekly Revenue' : 'Revenue',
+      title: period === 'month' ? 'Gross Monthly Revenue' : period === 'year' ? 'Gross Yearly Revenue' : period === 'today' ? 'Gross Today\'s Revenue' : period === 'week' ? 'Gross Weekly Revenue' : 'Gross Revenue',
       value: formatCurrency(stats.totalRevenue || 0),
       change: 0,
       icon: FiDollarSign,

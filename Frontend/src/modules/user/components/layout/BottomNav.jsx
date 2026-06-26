@@ -93,7 +93,7 @@ const BottomNav = React.memo(() => {
       }}
     >
       <div
-        className="w-full pb-4 pt-3 px-2"
+        className="w-full pb-2 pt-2 px-2"
         style={{
           background: 'rgba(255, 255, 255, 0.98)',
           backdropFilter: 'blur(20px)',
@@ -132,7 +132,7 @@ const BottomNav = React.memo(() => {
                 key={item.id}
                 onClick={() => handleTabClick(item.path)}
                 whileTap={{ scale: 0.9 }}
-                className="flex flex-col items-center justify-center w-16 h-14 rounded-2xl transition-all duration-200 relative"
+                className="flex flex-col items-center justify-center w-16 h-12 rounded-2xl transition-all duration-200 relative"
               >
                 {/* Active Background Glow */}
                 <AnimatePresence>

@@ -120,6 +120,7 @@ const Account = () => {
   };
 
   const handleLogout = async () => {
+    if (!window.confirm('Are you sure you want to logout?')) return;
     try {
       await userAuthService.logout();
       toast.success('Logged out successfully');

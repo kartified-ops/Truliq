@@ -170,7 +170,7 @@ const AdminHeader = ({ onMenuClick }) => {
 
         {/* Right: Notifications & Logout */}
         <div className="flex items-center gap-4">
-          {/* Notifications */}
+          {/* Notifications 
           <div className="relative">
             <Button
               data-notification-button
@@ -195,6 +195,7 @@ const AdminHeader = ({ onMenuClick }) => {
               onDelete={handleDelete}
             />
           </div>
+          */}
 
           {/* Logout Button */}
           <Button

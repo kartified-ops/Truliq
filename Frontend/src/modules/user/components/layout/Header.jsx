@@ -29,7 +29,7 @@ const Header = ({ location, onLocationClick }) => {
       <div className="relative z-10">
         <div className="w-full">
           {/* Top Row: Logo (Left) and Location (Right) */}
-          <div className="px-4 py-3 flex items-center justify-between">
+          <div className="px-4 py-2 flex items-center justify-between">
             {/* Left: Logo */}
             <Link
               to="/user"
@@ -57,7 +57,7 @@ const Header = ({ location, onLocationClick }) => {
             >
               <Logo
                 ref={logoRef}
-                className="h-14 sm:h-20 w-auto"
+                className="h-10 sm:h-12 w-auto"
               />
             </Link>
 

@@ -602,28 +602,19 @@ const Dashboard = () => {
                   transform: 'translate(20px, -20px)',
                 }}
               />
-              <div className="relative z-10">
-                {/* Absolutely positioned icon */}
-                <div
-                  className="absolute top-0 right-0 p-2 rounded-xl"
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.25)',
-                    backdropFilter: 'blur(10px)',
-                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.3)',
-                    border: '1px solid rgba(255, 255, 255, 0.3)',
-                  }}
-                >
-                  <FaWallet className="w-4 h-4" style={{ color: '#FFFFFF' }} />
+              <div className="relative z-10 flex flex-col h-full justify-between">
+                <div className="flex justify-between items-start mb-2 gap-2">
+                  <p className="text-[11px] text-white font-bold opacity-90 uppercase tracking-wider leading-tight">This Month</p>
+                  <FaWallet className="w-5 h-5 text-white opacity-80 shrink-0" />
                 </div>
-                <div className="mb-3 pr-8">
-                  <p className="text-xs text-white font-semibold mb-1 opacity-90 uppercase tracking-wide">This Month</p>
-                  <p className="text-xl font-bold text-white leading-tight break-words">
+                <div className="mb-2">
+                  <p className="text-xl font-bold text-white leading-tight truncate">
                     ₹{stats.thisMonthEarnings.toLocaleString()}
                   </p>
                 </div>
-                <div className="flex items-center gap-1 mt-2">
-                  <FiTrendingUp className="w-4 h-4 text-white opacity-80" />
-                  <span className="text-xs text-white opacity-80 font-medium">Earnings</span>
+                <div className="flex items-center gap-1">
+                  <FiTrendingUp className="w-3.5 h-3.5 text-white opacity-80" />
+                  <span className="text-[10px] text-white opacity-80 font-medium uppercase tracking-wider">Earnings</span>
                 </div>
               </div>
             </div>
@@ -645,28 +636,19 @@ const Dashboard = () => {
                   transform: 'translate(20px, -20px)',
                 }}
               />
-              <div className="relative z-10">
-                {/* Absolutely positioned icon */}
-                <div
-                  className="absolute top-0 right-0 p-2 rounded-xl"
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.25)',
-                    backdropFilter: 'blur(10px)',
-                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.3)',
-                    border: '1px solid rgba(255, 255, 255, 0.3)',
-                  }}
-                >
-                  <FiClock className="w-4 h-4" style={{ color: '#FFFFFF' }} />
+              <div className="relative z-10 flex flex-col h-full justify-between">
+                <div className="flex justify-between items-start mb-2 gap-2">
+                  <p className="text-[11px] text-white font-bold opacity-90 uppercase tracking-wider leading-tight">Pending Jobs</p>
+                  <FiClock className="w-5 h-5 text-white opacity-80 shrink-0" />
                 </div>
-                <div className="mb-3 pr-8">
-                  <p className="text-xs text-white font-semibold mb-1 opacity-90 uppercase tracking-wide">Pending Jobs</p>
-                  <p className="text-xl font-bold text-white leading-tight break-words">
+                <div className="mb-2">
+                  <p className="text-xl font-bold text-white leading-tight truncate">
                     {stats.pendingJobs}
                   </p>
                 </div>
-                <div className="flex items-center gap-1 mt-2">
-                  <FiCheckCircle className="w-4 h-4 text-white opacity-80" />
-                  <span className="text-xs text-white opacity-80 font-medium">Waiting</span>
+                <div className="flex items-center gap-1">
+                  <FiCheckCircle className="w-3.5 h-3.5 text-white opacity-80" />
+                  <span className="text-[10px] text-white opacity-80 font-medium uppercase tracking-wider">Waiting</span>
                 </div>
               </div>
             </div>
@@ -688,28 +670,19 @@ const Dashboard = () => {
                   transform: 'translate(20px, -20px)',
                 }}
               />
-              <div className="relative z-10">
-                {/* Absolutely positioned icon */}
-                <div
-                  className="absolute top-0 right-0 p-2 rounded-xl"
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.25)',
-                    backdropFilter: 'blur(10px)',
-                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.3)',
-                    border: '1px solid rgba(255, 255, 255, 0.3)',
-                  }}
-                >
-                  <FiCheckCircle className="w-4 h-4" style={{ color: '#FFFFFF' }} />
+              <div className="relative z-10 flex flex-col h-full justify-between">
+                <div className="flex justify-between items-start mb-2 gap-2">
+                  <p className="text-[11px] text-white font-bold opacity-90 uppercase tracking-wider leading-tight">Accepted</p>
+                  <FiCheckCircle className="w-5 h-5 text-white opacity-80 shrink-0" />
                 </div>
-                <div className="mb-3 pr-8">
-                  <p className="text-xs text-white font-semibold mb-1 opacity-90 uppercase tracking-wide">Accepted</p>
-                  <p className="text-xl font-bold text-white leading-tight break-words">
+                <div className="mb-2">
+                  <p className="text-xl font-bold text-white leading-tight truncate">
                     {stats.acceptedJobs}
                   </p>
                 </div>
-                <div className="flex items-center gap-1 mt-2">
-                  <FiBriefcase className="w-4 h-4 text-white opacity-80" />
-                  <span className="text-xs text-white opacity-80 font-medium">Active</span>
+                <div className="flex items-center gap-1">
+                  <FiBriefcase className="w-3.5 h-3.5 text-white opacity-80" />
+                  <span className="text-[10px] text-white opacity-80 font-medium uppercase tracking-wider">Active</span>
                 </div>
               </div>
             </div>
@@ -731,28 +704,19 @@ const Dashboard = () => {
                   transform: 'translate(20px, -20px)',
                 }}
               />
-              <div className="relative z-10">
-                {/* Absolutely positioned icon */}
-                <div
-                  className="absolute top-0 right-0 p-2 rounded-xl"
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.25)',
-                    backdropFilter: 'blur(10px)',
-                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.3)',
-                    border: '1px solid rgba(255, 255, 255, 0.3)',
-                  }}
-                >
-                  <FiBriefcase className="w-4 h-4" style={{ color: '#FFFFFF' }} />
+              <div className="relative z-10 flex flex-col h-full justify-between">
+                <div className="flex justify-between items-start mb-2 gap-2">
+                  <p className="text-[11px] text-white font-bold opacity-90 uppercase tracking-wider leading-tight">Completed</p>
+                  <FiBriefcase className="w-5 h-5 text-white opacity-80 shrink-0" />
                 </div>
-                <div className="mb-3 pr-8">
-                  <p className="text-xs text-white font-semibold mb-1 opacity-90 uppercase tracking-wide">Completed</p>
-                  <p className="text-xl font-bold text-white leading-tight break-words">
+                <div className="mb-2">
+                  <p className="text-xl font-bold text-white leading-tight truncate">
                     {stats.completedJobs}
                   </p>
                 </div>
-                <div className="flex items-center gap-1 mt-2">
-                  <FiCheckCircle className="w-4 h-4 text-white opacity-80" />
-                  <span className="text-xs text-white opacity-80 font-medium">Done</span>
+                <div className="flex items-center gap-1">
+                  <FiCheckCircle className="w-3.5 h-3.5 text-white opacity-80" />
+                  <span className="text-[10px] text-white opacity-80 font-medium uppercase tracking-wider">Done</span>
                 </div>
               </div>
             </div>

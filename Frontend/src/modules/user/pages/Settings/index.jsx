@@ -49,26 +49,22 @@ const Settings = () => {
       const toastId = toast.loading(newState ? 'Enabling notifications...' : 'Disabling notifications...');
 
       try {
-        if (newState) {
-          // Enable
-          const token = await registerFCMToken('user', true);
-          if (!token) {
-            toast.error('Failed to enable. Check permissions.', { id: toastId });
-            // Revert state
-            setNotifications(prev => ({ ...prev, push: false }));
-            return;
-          }
-        } else {
-          // Disable
-          await removeFCMToken('user');
-        }
-
-        // Persist preference to backend
+        // Persist preference to backend first
         await userAuthService.updateProfile({
           settings: { notifications: newState }
         });
 
         toast.success(newState ? 'Notifications enabled' : 'Notifications disabled', { id: toastId });
+
+        // Attempt FCM registration/removal
+        if (newState) {
+          const token = await registerFCMToken('user', true);
+          if (!token) {
+            toast.error('Please allow notification permissions in your browser/device settings.', { duration: 4000 });
+          }
+        } else {
+          await removeFCMToken('user');
+        }
 
       } catch (error) {
         console.error('Error updating notification settings:', error);

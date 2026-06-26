@@ -108,6 +108,7 @@ const Profile = () => {
   }, []);
 
   const handleLogout = async () => {
+    if (!window.confirm('Are you sure you want to logout?')) return;
     try {
       await workerAuthService.logout();
       toast.success('Logged out successfully');

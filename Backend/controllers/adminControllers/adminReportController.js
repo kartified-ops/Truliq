@@ -190,11 +190,12 @@ exports.getWorkerReport = async (req, res) => {
  */
 exports.getCustomerReport = async (req, res) => {
   try {
-    const totalUsers = await User.countDocuments();
+    const totalUsers = await User.countDocuments({ role: 'user' });
     const totalBookings = await Booking.countDocuments();
 
     // User verification status distribution
     const verificationStatus = await User.aggregate([
+      { $match: { role: 'user' } },
       {
         $group: {
           _id: {
@@ -240,6 +241,7 @@ exports.getCustomerReport = async (req, res) => {
 
     // Monthly registration trend
     const monthlyTrend = await User.aggregate([
+      { $match: { role: 'user' } },
       {
         $group: {
           _id: { $dateToString: { format: '%Y-%m', date: '$createdAt' } },

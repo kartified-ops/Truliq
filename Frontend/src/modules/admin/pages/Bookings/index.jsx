@@ -172,14 +172,14 @@ const Bookings = () => {
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="bg-transparent text-[11px] text-gray-600 focus:outline-none w-20"
+              className="bg-transparent text-[11px] text-gray-600 focus:outline-none w-28"
             />
             <span className="text-gray-400 text-[10px]">to</span>
             <input
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="bg-transparent text-[11px] text-gray-600 focus:outline-none w-20"
+              className="bg-transparent text-[11px] text-gray-600 focus:outline-none w-28"
             />
           </div>
 
@@ -266,7 +266,7 @@ const Bookings = () => {
         {!loading && bookings.length > 0 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50/30">
             <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tight">Showing {bookings.length} of {stats.total} entries</p>
-            <div className="flex gap-1.5">
+            <div className="flex gap-1.5 items-center">
               <button
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page === 1}
@@ -274,9 +274,12 @@ const Bookings = () => {
               >
                 Prev
               </button>
+              <span className="px-2 text-[11px] font-bold text-gray-500">
+                Page {page} of {totalPages || 1}
+              </span>
               <button
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
+                disabled={page === totalPages || totalPages === 0}
                 className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-bold text-gray-600 disabled:opacity-50 hover:bg-white transition-all"
               >
                 Next

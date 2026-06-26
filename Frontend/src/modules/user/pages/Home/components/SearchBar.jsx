@@ -79,8 +79,8 @@ const SearchBar = ({ onInputClick }) => {
             }}
           >
             {/* Placeholder text with typing animation */}
-            <span className="text-[15px] text-gray-400 tracking-wide font-light">
-              Search for <span
+            <div className="text-[15px] text-gray-400 tracking-wide font-light flex-1 min-w-0 whitespace-nowrap overflow-hidden text-ellipsis">
+              <span
                 className="font-medium inline-block min-w-[2px]"
                 style={{
                   background: themeColors.gradient,
@@ -92,7 +92,7 @@ const SearchBar = ({ onInputClick }) => {
                 {displayedText}
                 <span className="animate-pulse ml-0.5 text-black">|</span>
               </span>
-            </span>
+            </div>
           </div>
         </div>
       </div>

@@ -300,11 +300,11 @@ const MyBookings = () => {
                   <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-slate-50 via-transparent to-transparent -z-0 opacity-50" />
 
                   {/* Header Section */}
-                  <div className="relative z-10 flex items-start justify-between mb-4 border-b border-slate-100 pb-4">
-                    <div className="pr-4 flex-1">
+                  <div className="relative z-10 flex items-start justify-between gap-2 mb-4 border-b border-slate-100 pb-4">
+                    <div className="flex-1 min-w-0">
                       <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase mb-1.5 flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
-                        #{booking.bookingNumber || (booking._id || booking.id).substring(0, 8)}
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0"></span>
+                        <span className="truncate">#{booking.bookingNumber || (booking._id || booking.id).substring(0, 8)}</span>
                       </p>
 
                       {/* Detailed Booking Info */}

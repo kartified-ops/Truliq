@@ -1,5 +1,6 @@
 import React from 'react';
 import { FiCalendar, FiDownload } from 'react-icons/fi';
+import { toast } from 'react-hot-toast';
 
 const TimePeriodFilter = ({ selectedPeriod, onPeriodChange, onExport, customDates, onCustomDateChange }) => {
   const periods = [
@@ -52,29 +53,45 @@ const TimePeriodFilter = ({ selectedPeriod, onPeriodChange, onExport, customDate
               <input
                 type="date"
                 value={customDates?.start || ''}
-                onChange={(e) => onCustomDateChange({ ...customDates, start: e.target.value })}
-                className="border-0 bg-transparent text-sm font-semibold focus:ring-0 text-gray-700 py-1 w-32 cursor-pointer"
+                max={customDates?.end || ''}
+                onChange={(e) => {
+                  const newStart = e.target.value;
+                  if (newStart && customDates?.end && new Date(newStart) > new Date(customDates.end)) {
+                    toast.error("From Date cannot be after To Date");
+                    return;
+                  }
+                  onCustomDateChange({ ...customDates, start: newStart });
+                }}
+                className="border-0 bg-transparent text-sm font-semibold focus:ring-0 text-gray-700 py-1 w-36 cursor-pointer"
               />
               <span className="text-gray-400 font-bold text-xs uppercase tracking-widest">to</span>
               <input
                 type="date"
                 value={customDates?.end || ''}
-                onChange={(e) => onCustomDateChange({ ...customDates, end: e.target.value })}
-                className="border-0 bg-transparent text-sm font-semibold focus:ring-0 text-gray-700 py-1 w-32 cursor-pointer"
+                min={customDates?.start || ''}
+                onChange={(e) => {
+                  const newEnd = e.target.value;
+                  if (newEnd && customDates?.start && new Date(newEnd) < new Date(customDates.start)) {
+                    toast.error("To Date cannot be before From Date");
+                    return;
+                  }
+                  onCustomDateChange({ ...customDates, end: newEnd });
+                }}
+                className="border-0 bg-transparent text-sm font-semibold focus:ring-0 text-gray-700 py-1 w-36 cursor-pointer"
               />
             </div>
           )}
         </div>
 
         {/* Right: Export */}
-        <button
+        {/* <button
           type="button"
           onClick={onExport}
           className="h-10 px-6 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-[0.95] transition-all whitespace-nowrap"
         >
           <FiDownload className="w-4 h-4" />
           <span>Export CSV</span>
-        </button>
+        </button> */}
       </div>
     </div>
   );

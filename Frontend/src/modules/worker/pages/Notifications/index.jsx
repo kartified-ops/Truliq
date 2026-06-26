@@ -266,7 +266,7 @@ const Notifications = () => {
                       >
                         {getNotificationIcon(notif.type)}
                       </div>
-                      <div className="flex-1 min-w-0 pr-6">
+                      <div className="flex-1 min-w-0 pr-16">
                         <div className="flex justify-between items-start mb-1">
                           <h4 className={`text-base ${isUnread ? 'font-bold text-gray-900' : 'font-semibold text-gray-700'}`}>
                             {notif.title}

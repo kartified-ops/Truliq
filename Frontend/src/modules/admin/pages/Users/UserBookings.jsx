@@ -120,7 +120,7 @@ const UserBookings = () => {
                           </div>
                           <div className="flex items-center gap-2">
                             <FiCalendar className="w-4 h-4" />
-                            <span>Date: {new Date(booking.bookingDate).toLocaleDateString()}</span>
+                            <span>Date: {booking.scheduledDate ? new Date(booking.scheduledDate).toLocaleDateString() : 'N/A'}</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <FiUser className="w-4 h-4 text-green-500" />
@@ -128,7 +128,7 @@ const UserBookings = () => {
                           </div>
                           <div className="flex items-center gap-2">
                             <FiClock className="w-4 h-4" />
-                            <span>Slot: {booking.bookingSlot}</span>
+                            <span>Slot: {booking.scheduledTime || (booking.timeSlot ? `${booking.timeSlot.start} - ${booking.timeSlot.end}` : 'N/A')}</span>
                           </div>
                         </div>
                       </div>

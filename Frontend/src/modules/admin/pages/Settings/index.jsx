@@ -359,6 +359,12 @@ const AdminSettings = () => {
     if (!newAdmin.name || !newAdmin.email) {
       return toast.error('Name and Email are required');
     }
+    
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newAdmin.email)) {
+      return toast.error('Invalid email format');
+    }
+
     if (/^\d+$/.test(newAdmin.name)) {
       return toast.error('Admin name cannot be only digits');
     }
@@ -366,8 +372,15 @@ const AdminSettings = () => {
     if (!isEdit && !newAdmin.password) {
       return toast.error('Password is required for new admin');
     }
-    if (newAdmin.password && newAdmin.password.length < 6) {
-      return toast.error('Password must be at least 6 characters');
+    if (newAdmin.password) {
+      if (newAdmin.password.length < 6) {
+        return toast.error('Password must be at least 6 characters');
+      }
+      
+      const passwordRegex = /^(?=.*[A-Z])(?=.*\d)(?=.*[a-zA-Z]).+$/;
+      if (!passwordRegex.test(newAdmin.password)) {
+        return toast.error('Password must be alphanumeric and contain at least one uppercase letter');
+      }
     }
 
     setAdminLoading(true);

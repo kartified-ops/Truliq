@@ -654,7 +654,7 @@ const JobDetails = () => {
         <div className="bg-gray-50 rounded-2xl p-5 shadow-inner mb-6 border border-gray-100">
           <div className="flex justify-between text-xs font-bold text-gray-400 uppercase mb-4">
             <span>Booking Number</span>
-            <span className="text-gray-600">{job.bookingNumber}</span>
+            <span className="text-gray-600">{(job.bookingNumber || id).slice(-8).toUpperCase()}</span>
           </div>
 
           {job.status === 'completed' && (
