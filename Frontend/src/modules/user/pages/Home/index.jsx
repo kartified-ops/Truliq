@@ -574,6 +574,7 @@ const Home = () => {
                         id: item.id || item._id,
                         title: item.title,
                         gif: toAssetUrl(item.gifUrl),
+                        youtubeUrl: item.youtubeUrl,
                         slug: item.slug,
                         targetCategoryId: item.targetCategoryId
                       }))}

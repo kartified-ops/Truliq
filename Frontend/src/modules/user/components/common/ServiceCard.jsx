@@ -16,9 +16,11 @@ const ServiceCard = memo(({ image, title, onClick, gif, youtubeUrl }) => {
     return (match && match[2].length === 11) ? match[2] : null;
   };
 
+  const [isPlaying, setIsPlaying] = React.useState(true);
+
   const videoId = youtubeUrl ? getYouTubeVideoId(youtubeUrl) : null;
   const embedUrl = videoId
-    ? `https://www.youtube.com/embed/${videoId}?autoplay=1&loop=1&playlist=${videoId}&mute=1&controls=0&modestbranding=1&rel=0&showinfo=0&iv_load_policy=3&playsinline=1`
+    ? `https://www.youtube.com/embed/${videoId}?autoplay=${isPlaying ? '1' : '0'}&loop=1&playlist=${videoId}&mute=0&controls=0&modestbranding=1&rel=0&showinfo=0&iv_load_policy=3&playsinline=1`
     : null;
 
   const isCloudinaryVideo = (url) => {
@@ -93,6 +95,7 @@ const ServiceCard = memo(({ image, title, onClick, gif, youtubeUrl }) => {
     );
   };
 
+
   return (
     <div
       ref={cardRef}
@@ -107,9 +110,27 @@ const ServiceCard = memo(({ image, title, onClick, gif, youtubeUrl }) => {
       onClick={onClick}
     >
       {renderMedia()}
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
+      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4 pointer-events-none">
         <h3 className="text-white font-semibold text-base">{title}</h3>
       </div>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsPlaying(!isPlaying);
+        }}
+        className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1.5 transition-colors z-10"
+        title={isPlaying ? "Pause Video" : "Play Video"}
+      >
+        {isPlaying ? (
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        ) : (
+          <svg className="w-4 h-4 pl-0.5" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M8 5v14l11-7z" />
+          </svg>
+        )}
+      </button>
     </div>
   );
 });

@@ -436,6 +436,7 @@ const getPublicHomeData = async (req, res) => {
         curated: (contentObj.curated || []).map(item => ({
           title: item.title,
           gifUrl: item.gifUrl,
+          youtubeUrl: item.youtubeUrl,
           order: item.order
         })),
         noteworthy: (contentObj.noteworthy || []).map(item => ({

@@ -791,10 +791,8 @@ const HomePage = ({ catalog, setCatalog, selectedCity }) => {
               <thead>
                 <tr className="border-b-2 border-gray-200">
                   <th className="text-left py-2 px-3 text-sm font-bold text-gray-700 w-12">#</th>
-                  <th className="text-left py-2 px-3 text-sm font-bold text-gray-700 w-24">Media</th>
                   <th className="text-left py-2 px-3 text-sm font-bold text-gray-700">Title</th>
                   <th className="text-left py-2 px-3 text-sm font-bold text-gray-700">YouTube URL</th>
-                  <th className="text-left py-2 px-3 text-sm font-bold text-gray-700">Redirect</th>
                   <th className="text-center py-2 px-3 text-sm font-bold text-gray-700 w-32">Actions</th>
                 </tr>
               </thead>
@@ -803,31 +801,10 @@ const HomePage = ({ catalog, setCatalog, selectedCity }) => {
                   <tr key={s.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                     <td className="py-2.5 px-3 text-sm font-semibold text-gray-600">{idx + 1}</td>
                     <td className="py-2.5 px-3">
-                      {s.gifUrl ? (
-                        s.gifUrl.match(/\.(gif|webp)$/i) ? (
-                          <img src={s.gifUrl} alt="Preview" className="h-14 w-14 object-cover rounded-lg border border-gray-200" />
-                        ) : (
-                          <video src={s.gifUrl} className="h-14 w-14 object-cover rounded-lg border border-gray-200" controls />
-                        )
-                      ) : (
-                        <div className="h-14 w-14 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center">
-                          <span className="text-[10px] text-gray-400">No media</span>
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-2.5 px-3">
                       <div className="text-sm font-semibold text-gray-900">{s.title || "—"}</div>
                     </td>
                     <td className="py-2.5 px-3">
                       <div className="text-sm text-gray-600">{s.youtubeUrl || "—"}</div>
-                    </td>
-                    <td className="py-2.5 px-3">
-                      <div className="text-sm text-gray-600">
-                        {s.slug
-                          ? `Service: ${allServices.find(svc => svc.slug === s.slug)?.title || s.slug}`
-                          : (s.targetCategoryId ? getCategoryTitle(s.targetCategoryId) : "—")
-                        }
-                      </div>
                     </td>
                     <td className="py-2.5 px-3">
                       <div className="flex items-center justify-center gap-1.5">
@@ -1585,72 +1562,7 @@ const HomePage = ({ catalog, setCatalog, selectedCity }) => {
               placeholder="Bathroom Deep Cleaning"
             />
           </div>
-          <div>
-            <label className="block text-base font-bold text-gray-900 mb-2">GIF/Video</label>
-            <div className="space-y-3">
-              <input
-                type="file"
-                accept="image/gif,video/*"
-                disabled={uploading}
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    setUploading(true);
-                    setUploadProgress(0);
-                    try {
-                      const response = await serviceService.uploadImage(file, 'curated', (progress) => {
-                        setUploadProgress(progress);
-                      });
-                      if (response.success) {
-                        setCuratedForm((p) => ({ ...p, gifUrl: response.imageUrl }));
-                        toast.success("Media uploaded!");
-                      }
-                    } catch (error) {
-                      console.error('Curated upload error:', error);
-                      toast.error("Failed to upload image/video");
-                    } finally {
-                      setUploading(false);
-                      setUploadProgress(0);
-                    }
-                  }
-                }}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all bg-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100 disabled:opacity-50 disabled:cursor-not-allowed"
-              />
-              {uploading && (
-                <div className="space-y-2 mt-2">
-                  <div className="flex items-center justify-between text-blue-600 text-sm font-medium">
-                    <div className="flex items-center gap-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                      Uploading...
-                    </div>
-                    <span>{uploadProgress}%</span>
-                  </div>
-                  <div className="w-full bg-blue-100 rounded-full h-1.5 overflow-hidden">
-                    <div
-                      className="bg-blue-600 h-full transition-all duration-300 ease-out"
-                      style={{ width: `${uploadProgress}%` }}
-                    ></div>
-                  </div>
-                </div>
-              )}
-              {curatedForm.gifUrl && !uploading && (
-                <div className="mt-3 relative inline-block group">
-                  {curatedForm.gifUrl.match(/\.(gif|webp)$/i) ? (
-                    <img src={curatedForm.gifUrl} alt="Preview" className="h-32 w-auto object-cover rounded-lg border border-gray-200" />
-                  ) : (
-                    <video src={curatedForm.gifUrl} className="h-32 w-auto object-cover rounded-lg border border-gray-200" controls />
-                  )}
-                  <button
-                    onClick={() => setCuratedForm(p => ({ ...p, gifUrl: "" }))}
-                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="Remove media"
-                  >
-                    <FiTrash2 className="w-3 h-3" />
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
+
           <div>
             <label className="block text-base font-bold text-gray-900 mb-2">YouTube URL</label>
             <input
