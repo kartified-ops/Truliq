@@ -362,8 +362,10 @@ const Login = () => {
               <div className="flex items-center justify-between text-sm animate-stagger-2 animate-fade-in">
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.preventDefault();
                     setStep('phone');
+                    sessionStorage.setItem('userLoginStep', 'phone');
                     sessionStorage.removeItem('userLoginOtpToken');
                     sessionStorage.removeItem('userLoginTimer');
                     setOtpToken('');
