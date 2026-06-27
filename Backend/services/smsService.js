@@ -95,10 +95,9 @@ const sendSMS = async (phone, message) => {
  * @param {string} otp - OTP code
  */
 const sendOTP = async (phone, otp) => {
-  // DLT-compliant message format (must match registered template)
-  // Template: "Welcome to ##var## Powered by IIDMTB. Use OTP ##var## to verify your login."
+  // Template: "Welcome to the ##var## powered by Appzeto.Your OTP for registration is ##var##.BGADEC"
   const appName = 'Truliq';
-  const message = `Welcome to ${appName} Powered by IIDMTB. Use OTP ${otp} to verify your login.`;
+  const message = `Welcome to the ${appName} powered by Appzeto.Your OTP for registration is ${otp}.BGADEC`;
 
   console.log(`[SMS] Attempting to send OTP to ${phone}`);
   console.log(`[SMS] Message: ${message}`);

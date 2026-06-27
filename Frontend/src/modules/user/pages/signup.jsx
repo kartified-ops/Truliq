@@ -449,7 +449,7 @@ const Signup = () => {
           )}
         </div>
 
-        <p className="mt-8 text-center text-sm text-gray-500 animate-fade-in animate-stagger-5">
+        <p className="fixed bottom-4 left-0 w-full text-center text-sm text-gray-500 animate-fade-in animate-stagger-5">
           Already have an account?{' '}
           <Link to="/user/login" className="font-semibold text-[#347989] hover:text-[#D68F35] transition-colors duration-300">
             Sign in

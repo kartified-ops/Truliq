@@ -426,7 +426,7 @@ const Login = () => {
         </div>
       </div>
 
-      <div className="mt-auto sm:mt-8 text-center text-xs text-gray-400 animate-fade-in animate-stagger-4">
+      <div className="fixed bottom-4 left-0 w-full text-center text-xs text-gray-400 animate-fade-in animate-stagger-4">
         &copy; {new Date().getFullYear()} Truliq. All rights reserved.
       </div>
       <DebugConsole />
