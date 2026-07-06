@@ -122,9 +122,9 @@ const createNotification = async ({
         }
       };
 
-      // If dataOnly flag is in pushData, pass it
-      if (pushData.dataOnly) {
-        payload.dataOnly = true;
+      // If dataOnly flag is explicitly set in pushData, pass it through
+      if (pushData.dataOnly !== undefined) {
+        payload.dataOnly = pushData.dataOnly; // Correctly passes both true AND false
       }
 
       // Send to target
