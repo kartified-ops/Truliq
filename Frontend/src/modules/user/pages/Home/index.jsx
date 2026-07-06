@@ -365,6 +365,12 @@ const Home = () => {
   };
 
   const handleAddClick = async (service) => {
+    // Auth Check
+    if (!localStorage.getItem('accessToken') && !sessionStorage.getItem('accessToken')) {
+      navigate('/user/login');
+      return;
+    }
+
     try {
       if (service.targetCategoryId) {
         const cat = categories.find(c => c.id === service.targetCategoryId);
@@ -714,8 +720,7 @@ const Home = () => {
         </main>
       </motion.div>
 
-      {/* Bottom Navigation */}
-      {!isAddressModalOpen && <BottomNav />}
+      {/* BottomNav is handled globally by UserRoutes */}
 
       {/* Category Modal */}
       <CategoryModal

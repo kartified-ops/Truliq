@@ -271,8 +271,7 @@ const AdminDashboard = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.08 }}
-              onClick={() => card.link && navigate(card.link)}
-              className={`${card.cardBg} rounded-xl p-3 sm:p-4 shadow-sm border border-transparent hover:shadow-md transition-all duration-300 relative overflow-hidden cursor-pointer group`}
+              className={`${card.cardBg} rounded-xl p-3 sm:p-4 shadow-sm border border-transparent transition-all duration-300 relative overflow-hidden group`}
             >
               <div className={`absolute top-0 right-0 w-24 h-24 ${card.bgColor} opacity-10 rounded-full -mr-12 -mt-12 group-hover:scale-110 transition-transform`} />
 

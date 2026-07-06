@@ -146,7 +146,8 @@ const WorkerSignup = () => {
 
     if (!validationResult.success) {
       const errorList = validationResult.error.errors || validationResult.error.issues || [];
-      errorList.forEach(err => toast.error(err.message));
+      const uniqueErrors = [...new Set(errorList.map(err => err.message))];
+      uniqueErrors.forEach(msg => toast.error(msg));
       return;
     }
 

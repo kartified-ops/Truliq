@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import { FiArrowLeft, FiX, FiSearch, FiMapPin, FiHome } from 'react-icons/fi';
 import { Autocomplete, useJsApiLoader } from '@react-google-maps/api';
 import { themeColors } from '../../../../../theme';
@@ -74,18 +75,18 @@ const AddressSelectionModal = ({ isOpen, onClose, address = '', houseNumber = ''
 
   if (!isOpen && !isClosing) return null;
 
-  return (
+  return ReactDOM.createPortal(
     <>
       <div
-        className={`fixed inset-0 bg-black/50 z-50 transition-opacity ${isClosing ? 'opacity-0' : 'opacity-100'}`}
+        className={`fixed inset-0 bg-black/50 z-[9999] transition-opacity ${isClosing ? 'opacity-0' : 'opacity-100'}`}
         onClick={handleClose}
       />
-      <div className="fixed bottom-0 left-0 right-0 z-50">
+      <div className="fixed bottom-0 left-0 right-0 z-[10000]">
         <div
           className={`bg-white rounded-t-[32px] shadow-2xl ${isClosing ? 'animate-slide-down' : 'animate-slide-up'}`}
           style={{
-            height: '85vh',
-            maxHeight: '90vh',
+            height: '92vh',
+            maxHeight: '95vh',
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
@@ -216,7 +217,8 @@ const AddressSelectionModal = ({ isOpen, onClose, address = '', houseNumber = ''
           </div>
         </div>
       </div>
-    </>
+    </>,
+    document.body
   );
 };
 

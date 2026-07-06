@@ -186,6 +186,7 @@ export const handleLogout = (role = null) => {
     }
   } else if (role === 'worker') {
     clearTokens('worker');
+    sessionStorage.removeItem('workerDashboardCache');
     if (window.location.pathname !== '/worker/login') {
       window.location.href = '/worker/login';
     }

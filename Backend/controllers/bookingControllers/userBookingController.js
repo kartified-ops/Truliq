@@ -885,6 +885,8 @@ const cancelBooking = async (req, res) => {
       await user.save();
     }
 
+    const previousStatus = booking.status;
+    
     // Update booking status
     booking.status = BOOKING_STATUS.CANCELLED;
     booking.cancelledAt = new Date();
@@ -892,6 +894,30 @@ const cancelBooking = async (req, res) => {
     booking.cancellationReason = cancellationReason || 'Cancelled by user';
 
     await booking.save();
+
+    // Send cancellation sockets to pending partners if booking was in SEARCHING state
+    if (previousStatus === BOOKING_STATUS.SEARCHING || previousStatus === 'REQUESTED') {
+      try {
+        const BookingRequest = require('../../models/BookingRequest');
+        const pendingRequests = await BookingRequest.find({ bookingId: booking._id, status: 'PENDING' });
+        
+        const { getIO } = require('../../sockets');
+        const io = getIO();
+        
+        if (io && pendingRequests.length > 0) {
+          pendingRequests.forEach(req => {
+            if (req.vendorId) {
+              io.to(`vendor_${req.vendorId}`).emit('removeVendorBooking', { bookingId: booking._id, message: 'Customer cancelled the booking' });
+            }
+            if (req.workerId) {
+              io.to(`worker_${req.workerId}`).emit('removeWorkerBooking', { bookingId: booking._id, message: 'Customer cancelled the booking' });
+            }
+          });
+        }
+      } catch (socketErr) {
+        console.error('[CancelBooking] Error emitting cancellation sockets:', socketErr);
+      }
+    }
 
     // Send notification to user
     await createNotification({

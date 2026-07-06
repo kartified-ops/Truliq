@@ -37,6 +37,7 @@ const Signup = () => {
   const [verificationToken, setVerificationToken] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
+  const [errors, setErrors] = useState({});
 
   // Timer countdown effect
   useEffect(() => {
@@ -81,6 +82,9 @@ const Signup = () => {
       ...prev,
       [name]: value
     }));
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
   };
 
   const handleDetailsSubmit = async (e) => {
@@ -91,7 +95,13 @@ const Signup = () => {
 
     if (!validationResult.success) {
       const errorList = validationResult.error.errors || validationResult.error.issues || [];
-      errorList.forEach(err => toast.error(err.message));
+      const newErrors = {};
+      errorList.forEach(err => {
+        if (err.path && err.path[0]) {
+          newErrors[err.path[0]] = err.message;
+        }
+      });
+      setErrors(newErrors);
       return;
     }
 
@@ -286,11 +296,12 @@ const Signup = () => {
                       handleInputChange({ target: { name: 'name', value: val } });
                     }}
                     onFocus={handleFocus}
-                    className="block w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-300 hover:border-gray-400"
+                    className={`block w-full pl-10 pr-4 py-3 border ${errors.name ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300'} rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-300 hover:border-gray-400`}
                     placeholder="Enter your name"
                     style={{ '--tw-ring-color': brandColor }}
                   />
                 </div>
+                {errors.name && <p className="mt-1.5 text-xs font-semibold text-red-500 ml-1">{errors.name}</p>}
               </div>
 
               <div className="animate-stagger-2 animate-fade-in">
@@ -308,11 +319,12 @@ const Signup = () => {
                     value={formData.email}
                     onChange={handleInputChange}
                     onFocus={handleFocus}
-                    className="block w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-300 hover:border-gray-400"
+                    className={`block w-full pl-10 pr-4 py-3 border ${errors.email ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300'} rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-300 hover:border-gray-400`}
                     placeholder="you@example.com"
                     style={{ '--tw-ring-color': brandColor }}
                   />
                 </div>
+                {errors.email && <p className="mt-1.5 text-xs font-semibold text-red-500 ml-1">{errors.email}</p>}
               </div>
 
               {!verificationToken && (
@@ -333,13 +345,17 @@ const Signup = () => {
                       type="tel"
                       required
                       value={formData.phoneNumber}
-                      onChange={(e) => setFormData(prev => ({ ...prev, phoneNumber: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\\D/g, '').slice(0, 10);
+                        handleInputChange({ target: { name: 'phoneNumber', value: val } });
+                      }}
                       onFocus={handleFocus}
-                      className="block w-full pl-24 pr-4 py-3 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-300 hover:border-gray-400"
+                      className={`block w-full pl-24 pr-4 py-3 border ${errors.phoneNumber ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300'} rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-300 hover:border-gray-400`}
                       placeholder="9876543210"
                       style={{ '--tw-ring-color': brandColor }}
                     />
                   </div>
+                  {errors.phoneNumber && <p className="mt-1.5 text-xs font-semibold text-red-500 ml-1">{errors.phoneNumber}</p>}
                 </div>
               )}
 

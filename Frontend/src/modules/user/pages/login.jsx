@@ -314,12 +314,18 @@ const Login = () => {
                   </div>
                 </div>
 
-                <div className="mt-6">
+                <div className="mt-6 flex flex-col gap-3">
                   <Link
                     to="/user/signup"
                     className="w-full inline-flex justify-center py-3 px-4 rounded-xl shadow-sm bg-white text-sm font-medium text-gray-500 hover:text-[#347989] hover:bg-gray-50 border border-gray-200 transition-all duration-300 hover:border-[#347989]/30"
                   >
                     Create an account
+                  </Link>
+                  <Link
+                    to="/user"
+                    className="w-full inline-flex justify-center py-3 px-4 rounded-xl shadow-sm bg-gray-50 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 border border-transparent transition-all duration-300"
+                  >
+                    Skip for now
                   </Link>
                 </div>
 

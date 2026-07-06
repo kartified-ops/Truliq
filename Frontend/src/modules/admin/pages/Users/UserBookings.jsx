@@ -58,15 +58,15 @@ const UserBookings = () => {
         {/* Search and Filter */}
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
           <div className="flex-1 relative">
-            <div className="absolute left-4 top-1/2 transform -translate-y-1/2">
+            <div className="absolute left-4 top-1/2 transform -translate-y-1/2 pointer-events-none">
               <FiSearch className="w-5 h-5 text-gray-400" />
             </div>
             <input
               type="text"
               placeholder="Search by user name, phone or email..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={(e) => setSearchQuery(e.target.value.trimStart())}
+              className="w-full pl-14 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <select

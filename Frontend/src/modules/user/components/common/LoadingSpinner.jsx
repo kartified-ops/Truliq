@@ -6,7 +6,7 @@ import LogoLoader from '../../../../components/common/LogoLoader';
 
 const LoadingSpinner = ({ fullScreen = true, message = 'Loading...' }) => {
   if (fullScreen) {
-    return <LogoLoader />;
+    return <LogoLoader fullScreen={true} />;
   }
 
   return <LogoLoader fullScreen={false} size="w-16 h-16" />;

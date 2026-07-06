@@ -129,51 +129,59 @@ async function sendPushNotification(recipientOrTokens, payload) {
     if (payload.icon) stringData.icon = payload.icon;
 
     const message = {
-      // ✅ notification field: required for background/closed-tab system notifications
-      // Chrome/browser auto-shows this when app is in background
-      notification: {
-        title: payload.title || 'App Notification',
-        body: payload.body || 'New Update',
-      },
-      // ✅ data field: gives extra info to foreground handler & SW
       data: stringData,
       tokens: uniqueTokens,
 
-      // Android: high priority + notification styling
+      // Android: high priority
       android: {
         priority: 'high',
-        notification: {
-          title: payload.title || 'App Notification',
-          body: payload.body || 'New Update',
-          icon: 'ic_notification',
-          color: '#FF6B00',
-          sound: 'default',
-        }
       },
 
-      // iOS/APNs
-      apns: {
-        headers: { 'apns-priority': '10', 'apns-push-type': 'alert' },
-        payload: {
-          aps: {
-            sound: 'default',
-            badge: 1,
-            'content-available': 1,
-            'mutable-content': 1,
-            alert: {
-              title: payload.title || 'App Notification',
-              body: payload.body || 'New Update',
-            }
-          }
-        }
-      },
-
-      // WebPush: high urgency (foreground onMessage will handle the toast)
+      // WebPush: high urgency
       webpush: {
         headers: { Urgency: 'high', TTL: '86400' },
         fcmOptions: { link: payload.data?.link || '/' }
       },
     };
+
+    // If NOT data-only, add the standard notification objects
+    if (!payload.dataOnly) {
+      message.notification = {
+        title: payload.title || 'App Notification',
+        body: payload.body || 'New Update',
+      };
+      message.android.notification = {
+        title: payload.title || 'App Notification',
+        body: payload.body || 'New Update',
+        icon: 'ic_notification',
+        color: '#FF6B00',
+        sound: 'default',
+      };
+      message.apns = {
+        headers: { 'apns-priority': '10', 'apns-push-type': 'alert' },
+        payload: {
+          aps: {
+            alert: {
+              title: payload.title || 'App Notification',
+              body: payload.body || 'New Update',
+            },
+            sound: 'default',
+            badge: 1,
+            'mutable-content': 1,
+          }
+        }
+      };
+    } else {
+      // Data-only requires background push type for iOS
+      message.apns = {
+        headers: { 'apns-priority': '5', 'apns-push-type': 'background' },
+        payload: {
+          aps: {
+            'content-available': 1,
+          }
+        }
+      };
+    }
 
     // Log intent
     console.log(`[FCM] Sending standard notification to ${uniqueTokens.length} tokens:`, payload.title);
@@ -333,7 +341,8 @@ async function sendNotificationToVendor(vendorId, payload, includeMobile = true)
 
     const finalPayload = {
       ...payload,
-      title: `🏢 [Partner] ${payload.title}` // Add identification
+      title: `🏢 [Partner] ${payload.title}`, // Add identification
+      dataOnly: true // FORCE DATA-ONLY FOR VENDORS so SW can play loud sound
     };
 
     await sendPushNotification(tokens, finalPayload);
@@ -375,7 +384,8 @@ async function sendNotificationToWorker(workerId, payload, includeMobile = true)
 
     const finalPayload = {
       ...payload,
-      title: `👷 [Pro] ${payload.title}` // Add identification
+      title: `👷 [Pro] ${payload.title}`, // Add identification
+      dataOnly: true // FORCE DATA-ONLY FOR WORKERS so SW can play loud sound
     };
 
     await sendPushNotification(tokens, finalPayload);

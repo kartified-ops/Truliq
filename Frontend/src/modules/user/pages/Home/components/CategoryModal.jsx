@@ -107,6 +107,12 @@ const CategoryModal = React.memo(({ isOpen, onClose, category, location, cartCou
   };
 
   const handleServiceClick = async (service) => {
+    if (!localStorage.getItem('accessToken')) {
+      toast.error('Please login to add items to cart');
+      navigate('/user/login');
+      return;
+    }
+
     // Add to cart logic
     try {
       const cartItemData = {

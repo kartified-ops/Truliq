@@ -58,6 +58,9 @@ const PublicRoute = ({ children, userType = 'user', redirectTo = null }) => {
               localStorage.removeItem(tokenKey);
               localStorage.removeItem(refreshTokenKey);
               localStorage.removeItem(dataKey);
+              sessionStorage.removeItem(tokenKey);
+              sessionStorage.removeItem(refreshTokenKey);
+              sessionStorage.removeItem(dataKey);
               setIsAuthenticated(false);
               return;
             }

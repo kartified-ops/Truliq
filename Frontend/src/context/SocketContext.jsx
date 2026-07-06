@@ -430,6 +430,20 @@ export const SocketProvider = ({ children }) => {
         });
         window.dispatchEvent(event);
       });
+
+      // Listen for removeWorkerBooking - generic removal (timeout, cancellation, etc.)
+      newSocket.on('removeWorkerBooking', (data) => {
+        const bookingId = String(data.bookingId || data.id);
+
+        // Remove from localStorage
+        const pendingJobs = JSON.parse(localStorage.getItem('workerPendingJobs') || '[]');
+        const updatedPending = pendingJobs.filter(job => String(job.id || job._id) !== bookingId);
+        localStorage.setItem('workerPendingJobs', JSON.stringify(updatedPending));
+
+        // Dispatch specific remove event for instant UI update (closes alert)
+        window.dispatchEvent(new CustomEvent('removeWorkerJobAlert', { detail: { id: bookingId } }));
+        window.dispatchEvent(new Event('workerJobsUpdated'));
+      });
     }
 
     return () => {

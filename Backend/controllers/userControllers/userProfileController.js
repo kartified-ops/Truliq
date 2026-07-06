@@ -94,15 +94,19 @@ const updateProfile = async (req, res) => {
 
     if (email !== undefined) {
       if (email && email.trim()) {
-        // Check if email is already taken by another user
-        const existingUser = await User.findOne({ email: email.toLowerCase(), _id: { $ne: userId } });
-        if (existingUser) {
-          return res.status(400).json({
-            success: false,
-            message: 'Email already in use'
-          });
+        const newEmail = email.toLowerCase();
+        // Only check for duplicate if the email is actually changing
+        if (user.email !== newEmail) {
+          const existingUser = await User.findOne({ email: newEmail, _id: { $ne: user._id } });
+          if (existingUser) {
+            console.log('[Profile Update] DUPLICATE FOUND. My _id:', user._id, 'Duplicate _id:', existingUser._id);
+            return res.status(400).json({
+              success: false,
+              message: 'Email already in use'
+            });
+          }
         }
-        updateData.email = email.toLowerCase();
+        updateData.email = newEmail;
       } else {
         // Allow clearing email
         updateData.email = null;

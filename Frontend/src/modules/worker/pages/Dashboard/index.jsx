@@ -37,7 +37,16 @@ const Dashboard = () => {
     return statusMap[status] || status;
   };
 
-  const [stats, setStats] = useState({
+  // Cache check
+  const cachedData = React.useRef(null);
+  try {
+    const cached = sessionStorage.getItem('workerDashboardCache');
+    if (cached) {
+      cachedData.current = JSON.parse(cached);
+    }
+  } catch (e) { /* ignore parse errors */ }
+
+  const [stats, setStats] = useState(cachedData.current?.stats || {
     pendingJobs: 0,
     acceptedJobs: 0,
     completedJobs: 0,
@@ -45,15 +54,17 @@ const Dashboard = () => {
     thisMonthEarnings: 0,
     rating: 0,
   });
-  const [workerProfile, setWorkerProfile] = useState({
+  const [workerProfile, setWorkerProfile] = useState(cachedData.current?.workerProfile || {
     name: 'Worker Name',
     phone: '+91 9876543210',
     photo: null,
     categories: [],
     address: null,
   });
-  const [subscriptionStatus, setSubscriptionStatus] = useState(null);
-  const [recentJobs, setRecentJobs] = useState([]);
+  const [subscriptionStatus, setSubscriptionStatus] = useState(cachedData.current?.subscriptionStatus || null);
+  const [recentJobs, setRecentJobs] = useState(cachedData.current?.recentJobs || []);
+
+  const [loading, setLoading] = useState(!cachedData.current);
 
   // Set background gradient
   useLayoutEffect(() => {
@@ -73,11 +84,10 @@ const Dashboard = () => {
     };
   }, []);
 
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const socket = useSocket();
   const [socketStatus, setSocketStatus] = useState('Checking...');
-  const [isOnline, setIsOnline] = useState(false);
+  const [isOnline, setIsOnline] = useState(cachedData.current?.isOnline || false);
   const [togglingOnline, setTogglingOnline] = useState(false);
   const [locationWatchId, setLocationWatchId] = useState(null);
 
@@ -121,6 +131,14 @@ const Dashboard = () => {
       const res = await workerService.toggleOnline(goingOnline, lat, lng);
       if (res.success) {
         setIsOnline(goingOnline);
+        
+        // Update cache
+        try {
+          const cached = JSON.parse(sessionStorage.getItem('workerDashboardCache') || '{}');
+          cached.isOnline = goingOnline;
+          sessionStorage.setItem('workerDashboardCache', JSON.stringify(cached));
+        } catch(e) {}
+
         const { toast } = await import('react-hot-toast');
         toast.success(res.message);
 
@@ -167,9 +185,9 @@ const Dashboard = () => {
   }, [locationWatchId]);
 
   // Fetch Dashboard Data Function
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (isBackground = false) => {
     try {
-      setLoading(true);
+      if (!isBackground && !cachedData.current) setLoading(true);
 
       // Fetch Profile, Stats and Recent Jobs in parallel (Stats also includes recent jobs but let's be robust)
       const [profileRes, statsRes, subRes] = await Promise.all([
@@ -178,33 +196,40 @@ const Dashboard = () => {
         workerService.getSubscriptionStatus()
       ]);
 
+      let newWorkerProfile = { ...workerProfile };
+      let newStats = { ...stats };
+      let newSubscriptionStatus = subscriptionStatus;
+      let newRecentJobs = [...recentJobs];
+
       if (profileRes.success) {
         const profile = profileRes.worker;
-        setWorkerProfile({
+        newWorkerProfile = {
           name: profile.name || 'Worker Name',
           phone: profile.phone || '',
           photo: profile.profilePhoto || null,
           categories: profile.serviceCategories || (profile.serviceCategory ? [profile.serviceCategory] : []),
           address: profile.address,
-        });
+        };
+        setWorkerProfile(newWorkerProfile);
         // Sync online status from DB
         setIsOnline(profile.isOnline || false);
       }
 
       if (statsRes.success) {
         const { totalEarnings, activeJobs, pendingJobs, completedJobs, rating, recentJobs: apiRecentJobs } = statsRes.data;
-        setStats(prev => ({
-          ...prev,
+        newStats = {
+          ...newStats,
           totalEarnings: totalEarnings || 0,
           thisMonthEarnings: totalEarnings || 0,
           pendingJobs: pendingJobs || 0,
           acceptedJobs: activeJobs || 0,
           completedJobs: completedJobs || 0,
           rating: rating || 0
-        }));
+        };
+        setStats(newStats);
 
         if (apiRecentJobs && apiRecentJobs.length > 0) {
-          setRecentJobs(apiRecentJobs.map(job => ({
+          newRecentJobs = apiRecentJobs.map(job => ({
             id: job._id,
             serviceType: job.serviceId?.title || job.serviceName || 'Service',
             customerName: job.userId?.name || 'Customer',
@@ -214,13 +239,26 @@ const Dashboard = () => {
             price: job.finalAmount,
             workerResponse: job.workerResponse,
             cancellationReason: job.cancellationReason,
-          })));
+          }));
+          setRecentJobs(newRecentJobs);
         }
       }
 
       if (subRes && subRes.success) {
-        setSubscriptionStatus(subRes.data);
+        newSubscriptionStatus = subRes.data;
+        setSubscriptionStatus(newSubscriptionStatus);
       }
+
+      // Save to cache
+      try {
+        sessionStorage.setItem('workerDashboardCache', JSON.stringify({
+          workerProfile: newWorkerProfile,
+          stats: newStats,
+          subscriptionStatus: newSubscriptionStatus,
+          recentJobs: newRecentJobs,
+          isOnline: profileRes.success ? profileRes.worker.isOnline : isOnline
+        }));
+      } catch (e) { /* ignore quota errors */ }
 
       setLoading(false);
     } catch (err) {
@@ -239,7 +277,7 @@ const Dashboard = () => {
 
     // Listen for updates
     const handleUpdate = () => {
-      fetchDashboardData();
+      fetchDashboardData(true);
     };
     window.addEventListener('workerJobsUpdated', handleUpdate);
 

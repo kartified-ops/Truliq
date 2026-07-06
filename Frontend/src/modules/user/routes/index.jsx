@@ -131,7 +131,7 @@ const UserRoutes = () => {
               <Route path="/signup" element={<PublicRoute userType="user"><Signup /></PublicRoute>} />
 
               {/* Protected routes (auth required) */}
-              <Route path="/" element={<ProtectedRoute userType="user"><Home /></ProtectedRoute>} />
+              <Route path="/" element={<Home />} />
               <Route path="/native" element={<ProtectedRoute userType="user"><Native /></ProtectedRoute>} />
 
               <Route path="/rewards" element={<ProtectedRoute userType="user"><Rewards /></ProtectedRoute>} />
