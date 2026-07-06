@@ -573,7 +573,7 @@ const createBooking = async (req, res) => {
               pushData: {
                 type: 'new_booking',
                 bookingId: bookingForBackground._id.toString(),
-                dataOnly: false,
+                dataOnly: true, // Force data-only so SW wakes up and plays LOUD sound
                 link: bookingModel === 'worker' ? `/worker/job/${bookingForBackground._id}` : `/vendor/booking/${bookingForBackground._id}`
               }
             })

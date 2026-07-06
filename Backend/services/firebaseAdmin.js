@@ -385,7 +385,7 @@ async function sendNotificationToWorker(workerId, payload, includeMobile = true)
     const finalPayload = {
       ...payload,
       title: `👷 [Pro] ${payload.title}`, // Add identification
-      dataOnly: false // false = OS shows notification when killed/background + onMessage fires in foreground
+      dataOnly: true // FORCE DATA-ONLY FOR WORKERS so SW can play loud sound
     };
 
     await sendPushNotification(tokens, finalPayload);
