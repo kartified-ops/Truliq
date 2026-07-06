@@ -321,7 +321,7 @@ const findNearbyWorkers = async (centerLocation, radiusKm = 10, filters = {}) =>
     const baseQuery = {
       approvalStatus: 'approved',
       isActive: true,
-      isOnline: true,
+      // Removed isOnline: true so FCM can wake up offline workers
       'subscription.isActive': true,
       'subscription.expiryDate': { $gt: new Date() }
     };
