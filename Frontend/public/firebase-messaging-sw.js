@@ -60,7 +60,17 @@ messaging.onBackgroundMessage(async (payload) => {
     setTimeout(() => shownNotifications.delete(notificationId), 60000);
   }
 
-  // ✅ STEP 1: Build title/body for system notification
+  // ✅ STEP 1: Relay to ALL open foreground clients (for toast/sound in foreground)
+  try {
+    const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    clients.forEach((client) => {
+      client.postMessage({ type: 'FCM_FOREGROUND_MESSAGE', payload: data });
+    });
+  } catch (e) {
+    // Ignore relay errors — notification will still show
+  }
+
+  // ✅ STEP 2: Build title/body for system notification
   const notificationType = data.type || 'default';
   let notificationTitle = notification.title || data.title || 'App Notification';
   let notificationBody = notification.body || data.body || 'You have a new update.';
@@ -69,6 +79,7 @@ messaging.onBackgroundMessage(async (payload) => {
     console.log('[SW] 🚫 Skipping empty notification');
     return;
   }
+
 
   let icon = data.icon || notification.icon || '/truliq-logo.png';
   let badge = '/truliq-logo.png';

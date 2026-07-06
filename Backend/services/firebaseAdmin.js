@@ -342,7 +342,7 @@ async function sendNotificationToVendor(vendorId, payload, includeMobile = true)
     const finalPayload = {
       ...payload,
       title: `🏢 [Partner] ${payload.title}`, // Add identification
-      dataOnly: true // FORCE DATA-ONLY FOR VENDORS so SW can play loud sound (SW optimized to handle it instantly)
+      dataOnly: false // false = OS shows notification when killed/background + onMessage fires in foreground
     };
 
     await sendPushNotification(tokens, finalPayload);
@@ -385,7 +385,7 @@ async function sendNotificationToWorker(workerId, payload, includeMobile = true)
     const finalPayload = {
       ...payload,
       title: `👷 [Pro] ${payload.title}`, // Add identification
-      dataOnly: true // FORCE DATA-ONLY FOR WORKERS so SW can play loud sound (SW optimized to handle it instantly)
+      dataOnly: false // false = OS shows notification when killed/background + onMessage fires in foreground
     };
 
     await sendPushNotification(tokens, finalPayload);
