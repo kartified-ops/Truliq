@@ -583,6 +583,31 @@ const createBooking = async (req, res) => {
           console.error('[CreateBooking] Firebase/Notification Error:', notifError.message);
         }
 
+        // 3. DIRECT FCM BYPASS (GUARANTEED PUSH FOR KILLED WORKER APPS)
+        try {
+          const { sendNotificationToWorker, sendNotificationToVendor } = require('../../services/firebaseAdmin');
+          wave1Partners.forEach(async (partner) => {
+            const directPayload = {
+              title: "🔥 NEW BOOKING ARRIVED! 🔥",
+              body: `A new ${serviceForBackground.title} booking is waiting for you! Tap to accept.`,
+              dataOnly: true, // Forces SW to wake up and play loud sound
+              data: {
+                type: 'new_booking',
+                bookingId: bookingForBackground._id.toString(),
+                link: bookingModel === 'worker' ? `/worker/job/${bookingForBackground._id}` : `/vendor/booking/${bookingForBackground._id}`
+              }
+            };
+            if (bookingModel === 'worker') {
+              await sendNotificationToWorker(partner._id, directPayload);
+            } else {
+              await sendNotificationToVendor(partner._id, directPayload);
+            }
+          });
+          console.log('[CreateBooking] Direct FCM bypass sent successfully.');
+        } catch (directFcmErr) {
+          console.error('[CreateBooking] Direct FCM bypass error:', directFcmErr);
+        }
+
         // NOTIFY USER: Send actionable notification so they can track status
         await createNotification({
           userId,
