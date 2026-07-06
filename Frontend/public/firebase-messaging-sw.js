@@ -60,17 +60,8 @@ messaging.onBackgroundMessage(async (payload) => {
     setTimeout(() => shownNotifications.delete(notificationId), 60000);
   }
 
-  // ✅ STEP 1: Relay to ALL open clients (handles foreground toast)
-  const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-  console.log(`[SW] 📤 Relaying to ${clients.length} open client(s)`);
-  clients.forEach((client) => {
-    client.postMessage({ type: 'FCM_FOREGROUND_MESSAGE', payload: data });
-  });
-
+  // ✅ STEP 1: Build title/body for system notification
   const notificationType = data.type || 'default';
-
-  // ✅ STEP 2: Build title/body for system notification
-  // Use payload.notification first (sent by backend), fall back to data fields
   let notificationTitle = notification.title || data.title || 'App Notification';
   let notificationBody = notification.body || data.body || 'You have a new update.';
 
@@ -86,16 +77,13 @@ messaging.onBackgroundMessage(async (payload) => {
   let vibrate = [200, 100, 200];
   let actions = [];
 
-
   // Enhanced styling for different notification types
   switch (notificationType) {
     case 'booking_requested':
       notificationTitle = notificationTitle || '📅 Booking Created!';
       notificationBody = notificationBody || 'Your service request has been received.';
       vibrate = [200, 100];
-      actions = [
-        { action: 'view', title: '👁️ View Status' }
-      ];
+      actions = [{ action: 'view', title: '👁️ View Status' }];
       break;
 
     case 'new_booking':
@@ -110,7 +98,6 @@ messaging.onBackgroundMessage(async (payload) => {
       break;
 
     case 'job_assigned':
-      // Worker job assignment - urgent
       notificationTitle = data.title || notification.title || '🔔 New Job Assigned!';
       notificationBody = data.body || notification.body || 'You have been assigned a new job.';
       requireInteraction = true;
@@ -126,18 +113,14 @@ messaging.onBackgroundMessage(async (payload) => {
       notificationTitle = data.title || notification.title || '✅ Professional Confirmed!';
       notificationBody = data.body || notification.body || 'A professional has accepted your booking.';
       vibrate = [200, 100, 200];
-      actions = [
-        { action: 'view', title: '👁️ View Booking' }
-      ];
+      actions = [{ action: 'view', title: '👁️ View Booking' }];
       break;
 
     case 'job_accepted':
       notificationTitle = data.title || notification.title || '✅ Job Confirmed!';
       notificationBody = data.body || notification.body || 'You have successfully accepted the job.';
       vibrate = [200, 100, 200];
-      actions = [
-        { action: 'view', title: '👁️ View Job' }
-      ];
+      actions = [{ action: 'view', title: '👁️ View Job' }];
       break;
 
     case 'visit_verified':
@@ -153,9 +136,7 @@ messaging.onBackgroundMessage(async (payload) => {
       notificationBody = data.body || notification.body || 'Professional has finished the work. Please verify and pay.';
       requireInteraction = true;
       vibrate = [200, 100, 200, 100, 200];
-      actions = [
-        { action: 'view', title: '👁️ View Summary' }
-      ];
+      actions = [{ action: 'view', title: '👁️ View Summary' }];
       break;
 
     case 'earnings_credited':
@@ -169,9 +150,7 @@ messaging.onBackgroundMessage(async (payload) => {
       notificationTitle = data.title || notification.title || '👷 Worker Assigned';
       notificationBody = data.body || notification.body || 'A professional has been assigned to your booking.';
       vibrate = [200, 100, 200];
-      actions = [
-        { action: 'track', title: '📍 Track Worker' }
-      ];
+      actions = [{ action: 'track', title: '📍 Track Worker' }];
       break;
 
     case 'journey_started':
@@ -180,29 +159,14 @@ messaging.onBackgroundMessage(async (payload) => {
       notificationBody = data.body || notification.body || 'Your service provider has started their journey.';
       requireInteraction = true;
       vibrate = [500, 200, 500];
-      actions = [
-        { action: 'track', title: '📍 Track Arrival', icon: '/icons/track.png' }
-      ];
-      break;
-
-    case 'work_done':
-    case 'worker_completed':
-      notificationTitle = data.title || notification.title || '✅ Work Finished!';
-      notificationBody = data.body || notification.body || 'Professional has finished the work and is preparing the bill.';
-      requireInteraction = true;
-      vibrate = [200, 100, 200, 100, 200];
-      actions = [
-        { action: 'view', title: '👁️ View Summary' }
-      ];
+      actions = [{ action: 'track', title: '📍 Track Arrival', icon: '/icons/track.png' }];
       break;
 
     case 'booking_completed':
       notificationTitle = data.title || notification.title || '🎉 Booking Completed!';
       notificationBody = data.body || notification.body || 'Service has been completed successfully.';
       vibrate = [200, 100, 200, 100, 200];
-      actions = [
-        { action: 'rate', title: '⭐ Rate Now' }
-      ];
+      actions = [{ action: 'rate', title: '⭐ Rate Now' }];
       break;
   }
 
@@ -218,42 +182,16 @@ messaging.onBackgroundMessage(async (payload) => {
       url: data.link || '/',
       timestamp: Date.now()
     },
-    // Vibration pattern for mobile devices
     vibrate: vibrate,
-    // Keep notification until user interacts (for important ones)
     requireInteraction: requireInteraction,
-    // Action buttons
     actions: actions,
-    // Sound will be played by the system for high priority
     silent: false,
-    // Renotify even if same tag exists
     renotify: true,
-    // Timestamp
     timestamp: Date.now()
   };
 
-  // Show the notification ONLY if app is not in foreground (to avoid duplicate with in-app socket toast)
-  return self.clients.matchAll({ type: 'window', includeUncontrolled: true })
-    .then(function (clientList) {
-      const isVisible = clientList.some(function (client) {
-        return client.visibilityState === 'visible';
-      });
-
-      // Re-enabled system notifications even if visible to ensure user sees them
-      /*
-      if (isVisible) {
-        console.log('[SW] 🚫 App is visible, skipping system notification to avoid duplicate');
-        return;
-      }
-      */
-
-
-      return self.registration.showNotification(notificationTitle, notificationOptions);
-    })
-    .catch(function (err) {
-      console.error('[SW] ⚠️ Error checking clients, falling back to notification:', err);
-      return self.registration.showNotification(notificationTitle, notificationOptions);
-    });
+  // IMMEDIATELY show notification to prevent OS from killing SW
+  return self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
 // Handle notification click
