@@ -286,7 +286,6 @@ const updateWorkerOnlineStatus = async (workerId, isOnline, socketId) => {
     const Worker = require('../models/Worker');
 
     const updateData = {
-      status: isOnline ? 'ONLINE' : 'OFFLINE',
       isOnline: isOnline,
       // currentSocketId: socketId // Add to model if needed
     };

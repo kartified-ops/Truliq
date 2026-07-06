@@ -194,6 +194,7 @@ const toggleOnline = async (req, res) => {
     const { isOnline, lat, lng } = req.body;
 
     const updateData = {
+      status: isOnline ? 'ONLINE' : 'OFFLINE', // Manual duty status
       isOnline: !!isOnline,
       lastSeenAt: new Date()
     };
