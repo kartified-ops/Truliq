@@ -903,14 +903,54 @@ const cancelBooking = async (req, res) => {
         
         const { getIO } = require('../../sockets');
         const io = getIO();
+        const { createNotification } = require('../notificationControllers/notificationController');
         
-        if (io && pendingRequests.length > 0) {
-          pendingRequests.forEach(req => {
-            if (req.vendorId) {
-              io.to(`vendor_${req.vendorId}`).emit('removeVendorBooking', { bookingId: booking._id, message: 'Customer cancelled the booking' });
+        if (pendingRequests.length > 0) {
+          pendingRequests.forEach(async req => {
+            // 1. Socket (for online workers)
+            if (io) {
+              if (req.vendorId) {
+                io.to(`vendor_${req.vendorId}`).emit('removeVendorBooking', { bookingId: booking._id, message: 'Customer cancelled the booking' });
+              }
+              if (req.workerId) {
+                io.to(`worker_${req.workerId}`).emit('removeWorkerBooking', { bookingId: booking._id, message: 'Customer cancelled the booking' });
+              }
             }
-            if (req.workerId) {
-              io.to(`worker_${req.workerId}`).emit('removeWorkerBooking', { bookingId: booking._id, message: 'Customer cancelled the booking' });
+
+            // 2. FCM Push (for workers with killed/background app)
+            try {
+              if (req.workerId) {
+                await createNotification({
+                  workerId: req.workerId,
+                  type: 'booking_cancelled',
+                  title: 'Booking Cancelled',
+                  message: `A booking request you received has been cancelled by the customer.`,
+                  relatedId: booking._id,
+                  relatedType: 'booking',
+                  pushData: {
+                    type: 'booking_cancelled',
+                    bookingId: booking._id.toString(),
+                    link: `/worker/dashboard`
+                  }
+                });
+              }
+              if (req.vendorId) {
+                await createNotification({
+                  vendorId: req.vendorId,
+                  type: 'booking_cancelled',
+                  title: 'Booking Cancelled',
+                  message: `A booking request you received has been cancelled by the customer.`,
+                  relatedId: booking._id,
+                  relatedType: 'booking',
+                  pushData: {
+                    type: 'booking_cancelled',
+                    bookingId: booking._id.toString(),
+                    link: `/vendor/dashboard`
+                  }
+                });
+              }
+            } catch (fcmErr) {
+              console.error('[CancelBooking] FCM push to pending partner failed:', fcmErr.message);
             }
           });
         }
