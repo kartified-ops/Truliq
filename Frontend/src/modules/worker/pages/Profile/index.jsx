@@ -221,7 +221,7 @@ const Profile = () => {
         </div>
 
         {/* Subscription */}
-        {/* <button
+        <button
           onClick={() => navigate('/worker/subscription')}
           className="w-full rounded-xl p-4 mb-4 flex items-center justify-between shadow-md active:scale-95 transition-all"
           style={{ background: 'linear-gradient(135deg, #302b63, #24243e)', border: '1px solid rgba(108,99,255,0.4)' }}
@@ -236,7 +236,7 @@ const Profile = () => {
             </div>
           </div>
           <FiChevronRight className="text-white/40 w-5 h-5" />
-        </button> */}
+        </button>
 
         {/* Profile Details */}
         <div

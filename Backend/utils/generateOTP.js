@@ -8,8 +8,8 @@
  * @returns {string} - Generated OTP
  */
 const generateOTP = (length = 6) => {
-  // In development mode, return default OTP for testing
-  if (process.env.NODE_ENV === 'development' || process.env.USE_DEFAULT_OTP === 'true') {
+  // Return default OTP if explicitly configured
+  if (process.env.USE_DEFAULT_OTP === 'true') {
     return '123456';
   }
 

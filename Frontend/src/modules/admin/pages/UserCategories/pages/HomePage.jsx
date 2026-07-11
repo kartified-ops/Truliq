@@ -674,7 +674,6 @@ const HomePage = ({ catalog, setCatalog, selectedCity }) => {
                 <span>Add</span>
               </button>
             </div>
-          </div>
 
           {(home.promoCarousel || []).length === 0 ? (
             <div className="text-base text-gray-500">No promo cards</div>
@@ -782,7 +781,6 @@ const HomePage = ({ catalog, setCatalog, selectedCity }) => {
               <span>Add</span>
             </button>
           </div>
-        </div>
         {(home.curatedServices || []).length === 0 ? (
           <div className="text-base text-gray-500">No items</div>
         ) : (
@@ -836,6 +834,7 @@ const HomePage = ({ catalog, setCatalog, selectedCity }) => {
             </table>
           </div>
         )}
+        </div>
 
         {/* New & Noteworthy */}
         <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
@@ -940,6 +939,7 @@ const HomePage = ({ catalog, setCatalog, selectedCity }) => {
               </div>
             )
           }
+        </div>
 
           {/* Most Booked */}
           < div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm" >
@@ -974,7 +974,6 @@ const HomePage = ({ catalog, setCatalog, selectedCity }) => {
                 <span>Add</span>
               </button>
             </div>
-          </div>
           {(home.mostBooked || []).length === 0 ? (
             <div className="text-base text-gray-500">No items</div>
           ) : (
@@ -1063,6 +1062,7 @@ const HomePage = ({ catalog, setCatalog, selectedCity }) => {
               </table>
             </div>
           )}
+        </div>
 
           {/* Category Sections (Cleaning essentials style) */}
           {/* Category Sections (Modern Card Grid) */}
@@ -1094,7 +1094,6 @@ const HomePage = ({ catalog, setCatalog, selectedCity }) => {
                 <span>Add Section</span>
               </button>
             </div>
-          </div>
 
           {
             (home.categorySections || []).length === 0 ? (
@@ -1192,6 +1191,7 @@ const HomePage = ({ catalog, setCatalog, selectedCity }) => {
               </div>
             )
           }
+        </div>
         </div>
       </CardShell>
 
