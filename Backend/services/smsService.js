@@ -21,20 +21,16 @@ const sendSMS = async (phone, message) => {
       return { success: false, message: 'SMS configuration missing' };
     }
 
-    // Build parameters with multiple possible auth field names
+    // Build parameters matching exactly what works in the browser
     const params = {
-      // Primary fields (as per docs)
-      user: process.env.SMS_INDIA_HUB_USERNAME,
-      password: process.env.SMS_INDIA_HUB_API_KEY,
-      // Fallback fields for compatibility
-      username: process.env.SMS_INDIA_HUB_USERNAME,
-      apikey: process.env.SMS_INDIA_HUB_API_KEY,
+      APIKey: process.env.SMS_INDIA_HUB_API_KEY,
       msisdn: phone,
       sid: process.env.SMS_INDIA_HUB_SENDER_ID,
       msg: message,
       fl: 0,
       gwid: 2,
     };
+
     // Add DLT Template ID if available
     if (process.env.SMS_INDIA_HUB_DLT_TEMPLATE_ID) {
       params.TemplateId = process.env.SMS_INDIA_HUB_DLT_TEMPLATE_ID;
