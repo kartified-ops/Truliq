@@ -250,7 +250,7 @@ const getPublicServices = async (req, res) => {
       }
     }
 
-    if (categoryId) {
+    if (categoryId && categoryId !== 'custom') {
       query.categoryId = categoryId;
     }
 

@@ -97,11 +97,26 @@ const WorkerAlertCard = ({ booking, onAccept, onReject, initialTimeLeft = 120 })
           <div className="bg-white rounded-[1rem] p-3 border border-gray-100 shadow-sm relative overflow-hidden">
             <div className="absolute top-0 left-0 w-1 h-full bg-blue-500" />
             <div className="pl-2">
-              <h4 className="text-[14px] font-black text-gray-900 leading-tight">
+              <h4 className="text-[14px] font-black text-gray-900 leading-tight mb-1">
                 {booking.serviceName || booking.serviceType || 'Service Job'}
               </h4>
-              <p className="text-[10px] font-bold text-gray-500 mt-1 uppercase tracking-wider">
-                Price: ₹{booking.price || 'N/A'}
+              
+              {/* Detailed booked items if available */}
+              {booking.bookedItems && booking.bookedItems.length > 0 ? (
+                <div className="mt-2 space-y-1">
+                  {booking.bookedItems.map((item, idx) => (
+                    <div key={idx} className="flex justify-between items-center text-xs">
+                      <span className="text-gray-600 truncate pr-2">
+                        • {item.card?.title || item.title || 'Service'} 
+                        {item.quantity > 1 ? <span className="text-gray-400"> (x{item.quantity})</span> : ''}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
+              <p className="text-[11px] font-bold text-blue-600 mt-2 uppercase tracking-wider bg-blue-50 inline-block px-2 py-0.5 rounded-md">
+                Total Price: ₹{booking.price || 'N/A'}
               </p>
             </div>
           </div>
@@ -114,8 +129,20 @@ const WorkerAlertCard = ({ booking, onAccept, onReject, initialTimeLeft = 120 })
           </div>
           <div className="flex items-start gap-2 pt-2 border-t border-gray-200">
             <FiClock className="text-gray-400 w-3.5 h-3.5 shrink-0 mt-0.5" />
-            <span className="font-bold text-gray-800">
-              {booking.timeSlot?.date || (booking.scheduledDate ? new Date(booking.scheduledDate).toLocaleDateString() : '')} {booking.timeSlot?.time || booking.scheduledTime || 'N/A'}
+            <span className="font-bold text-gray-800 flex items-center gap-1">
+              {booking.bookingType === 'scheduled' ? (
+                <>
+                  <span className="text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded mr-1">Scheduled</span>
+                  {booking.timeSlot?.date || (booking.scheduledDate ? new Date(booking.scheduledDate).toLocaleDateString() : '')} 
+                  {' • '}
+                  {booking.timeSlot?.start ? `${booking.timeSlot.start} - ${booking.timeSlot.end}` : (booking.timeSlot?.time || booking.scheduledTime || 'N/A')}
+                </>
+              ) : (
+                <>
+                  <span className="text-green-600 bg-green-100 px-1.5 py-0.5 rounded mr-1">Instant</span>
+                  ASAP (within 45 mins)
+                </>
+              )}
             </span>
           </div>
         </div>
@@ -183,12 +210,15 @@ export default function GlobalWorkerJobAlert() {
               location: {
                 address: jobData.address?.addressLine1 || jobData.address?.address || 'Location shared',
               },
-              price: jobData.finalAmount || jobData.price,
+              price: jobData.finalAmount || jobData.price || jobData.amount,
               scheduledDate: jobData.scheduledDate,
               scheduledTime: jobData.scheduledTime,
+              bookingType: jobData.bookingType || 'instant',
+              bookedItems: jobData.bookedItems || [],
               timeSlot: {
                 date: jobData.scheduledDate ? new Date(jobData.scheduledDate).toLocaleDateString() : '',
-                time: jobData.scheduledTime
+                time: jobData.scheduledTime,
+                ...jobData.timeSlot
               },
               status: jobData.status,
               createdAt: new Date().toISOString()

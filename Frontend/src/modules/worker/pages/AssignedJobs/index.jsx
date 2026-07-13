@@ -32,14 +32,15 @@ const AssignedJobs = () => {
     };
   }, []);
 
-  const fetchJobs = async () => {
+  const fetchJobs = async (isBackground = false) => {
     try {
-      setLoading(true);
+      if (!isBackground) setLoading(true);
       setError(null);
 
-      const response = await workerService.getAssignedJobs({ limit: 100 });
+      const response = await workerService.getAssignedJobs({ limit: 20 });
       if (response.success) {
         setJobs(response.data);
+        sessionStorage.setItem('workerJobsCache', JSON.stringify(response.data));
       }
       setLoading(false);
     } catch (err) {
@@ -50,10 +51,23 @@ const AssignedJobs = () => {
   };
 
   useEffect(() => {
-    fetchJobs();
+    // 1. Instantly load from cache for blazing fast navigation
+    const cachedJobs = sessionStorage.getItem('workerJobsCache');
+    if (cachedJobs) {
+      try {
+        setJobs(JSON.parse(cachedJobs));
+        setLoading(false);
+        // 2. Fetch fresh data silently in background
+        fetchJobs(true);
+      } catch (e) {
+        fetchJobs(false);
+      }
+    } else {
+      fetchJobs(false);
+    }
 
     const handleUpdate = () => {
-      fetchJobs();
+      fetchJobs(true);
     };
     window.addEventListener('workerJobsUpdated', handleUpdate);
 

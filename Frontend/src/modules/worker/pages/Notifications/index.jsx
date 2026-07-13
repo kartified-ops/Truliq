@@ -31,12 +31,13 @@ const Notifications = () => {
     };
   }, []);
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = async (isBackground = false) => {
     try {
-      setLoading(true);
+      if (!isBackground) setLoading(true);
       const response = await workerService.getNotifications();
       if (response.success) {
         setNotifications(response.data);
+        sessionStorage.setItem('workerNotificationsCache', JSON.stringify(response.data));
       }
       setLoading(false);
     } catch (error) {
@@ -46,10 +47,23 @@ const Notifications = () => {
   };
 
   useEffect(() => {
-    fetchNotifications();
+    // 1. Instantly load from cache for blazing fast navigation
+    const cachedNotifs = sessionStorage.getItem('workerNotificationsCache');
+    if (cachedNotifs) {
+      try {
+        setNotifications(JSON.parse(cachedNotifs));
+        setLoading(false);
+        // 2. Fetch fresh data silently in background
+        fetchNotifications(true);
+      } catch (e) {
+        fetchNotifications(false);
+      }
+    } else {
+      fetchNotifications(false);
+    }
 
     const handleUpdate = () => {
-      fetchNotifications();
+      fetchNotifications(true);
     };
     window.addEventListener('workerNotificationsUpdated', handleUpdate);
 

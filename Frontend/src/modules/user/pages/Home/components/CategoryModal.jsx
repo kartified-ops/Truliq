@@ -48,14 +48,16 @@ const CategoryModal = React.memo(({ isOpen, onClose, category, location, cartCou
       }, 300);
     } else if (category?.id) {
       if (category.initialBrand) {
-        // Direct to brand services if initialBrand is provided (from search)
+        // Direct to brand services if initialBrand is provided (from search or cart fallback)
         const brand = category.initialBrand;
-        setSelectedBrand(brand);
+        setSelectedBrand(brand.id === 'direct-services' ? null : brand);
         setView('services');
-        fetchServices(brand.id || brand._id);
+        fetchServices(brand.id === 'direct-services' ? null : (brand.id || brand._id));
       }
       // Always fetch brands for this category to populate the background/back-navigation
-      fetchBrands();
+      if (category.id !== 'custom') {
+        fetchBrands();
+      }
     }
   }, [isOpen, category?.id, cityId]);
 
@@ -68,9 +70,17 @@ const CategoryModal = React.memo(({ isOpen, onClose, category, location, cartCou
       });
       if (response.success) {
         setBrands(response.brands || []);
+        
+        // Auto-skip to services if there are no active brands in this category
+        // This handles cases where services exist directly or via inactive brands
+        if ((!response.brands || response.brands.length === 0) && category.id && category.id !== 'custom') {
+          setView('services');
+          fetchServices(null);
+        }
       }
     } catch (error) {
-      console.error("Failed to load brands:", error);
+      console.error('Error fetching brands:', error);
+      toast.error('Failed to load brands');
     } finally {
       setLoading(false);
     }
@@ -227,7 +237,7 @@ const CategoryModal = React.memo(({ isOpen, onClose, category, location, cartCou
                 <div className="px-4 py-6">
                   {/* Header */}
                   <div className="flex items-center gap-3 mb-6">
-                    {view === 'services' && (
+                    {view === 'services' && brands.length > 0 && (
                       <button
                         onClick={handleBackToBrands}
                         className="p-1 rounded-full hover:bg-gray-100"

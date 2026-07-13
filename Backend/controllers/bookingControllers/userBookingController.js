@@ -685,21 +685,23 @@ const getUserBookings = async (req, res) => {
     }
 
     // Pagination
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const limitNum = Math.max(1, parseInt(limit) || 10);
+    const skip = (Math.max(1, parseInt(page) || 1) - 1) * limitNum;
 
-    // Get bookings
-    const bookings = await Booking.find(query)
-      .populate('vendorId', 'name businessName phone profilePhoto')
-      .populate('serviceId', 'title iconUrl')
-      .populate('categoryId', 'title slug')
-      .populate('workerId', 'name phone profilePhoto')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit))
-      .lean();
-
-    // Get total count
-    const total = await Booking.countDocuments(query);
+    // Execute query and count in parallel for performance
+    const [bookings, total] = await Promise.all([
+      Booking.find(query)
+        .select('-serviceImages -workPhotos -requirementImages')
+        .populate('vendorId', 'name businessName phone')
+        .populate('serviceId', 'title iconUrl')
+        .populate('categoryId', 'title slug')
+        .populate('workerId', 'name phone')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
+      Booking.countDocuments(query)
+    ]);
 
     res.status(200).json({
       success: true,

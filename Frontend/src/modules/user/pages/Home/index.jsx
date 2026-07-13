@@ -307,18 +307,31 @@ const Home = () => {
   }, [currentCity]);
   // Open category modal from navigation state (e.g. from Cart 'Add Services')
   useEffect(() => {
-    if (!loading && categories.length > 0 && (location.state?.openCategoryId || location.state?.openCategoryName)) {
+    if (!loading && categories.length > 0 && (location.state?.openCategoryId || location.state?.openCategoryName || location.state?.openBrandId)) {
       const targetId = location.state.openCategoryId;
       const targetName = location.state.openCategoryName;
+      const targetBrandId = location.state.openBrandId;
 
-      const cat = categories.find(c =>
+      let cat = categories.find(c =>
         (targetId && (c.id === targetId || c._id === targetId)) ||
         (targetName && c.title === targetName)
       );
 
       if (cat) {
+        if (targetBrandId) {
+          cat = { ...cat, initialBrand: { id: targetBrandId, title: targetName } };
+        }
         handleCategoryClick(cat);
         // Clear state to prevent reopening on subsequent renders/refreshes
+        window.history.replaceState({}, '', location.pathname);
+      } else if (targetBrandId) {
+        // Fallback: If category not found (e.g. grouped by brand name), create a direct brand access object
+        const customCat = {
+          id: targetId || 'custom',
+          title: targetName || 'Services',
+          initialBrand: { id: targetBrandId, title: targetName || 'Services' }
+        };
+        handleCategoryClick(customCat);
         window.history.replaceState({}, '', location.pathname);
       }
     }

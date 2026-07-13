@@ -413,6 +413,7 @@ bookingSchema.pre('save', async function (next) {
 bookingSchema.index({ userId: 1, status: 1, createdAt: -1 });
 bookingSchema.index({ vendorId: 1, status: 1, createdAt: -1 });
 bookingSchema.index({ workerId: 1, status: 1, createdAt: -1 });
+bookingSchema.index({ workerId: 1, status: 1, scheduledDate: 1, createdAt: -1 }); // Optimized for getAssignedJobs
 bookingSchema.index({ scheduledDate: 1, status: 1 });
 bookingSchema.index({ paymentStatus: 1, status: 1 });
 

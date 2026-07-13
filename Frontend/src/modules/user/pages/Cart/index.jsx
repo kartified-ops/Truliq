@@ -97,16 +97,8 @@ const Cart = () => {
   };
 
   const handleAddServices = (category) => {
-    // Navigate back to home with instructions to open the category modal
-    const itemsInCategory = groupedItems[category];
-    const categoryId = itemsInCategory?.[0]?.categoryId;
-
-    navigate('/user', {
-      state: {
-        openCategoryId: categoryId,
-        openCategoryName: category
-      }
-    });
+    // Navigate back to home page so user can continue browsing
+    navigate('/user');
   };
 
   const handleCategoryCheckout = (category) => {

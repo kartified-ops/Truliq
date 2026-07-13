@@ -22,12 +22,10 @@ const getAssignedJobs = async (req, res) => {
     // Get bookings
     const bookings = await Booking.find(query)
       .populate('userId', 'name phone email')
-      .populate('vendorId', 'name businessName phone')
-      .populate('serviceId', 'title iconUrl')
-      .populate('categoryId', 'title slug')
       .sort({ scheduledDate: 1, createdAt: -1 })
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(parseInt(limit))
+      .lean();
 
     // Get total count
     const total = await Booking.countDocuments(query);

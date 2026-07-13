@@ -1389,33 +1389,41 @@ const Checkout = () => {
                     </button>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-base font-bold text-black">
-                    {calculateItemPrice(item) === 0 ? (
-                      <span className="text-green-600">Free</span>
-                    ) : (
-                      `₹${(item.price || 0).toLocaleString('en-IN')}`
+                <div className="flex flex-col mt-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base font-bold text-black">
+                      {calculateItemPrice(item) === 0 ? (
+                        <span className="text-green-600">Free</span>
+                      ) : (
+                        `₹${(item.price || 0).toLocaleString('en-IN')}`
+                      )}
+                    </span>
+                    {calculateItemPrice(item) === 0 && (
+                      <span className="text-[10px] font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-full border border-green-200">
+                        WITH PLAN
+                      </span>
                     )}
-                  </span>
-                  {calculateItemPrice(item) === 0 && (
-                    <span className="text-[10px] font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-full border border-green-200">
-                      WITH PLAN
+                    {calculateItemPrice(item) > 0 && (() => {
+                      const unitPrice = item.unitPrice || (item.price / (item.serviceCount || 1));
+                      const unitOriginalPrice = item.originalPrice || unitPrice;
+                      const currentTotal = item.price;
+                      const originalTotal = unitOriginalPrice * (item.serviceCount || 1);
+                      if (originalTotal > currentTotal) {
+                        return (
+                          <span className="text-sm text-gray-400 line-through">
+                            ₹{originalTotal.toLocaleString('en-IN')}
+                          </span>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
+                  {/* Multiplication breakdown */}
+                  {item.serviceCount > 1 && calculateItemPrice(item) !== 0 && (
+                    <span className="text-xs font-medium text-gray-500 mt-0.5">
+                      ₹{((item.unitPrice) || (item.price / item.serviceCount)).toLocaleString('en-IN')} × {item.serviceCount} = ₹{(item.price || 0).toLocaleString('en-IN')}
                     </span>
                   )}
-                  {calculateItemPrice(item) > 0 && (() => {
-                    const unitPrice = item.unitPrice || (item.price / (item.serviceCount || 1));
-                    const unitOriginalPrice = item.originalPrice || unitPrice;
-                    const currentTotal = item.price;
-                    const originalTotal = unitOriginalPrice * (item.serviceCount || 1);
-                    if (originalTotal > currentTotal) {
-                      return (
-                        <span className="text-sm text-gray-400 line-through">
-                          ₹{originalTotal.toLocaleString('en-IN')}
-                        </span>
-                      );
-                    }
-                    return null;
-                  })()}
                 </div>
               </div>
             )
@@ -1455,10 +1463,24 @@ const Checkout = () => {
           </h3>
 
           <div className="space-y-3">
+            {/* Individual Items Breakdown */}
+            <div className="space-y-2 mb-3 pb-3 border-b border-slate-100">
+              {cartItems.map((item, idx) => (
+                <div key={item._id || idx} className="flex justify-between items-center text-sm">
+                  <span className="text-slate-600 pr-4 truncate flex-1">
+                    {item.title} {item.serviceCount > 1 ? <span className="text-slate-400 text-xs ml-1">(x{item.serviceCount})</span> : ''}
+                  </span>
+                  <span className="text-slate-700 font-medium whitespace-nowrap">
+                    ₹{(item.price || 0).toLocaleString('en-IN')}
+                  </span>
+                </div>
+              ))}
+            </div>
+
             {/* Original Price (before plan) */}
             <div className="flex justify-between items-center">
-              <span className="text-sm text-slate-600">Item Total</span>
-              <span className="text-sm font-medium text-slate-900">
+              <span className="text-sm text-slate-600 font-medium">Item Total</span>
+              <span className="text-sm font-bold text-slate-900">
                 ₹{totalOriginalPrice.toLocaleString('en-IN')}
               </span>
             </div>
