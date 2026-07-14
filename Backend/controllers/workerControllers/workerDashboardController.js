@@ -19,32 +19,14 @@ const getDashboardStats = async (req, res) => {
       });
     }
 
-    // Run all aggregations and counts in parallel
+    // Run counts and recent jobs in parallel
     const [
-      earningStats,
       pendingJobsCount,
       activeJobsCount,
       completedJobsCount,
-      ratingStats,
       recentJobs
     ] = await Promise.all([
-      // 2. Calculate Total Earnings
-      Booking.aggregate([
-        {
-          $match: {
-            workerId: worker._id,
-            status: { $in: [BOOKING_STATUS.COMPLETED, BOOKING_STATUS.WORK_DONE] }
-          }
-        },
-        {
-          $group: {
-            _id: null,
-            total: { $sum: "$finalAmount" }
-          }
-        }
-      ]),
-
-      // 3. Count Pending Jobs
+      // Count Pending Jobs
       Booking.countDocuments({
         workerId: worker._id,
         status: {
@@ -56,7 +38,7 @@ const getDashboardStats = async (req, res) => {
         }
       }),
 
-      // 3.5 Count Active Jobs
+      // Count Active Jobs
       Booking.countDocuments({
         workerId: worker._id,
         status: {
@@ -71,29 +53,13 @@ const getDashboardStats = async (req, res) => {
         }
       }),
 
-      // 4. Count Completed Jobs
+      // Count Completed Jobs
       Booking.countDocuments({
         workerId: worker._id,
         status: { $in: [BOOKING_STATUS.COMPLETED, 'WORKER_PAID', 'PAID'] }
       }),
 
-      // 5. Calculate Average Rating
-      Booking.aggregate([
-        {
-          $match: {
-            workerId: worker._id,
-            rating: { $exists: true, $ne: null }
-          }
-        },
-        {
-          $group: {
-            _id: null,
-            avgRating: { $avg: "$rating" }
-          }
-        }
-      ]),
-
-      // 6. Get Recent Jobs
+      // Get Recent Jobs
       Booking.find({ workerId: worker._id })
         .sort({ createdAt: -1 })
         .limit(5)
@@ -102,8 +68,9 @@ const getDashboardStats = async (req, res) => {
         .lean()
     ]);
 
-    const totalEarnings = earningStats.length > 0 ? earningStats[0].total : 0;
-    const averageRating = ratingStats.length > 0 ? parseFloat(ratingStats[0].avgRating.toFixed(1)) : (worker.rating || 0);
+    // Use pre-calculated values from Worker model instead of heavy real-time aggregations
+    const totalEarnings = worker.wallet?.earnings || worker.wallet?.totalCashCollected || 0;
+    const averageRating = worker.rating || 0;
 
     res.status(200).json({
       success: true,
