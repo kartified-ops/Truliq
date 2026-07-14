@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FiCheck, FiTool, FiPackage, FiFileText, FiPlus, FiTrash2, FiArrowLeft, FiDollarSign, FiClock, FiCreditCard, FiArrowRight, FiKey, FiCheckCircle } from 'react-icons/fi';
 import { MdQrCode } from 'react-icons/md';
@@ -17,6 +17,7 @@ const BillingPage = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [job, setJob] = useState(null);
+  const hasFetched = useRef(false);
 
   // --- VIEW MODE: 'timeline' | 'select-services' | 'select-parts' ---
   const [viewMode, setViewMode] = useState('timeline');
@@ -82,7 +83,10 @@ const BillingPage = () => {
 
   // Fetch Data
   useEffect(() => {
-    fetchData();
+    if (!hasFetched.current) {
+      fetchData();
+      hasFetched.current = true;
+    }
   }, [id]);
 
   // Scroll to top on mount or view change or loading complete
@@ -108,7 +112,16 @@ const BillingPage = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const jobRes = await workerService.getJobById(id);
+
+      const [jobRes, servicesRes, partsRes, catRes, configRes, billRes] = await Promise.all([
+        workerService.getJobById(id),
+        workerBillService.getServiceCatalog(),
+        workerBillService.getPartsCatalog(),
+        publicCatalogService.getCategories().catch(() => ({ success: false })),
+        configService.getSettings().catch(() => null),
+        workerBillService.getBill(id)
+      ]);
+
       const jobData = jobRes.data || jobRes;
       setJob(jobData);
 
@@ -116,13 +129,6 @@ const BillingPage = () => {
       if (jobData?.customerConfirmationOTP || jobData?.paymentOtp) {
         setIsOtpSent(true);
       }
-
-      const [servicesRes, partsRes, catRes, configRes] = await Promise.all([
-        workerBillService.getServiceCatalog(),
-        workerBillService.getPartsCatalog(),
-        publicCatalogService.getCategories().catch(() => ({ success: false })),
-        configService.getSettings().catch(() => null)
-      ]);
 
       let gstFromConfig = 18;
       let partsGstFromConfig = 18;
@@ -181,7 +187,6 @@ const BillingPage = () => {
       }
 
       // 2. Load from Backend
-      const billRes = await workerBillService.getBill(id);
       if (billRes.success && billRes.bill) {
         if (!hasDraft) {
           setSelectedServices((billRes.bill.services || []).filter(s => !s.isOriginal));
@@ -727,6 +732,8 @@ const BillingPage = () => {
           <button onClick={() => {
             if (job.paymentStatus === 'paid' || job.paymentStatus === 'SUCCESS' || job.status === 'completed') {
               navigate('/worker');
+            } else if (currentStep > 1) {
+              setCurrentStep(currentStep - 1);
             } else {
               navigate(-1);
             }

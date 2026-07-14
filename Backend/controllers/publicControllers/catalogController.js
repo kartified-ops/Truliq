@@ -79,7 +79,7 @@ const getPublicBrands = async (req, res) => {
     }
 
     let brands = await Brand.find(query)
-      .select('title slug iconUrl logo imageUrl badge categoryIds basePrice discountPrice sections')
+      .select('title slug iconUrl logo imageUrl badge categoryIds basePrice discountPrice')
       .sort({ createdAt: -1 })
       .lean();
 
@@ -117,8 +117,7 @@ const getPublicBrands = async (req, res) => {
         price: brand.basePrice || 0, // Legacy support
         originalPrice: brand.discountPrice ? (brand.basePrice + brand.discountPrice) : (brand.basePrice || 0),
         categoryId: brand.categoryIds && brand.categoryIds.length > 0 ? brand.categoryIds[0].toString() : null,
-        categoryIds: (brand.categoryIds || []).map(id => id.toString()),
-        sections: brand.sections || []
+        categoryIds: (brand.categoryIds || []).map(id => id.toString())
       }))
     });
   } catch (error) {

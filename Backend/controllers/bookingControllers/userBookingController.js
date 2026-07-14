@@ -1228,25 +1228,22 @@ const addReview = async (req, res) => {
       }
     };
 
-    // Update Vendor Rating (Always)
+    // Run time-consuming background tasks in parallel without blocking main response
+    const tasks = [];
+    if (booking.vendorId) tasks.push(updateCumulativeRating(Vendor, booking.vendorId, rating));
+    if (booking.workerId) tasks.push(updateCumulativeRating(Worker, booking.workerId, rating));
     if (booking.vendorId) {
-      await updateCumulativeRating(Vendor, booking.vendorId, rating);
+      tasks.push(createNotification({
+        vendorId: booking.vendorId,
+        type: 'review_submitted',
+        title: 'New Review Received',
+        message: `You have received a ${rating}-star review for booking ${booking.bookingNumber}.`,
+        relatedId: booking._id,
+        relatedType: 'booking'
+      }));
     }
 
-    // Update Worker Rating (Only if worker was assigned)
-    if (booking.workerId) {
-      await updateCumulativeRating(Worker, booking.workerId, rating);
-    }
-
-    // Send notification to vendor
-    await createNotification({
-      vendorId: booking.vendorId,
-      type: 'review_submitted',
-      title: 'New Review Received',
-      message: `You have received a ${rating}-star review for booking ${booking.bookingNumber}.`,
-      relatedId: booking._id,
-      relatedType: 'booking'
-    });
+    await Promise.all(tasks).catch(err => console.error('Error in review background tasks:', err));
 
     res.status(200).json({
       success: true,

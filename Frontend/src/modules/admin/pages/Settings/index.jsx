@@ -469,7 +469,7 @@ const AdminSettings = () => {
       </div>
 
       {/* Financial Settings Card - Super Admin Only */}
-      {/* {isSuperAdmin && (
+      {isSuperAdmin && (
         <div onClick={() => setActiveView('financial')}
           className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-pointer group">
           <div className="w-12 h-12 bg-green-50 rounded-lg flex items-center justify-center mb-4 group-hover:bg-green-100 transition-colors">
@@ -478,7 +478,7 @@ const AdminSettings = () => {
           <h3 className="text-lg font-bold text-gray-800 mb-2">Financial Info</h3>
           <p className="text-sm text-gray-500">Configure charges, commissions, and billing details</p>
         </div>
-      )} */}
+      )}
 
       {/* System Settings Card - Super Admin Only */}
       {isSuperAdmin && (

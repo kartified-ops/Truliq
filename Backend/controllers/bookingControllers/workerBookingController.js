@@ -466,53 +466,56 @@ const completeJob = async (req, res) => {
     // Notify user
     const { createNotification } = require('../notificationControllers/notificationController');
 
-    // 1. Notify user that work is completed and billing is being prepared
-    await createNotification({
-      userId: booking.userId,
-      type: 'work_completed',
-      title: 'Work Completed',
-      message: `Work finished!  Please wait for the bill expert is preparing !`,
-      relatedId: booking._id,
-      relatedType: 'booking',
-      priority: 'high',
-      pushData: {
+    // Run notifications in parallel to avoid sequential blocking
+    await Promise.all([
+      // 1. Notify user that work is completed and billing is being prepared
+      createNotification({
+        userId: booking.userId,
         type: 'work_completed',
-        bookingId: booking._id.toString(),
-        link: `/user/booking/${booking._id}`
-      }
-    });
+        title: 'Work Completed',
+        message: `Work finished!  Please wait for the bill expert is preparing !`,
+        relatedId: booking._id,
+        relatedType: 'booking',
+        priority: 'high',
+        pushData: {
+          type: 'work_completed',
+          bookingId: booking._id.toString(),
+          link: `/user/booking/${booking._id}`
+        }
+      }),
 
-    // 2. Notify user with Final Bill and OTP
-    await createNotification({
-      userId: booking.userId,
-      type: 'work_done',
-      title: 'Billing Ready',
-      message: `Bill Generated: ₹${booking.finalAmount}. Your verification OTP is ${payOtp}. Please verify and share OTP to complete.`,
-      relatedId: booking._id,
-      relatedType: 'booking',
-      priority: 'high',
-      pushData: {
+      // 2. Notify user with Final Bill and OTP
+      createNotification({
+        userId: booking.userId,
         type: 'work_done',
-        bookingId: booking._id.toString(),
-        paymentOtp: payOtp,
-        link: `/user/booking/${booking._id}`
-      }
-    });
+        title: 'Billing Ready',
+        message: `Bill Generated: ₹${booking.finalAmount}. Your verification OTP is ${payOtp}. Please verify and share OTP to complete.`,
+        relatedId: booking._id,
+        relatedType: 'booking',
+        priority: 'high',
+        pushData: {
+          type: 'work_done',
+          bookingId: booking._id.toString(),
+          paymentOtp: payOtp,
+          link: `/user/booking/${booking._id}`
+        }
+      }),
 
-    // Notify vendor
-    await createNotification({
-      vendorId: booking.vendorId,
-      type: 'worker_completed',
-      title: 'Work Done',
-      message: `Your worker has marked work as done for booking ${booking.bookingNumber}.`,
-      relatedId: booking._id,
-      relatedType: 'booking',
-      pushData: {
+      // 3. Notify vendor
+      createNotification({
+        vendorId: booking.vendorId,
         type: 'worker_completed',
-        bookingId: booking._id.toString(),
-        link: `/vendor/bookings/${booking._id}`
-      }
-    });
+        title: 'Work Done',
+        message: `Your worker has marked work as done for booking ${booking.bookingNumber}.`,
+        relatedId: booking._id,
+        relatedType: 'booking',
+        pushData: {
+          type: 'worker_completed',
+          bookingId: booking._id.toString(),
+          link: `/vendor/bookings/${booking._id}`
+        }
+      })
+    ]);
 
     // Explicitly emit socket event to ensure user gets real-time update
     const io = req.app.get('io');

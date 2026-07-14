@@ -219,9 +219,8 @@ exports.initiateCashCollection = async (req, res) => {
       console.error('[InitiateCash] Socket emission failed:', socketErr.message);
     }
 
-    // Send Push Notification with OTP
     const { createNotification } = require('../notificationControllers/notificationController');
-    await createNotification({
+    createNotification({
       userId: booking.userId,
       type: 'work_done',
       title: 'Payment Request & Bill Ready',
@@ -235,7 +234,7 @@ exports.initiateCashCollection = async (req, res) => {
         paymentOtp: otp,
         link: `/user/booking/${booking._id}`
       }
-    });
+    }).catch(err => console.error('[InitiateCash] Notification failed:', err));
 
     res.status(200).json({
       success: true,
@@ -536,9 +535,8 @@ exports.confirmCashCollection = async (req, res) => {
       });
     }
 
-    // Push Notification
     const { createNotification } = require('../notificationControllers/notificationController');
-    await createNotification({
+    createNotification({
       userId: booking.userId,
       type: 'payment_received',
       title: 'Payment Received (Cash)',
@@ -546,15 +544,14 @@ exports.confirmCashCollection = async (req, res) => {
       relatedId: booking._id,
       relatedType: 'booking',
       priority: 'high'
-    });
+    }).catch(err => console.error('[ConfirmCash] Notification failed:', err));
 
     res.status(200).json({
       success: true,
       message: 'Cash collection confirmed and recorded in ledger',
       data: {
         bookingId: booking._id,
-        amount: grandTotal,
-        walletDues: vendor ? newDues : null
+        amount: grandTotal
       }
     });
   } catch (error) {
