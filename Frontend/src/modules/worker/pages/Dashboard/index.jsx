@@ -555,6 +555,7 @@ const Dashboard = () => {
           </div>
         </div>
 
+        {/* TEST CALL CARD (Commented out as per request)
         <div className="px-4 pt-2 pb-1">
           <button
             onClick={() => {
@@ -576,6 +577,7 @@ const Dashboard = () => {
             TEST CALL CARD
           </button>
         </div>
+        */}
 
         {/* Notification Status & Debug - NEW */}
         {/* <div className="px-4 py-2">
@@ -925,7 +927,7 @@ const Dashboard = () => {
         </div>
       </main>
 
-      {/* Test Push Notification Floating Button */}
+      {/* Test Push Notification Floating Button (Commented out)
       <div className="fixed bottom-24 right-4 z-40">
         <button
           onClick={handleTestPush}
@@ -940,6 +942,7 @@ const Dashboard = () => {
           <FiBell className="w-7 h-7 text-white" />
         </button>
       </div>
+      */}
 
     </div >
   );
