@@ -10,7 +10,7 @@ const PlatformEarning = require('../../models/PlatformEarning');
 const getWallet = async (req, res) => {
   try {
     const workerId = req.user.id;
-    const worker = await Worker.findById(workerId);
+    const worker = await Worker.findById(workerId).lean();
 
     if (!worker) {
       return res.status(404).json({ success: false, message: 'Worker not found' });
@@ -26,7 +26,8 @@ const getWallet = async (req, res) => {
       vendorId: { $ne: null } // Exclude direct worker bookings
     })
       .select('bookingNumber serviceName completedAt vendorId finalAmount vendorBillId')
-      .sort({ completedAt: -1 });
+      .sort({ completedAt: -1 })
+      .lean();
 
     res.status(200).json({
       success: true,
@@ -62,12 +63,15 @@ const getTransactions = async (req, res) => {
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    const transactions = await Transaction.find(query)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    const total = await Transaction.countDocuments(query);
+    // Run find and count in parallel for faster response
+    const [transactions, total] = await Promise.all([
+      Transaction.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean(),
+      Transaction.countDocuments(query)
+    ]);
 
     res.status(200).json({
       success: true,

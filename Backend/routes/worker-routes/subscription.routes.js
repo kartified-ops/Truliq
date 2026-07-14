@@ -31,7 +31,7 @@ router.get('/plans', authenticate, isWorker, async (req, res) => {
  */
 router.get('/status', authenticate, isWorker, async (req, res) => {
   try {
-    const worker = await Worker.findById(req.user.id).select('subscription wallet');
+    const worker = await Worker.findById(req.user.id).select('subscription wallet').lean();
     if (!worker) {
       return res.status(404).json({ success: false, message: 'Worker not found' });
     }

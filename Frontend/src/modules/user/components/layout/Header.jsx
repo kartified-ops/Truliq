@@ -95,7 +95,20 @@ const Header = ({ location, onLocationClick }) => {
                     WebkitBackgroundClip: 'text',
                     WebkitTextFillColor: 'transparent',
                   }}>
-                    {location && location !== '...' ? location.split('-')[0].trim() : 'Select Location'}
+                    {(() => {
+                      if (!location || location === '...') return 'Select Location';
+                      const parts = location.split(/[,|-]/).map(p => p.trim()).filter(p => p);
+                      if (parts.length === 0) return 'Select Location';
+                      let topPart = parts[0];
+                      // Find first part that looks like a real area name (not just a number)
+                      for (let i = 0; i < Math.min(parts.length, 4); i++) {
+                        if (!/^\d/.test(parts[i]) && parts[i].length > 3) {
+                          topPart = parts[i];
+                          break;
+                        }
+                      }
+                      return topPart;
+                    })()}
                   </span>
                 </div>
                 <LocationSelector

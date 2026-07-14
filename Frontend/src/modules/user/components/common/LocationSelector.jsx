@@ -6,23 +6,31 @@ const LocationSelector = ({ location, onLocationClick }) => {
   const formatLocation = (loc) => {
     if (!loc) return '...';
     
-    // Split by "-" to get parts
-    const parts = loc.split('-').map(part => part.trim()).filter(part => part);
+    // Split by comma or hyphen to get parts
+    const parts = loc.split(/[,|-]/).map(part => part.trim()).filter(part => part);
+    if (parts.length <= 1) return 'Location Details...';
     
-    // Extract city and state
-    // Format: "Area- City- State- ..."
-    // We want: "City- State..."
-    if (parts.length >= 3) {
-      // parts[0] = Area, parts[1] = City, parts[2] = State
-      const city = parts[1] || '';
-      const state = parts[2] || '';
-      return `${city}- ${state}...`;
-    } else if (parts.length === 2) {
-      // If only 2 parts, assume first is city, second is state
-      return `${parts[0]}- ${parts[1]}...`;
-    } else if (parts.length === 1) {
-      return `${parts[0]}...`;
+    // Find the index of the part used for the top title
+    let topIndex = 0;
+    for (let i = 0; i < Math.min(parts.length, 4); i++) {
+      if (!/^\d/.test(parts[i]) && parts[i].length > 3) {
+        topIndex = i;
+        break;
+      }
     }
+    
+    // Get the parts AFTER the top title
+    let remainingParts = parts.slice(topIndex + 1);
+    
+    // If there's nothing after (e.g. it was the last part), use the parts BEFORE it
+    if (remainingParts.length === 0) {
+      remainingParts = parts.slice(0, topIndex);
+    }
+    
+    if (remainingParts.length === 0) return 'Location Details...';
+
+    // Return up to 2 parts for the subtitle
+    return remainingParts.slice(0, 2).join(', ') + (remainingParts.length > 2 ? '...' : '');
     
     return '...';
   };

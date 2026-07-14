@@ -9,7 +9,7 @@ const getProfile = async (req, res) => {
   try {
     const workerId = req.user.id;
 
-    const worker = await Worker.findById(workerId).select('-password -__v');
+    const worker = await Worker.findById(workerId).select('-password -__v').lean();
 
     if (!worker) {
       return res.status(404).json({
