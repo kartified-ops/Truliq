@@ -344,11 +344,11 @@ const Dashboard = () => {
         {/* Profile Card Section */}
         <div className="px-4 pt-4 pb-2">
           <div
-            className="rounded-2xl p-4 cursor-pointer active:scale-98 transition-all duration-200 relative overflow-hidden"
+            className="rounded-2xl p-4 cursor-pointer active:scale-98 transition-all duration-200 relative overflow-hidden shadow-sm"
             onClick={() => navigate('/worker/profile')}
             style={{
-              background: themeColors.button,
-              border: `2px solid ${themeColors.button}`,
+              background: hexToRgba(themeColors.button, 0.04),
+              border: `1px solid ${hexToRgba(themeColors.button, 0.1)}`,
             }}
           >
             {/* Decorative Pattern */}
@@ -365,8 +365,8 @@ const Dashboard = () => {
               <div
                 className="w-14 h-14 rounded-full flex items-center justify-center shrink-0 overflow-hidden"
                 style={{
-                  background: `linear-gradient(135deg, ${themeColors.button} 0%, ${themeColors.button}dd 100%)`,
-                  border: `2.5px solid #FFFFFF`,
+                  background: `linear-gradient(135deg, ${themeColors.button}20 0%, ${themeColors.button}10 100%)`,
+                  border: `2.5px solid ${themeColors.button}40`,
                 }}
               >
 
@@ -379,22 +379,20 @@ const Dashboard = () => {
                     height={56}
                   />
                 ) : (
-                  <FiUser className="w-7 h-7" style={{ color: '#FFFFFF' }} />
+                  <FiUser className="w-7 h-7" style={{ color: themeColors.button }} />
                 )}
               </div>
 
               {/* Profile Info */}
               <div className="flex-1 min-w-0">
-                <p className="text-lg font-bold uppercase tracking-wider mb-0.5" style={{
-                  color: '#FFFFFF',
-                  textShadow: `1px 1px 0px rgba(0, 0, 0, 0.2)`,
+                <p className="text-lg font-bold uppercase tracking-wider mb-0.5 text-gray-700" style={{
                   letterSpacing: '0.12em',
                 }}>
                   WELCOME !
                 </p>
-                <h2 className="text-base font-bold text-white truncate mb-0.5">{workerProfile.name}</h2>
+                <h2 className="text-base font-bold text-gray-800 truncate mb-0.5">{workerProfile.name}</h2>
                 {workerProfile.categories && workerProfile.categories.length > 0 && (
-                  <p className="text-xs text-white truncate font-medium opacity-90">
+                  <p className="text-xs text-gray-500 truncate font-medium">
                     {workerProfile.categories.join(', ')}
                   </p>
                 )}
@@ -402,15 +400,12 @@ const Dashboard = () => {
 
               {/* Arrow Icon */}
               <div
-                className="p-2.5 rounded-lg shrink-0"
+                className="p-2.5 rounded-lg shrink-0 bg-gray-50"
                 style={{
-                  background: 'rgba(255, 255, 255, 0.35)',
-                  backdropFilter: 'blur(10px)',
-                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
-                  border: '1px solid rgba(255, 255, 255, 0.4)',
+                  border: '1px solid rgba(0, 0, 0, 0.05)',
                 }}
               >
-                <FiChevronRight className="w-6 h-6" style={{ color: '#FFFFFF', fontWeight: 'bold' }} />
+                <FiChevronRight className="w-6 h-6 text-gray-400" style={{ fontWeight: 'bold' }} />
               </div>
             </div>
           </div>
@@ -510,26 +505,24 @@ const Dashboard = () => {
         {/* Online/Offline Toggle */}
         <div className="px-4 pt-3 pb-1">
           <div
-            className="rounded-2xl p-4 flex items-center justify-between transition-all duration-500"
+            className="rounded-2xl p-4 flex items-center justify-between transition-all duration-500 shadow-sm"
             style={{
-              background: isOnline
-                ? 'linear-gradient(135deg, #059669 0%, #10b981 100%)'
-                : 'linear-gradient(135deg, #374151 0%, #4b5563 100%)',
-              boxShadow: isOnline
-                ? '0 4px 20px rgba(16, 185, 129, 0.35)'
-                : '0 4px 12px rgba(0, 0, 0, 0.15)',
+              background: isOnline ? 'rgba(16, 185, 129, 0.05)' : '#ffffff',
+              border: isOnline 
+                ? '1px solid rgba(16, 185, 129, 0.2)'
+                : '1px solid rgba(0, 0, 0, 0.05)',
             }}
           >
             <div className="flex items-center gap-3">
               <div
-                className="w-3 h-3 rounded-full animate-pulse"
-                style={{ backgroundColor: isOnline ? '#a7f3d0' : '#9ca3af' }}
+                className={`w-3 h-3 rounded-full ${isOnline ? 'animate-pulse' : ''}`}
+                style={{ backgroundColor: isOnline ? '#10b981' : '#9ca3af' }}
               />
               <div>
-                <p className="text-white font-bold text-sm">
-                  {isOnline ? '🟢 You are Online' : '🔴 You are Offline'}
+                <p className="font-bold text-sm text-gray-800">
+                  {isOnline ? 'You are Online' : 'You are Offline'}
                 </p>
-                <p className="text-white/70 text-xs">
+                <p className="text-gray-500 text-xs">
                   {isOnline ? 'Receiving job alerts • GPS active' : 'Go online to receive jobs'}
                 </p>
               </div>
@@ -540,9 +533,9 @@ const Dashboard = () => {
               disabled={togglingOnline}
               className="px-4 py-2 rounded-xl font-bold text-xs transition-all active:scale-95 disabled:opacity-60"
               style={{
-                background: isOnline ? 'rgba(255,255,255,0.2)' : 'white',
-                color: isOnline ? 'white' : '#059669',
-                border: isOnline ? '1px solid rgba(255,255,255,0.3)' : 'none',
+                background: isOnline ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                color: isOnline ? '#ef4444' : '#10b981',
+                border: 'none',
               }}
             >
               {togglingOnline ? (
@@ -625,138 +618,138 @@ const Dashboard = () => {
         {/* Stats Cards - Outside Gradient */}
         <div className="px-4 pt-4">
           <div className="grid grid-cols-2 gap-3 mb-4">
-            {/* Card 1: This Month Earnings - Dark Blue Gradient */}
+            {/* Card 1: This Month Earnings - White Look */}
             <div
               onClick={() => navigate('/worker/jobs')}
-              className="rounded-xl p-4 relative overflow-hidden cursor-pointer active:scale-95 transition-transform"
+              className="rounded-xl p-4 relative overflow-hidden cursor-pointer active:scale-95 transition-transform shadow-sm"
               style={{
-                background: 'linear-gradient(135deg, #001947 0%, #003b77 100%)',
-                border: '2px solid rgba(255, 255, 255, 0.2)',
+                background: 'rgba(59, 130, 246, 0.04)',
+                border: '1px solid rgba(59, 130, 246, 0.1)',
               }}
             >
               {/* Decorative Pattern */}
               <div
-                className="absolute top-0 right-0 w-20 h-20 rounded-full opacity-20"
+                className="absolute top-0 right-0 w-20 h-20 rounded-full opacity-10"
                 style={{
-                  background: 'radial-gradient(circle, rgba(255, 255, 255, 0.4) 0%, transparent 70%)',
+                  background: 'radial-gradient(circle, #e5e7eb 0%, transparent 70%)',
                   transform: 'translate(20px, -20px)',
                 }}
               />
               <div className="relative z-10 flex flex-col h-full justify-between">
                 <div className="flex justify-between items-start mb-2 gap-2">
-                  <p className="text-[11px] text-white font-bold opacity-90 uppercase tracking-wider leading-tight">This Month</p>
-                  <FaWallet className="w-5 h-5 text-white opacity-80 shrink-0" />
+                  <p className="text-[11px] text-gray-500 font-bold uppercase tracking-wider leading-tight">This Month</p>
+                  <FaWallet className="w-5 h-5 text-blue-500 opacity-80 shrink-0" />
                 </div>
                 <div className="mb-2">
-                  <p className="text-xl font-bold text-white leading-tight truncate">
+                  <p className="text-xl font-bold text-gray-800 leading-tight truncate">
                     ₹{stats.thisMonthEarnings.toLocaleString()}
                   </p>
                 </div>
                 <div className="flex items-center gap-1">
-                  <FiTrendingUp className="w-3.5 h-3.5 text-white opacity-80" />
-                  <span className="text-[10px] text-white opacity-80 font-medium uppercase tracking-wider">Earnings</span>
+                  <FiTrendingUp className="w-3.5 h-3.5 text-green-500" />
+                  <span className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">Earnings</span>
                 </div>
               </div>
             </div>
 
-            {/* Card 2: Pending Jobs - Light Blue Gradient */}
+            {/* Card 2: Pending Jobs - White Look */}
             <div
               onClick={() => navigate('/worker/jobs', { state: { filter: 'confirmed' } })}
-              className="rounded-xl p-4 relative overflow-hidden cursor-pointer active:scale-95 transition-transform"
+              className="rounded-xl p-4 relative overflow-hidden cursor-pointer active:scale-95 transition-transform shadow-sm"
               style={{
-                background: 'linear-gradient(135deg, #406788 0%, #304a63 100%)',
-                border: '2px solid rgba(255, 255, 255, 0.2)',
+                background: 'rgba(249, 115, 22, 0.04)',
+                border: '1px solid rgba(249, 115, 22, 0.1)',
               }}
             >
               {/* Decorative Pattern */}
               <div
-                className="absolute top-0 right-0 w-20 h-20 rounded-full opacity-20"
+                className="absolute top-0 right-0 w-20 h-20 rounded-full opacity-10"
                 style={{
-                  background: 'radial-gradient(circle, rgba(255, 255, 255, 0.4) 0%, transparent 70%)',
+                  background: 'radial-gradient(circle, #e5e7eb 0%, transparent 70%)',
                   transform: 'translate(20px, -20px)',
                 }}
               />
               <div className="relative z-10 flex flex-col h-full justify-between">
                 <div className="flex justify-between items-start mb-2 gap-2">
-                  <p className="text-[11px] text-white font-bold opacity-90 uppercase tracking-wider leading-tight">Pending Jobs</p>
-                  <FiClock className="w-5 h-5 text-white opacity-80 shrink-0" />
+                  <p className="text-[11px] text-gray-500 font-bold uppercase tracking-wider leading-tight">Pending Jobs</p>
+                  <FiClock className="w-5 h-5 text-orange-500 opacity-80 shrink-0" />
                 </div>
                 <div className="mb-2">
-                  <p className="text-xl font-bold text-white leading-tight truncate">
+                  <p className="text-xl font-bold text-gray-800 leading-tight truncate">
                     {stats.pendingJobs}
                   </p>
                 </div>
                 <div className="flex items-center gap-1">
-                  <FiCheckCircle className="w-3.5 h-3.5 text-white opacity-80" />
-                  <span className="text-[10px] text-white opacity-80 font-medium uppercase tracking-wider">Waiting</span>
+                  <FiCheckCircle className="w-3.5 h-3.5 text-gray-400" />
+                  <span className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">Waiting</span>
                 </div>
               </div>
             </div>
 
-            {/* Card 3: Accepted Jobs - Light Blue Gradient */}
+            {/* Card 3: Accepted Jobs - White Look */}
             <div
               onClick={() => navigate('/worker/jobs', { state: { filter: 'in_progress' } })}
-              className="rounded-xl p-4 relative overflow-hidden cursor-pointer active:scale-95 transition-transform"
+              className="rounded-xl p-4 relative overflow-hidden cursor-pointer active:scale-95 transition-transform shadow-sm"
               style={{
-                background: 'linear-gradient(135deg, #406788 0%, #304a63 100%)',
-                border: '2px solid rgba(255, 255, 255, 0.2)',
+                background: 'rgba(59, 130, 246, 0.04)',
+                border: '1px solid rgba(59, 130, 246, 0.1)',
               }}
             >
               {/* Decorative Pattern */}
               <div
-                className="absolute top-0 right-0 w-20 h-20 rounded-full opacity-20"
+                className="absolute top-0 right-0 w-20 h-20 rounded-full opacity-10"
                 style={{
-                  background: 'radial-gradient(circle, rgba(255, 255, 255, 0.4) 0%, transparent 70%)',
+                  background: 'radial-gradient(circle, #e5e7eb 0%, transparent 70%)',
                   transform: 'translate(20px, -20px)',
                 }}
               />
               <div className="relative z-10 flex flex-col h-full justify-between">
                 <div className="flex justify-between items-start mb-2 gap-2">
-                  <p className="text-[11px] text-white font-bold opacity-90 uppercase tracking-wider leading-tight">Accepted</p>
-                  <FiCheckCircle className="w-5 h-5 text-white opacity-80 shrink-0" />
+                  <p className="text-[11px] text-gray-500 font-bold uppercase tracking-wider leading-tight">Accepted</p>
+                  <FiCheckCircle className="w-5 h-5 text-blue-500 opacity-80 shrink-0" />
                 </div>
                 <div className="mb-2">
-                  <p className="text-xl font-bold text-white leading-tight truncate">
+                  <p className="text-xl font-bold text-gray-800 leading-tight truncate">
                     {stats.acceptedJobs}
                   </p>
                 </div>
                 <div className="flex items-center gap-1">
-                  <FiBriefcase className="w-3.5 h-3.5 text-white opacity-80" />
-                  <span className="text-[10px] text-white opacity-80 font-medium uppercase tracking-wider">Active</span>
+                  <FiBriefcase className="w-3.5 h-3.5 text-gray-400" />
+                  <span className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">Active</span>
                 </div>
               </div>
             </div>
 
-            {/* Card 4: Completed Jobs - Dark Blue Gradient */}
+            {/* Card 4: Completed Jobs - White Look */}
             <div
               onClick={() => navigate('/worker/jobs', { state: { filter: 'completed' } })}
-              className="rounded-xl p-4 relative overflow-hidden cursor-pointer active:scale-95 transition-transform"
+              className="rounded-xl p-4 relative overflow-hidden cursor-pointer active:scale-95 transition-transform shadow-sm"
               style={{
-                background: 'linear-gradient(135deg, #001947 0%, #003b77 100%)',
-                border: '2px solid rgba(255, 255, 255, 0.2)',
+                background: 'rgba(34, 197, 94, 0.04)',
+                border: '1px solid rgba(34, 197, 94, 0.1)',
               }}
             >
               {/* Decorative Pattern */}
               <div
-                className="absolute top-0 right-0 w-20 h-20 rounded-full opacity-20"
+                className="absolute top-0 right-0 w-20 h-20 rounded-full opacity-10"
                 style={{
-                  background: 'radial-gradient(circle, rgba(255, 255, 255, 0.4) 0%, transparent 70%)',
+                  background: 'radial-gradient(circle, #e5e7eb 0%, transparent 70%)',
                   transform: 'translate(20px, -20px)',
                 }}
               />
               <div className="relative z-10 flex flex-col h-full justify-between">
                 <div className="flex justify-between items-start mb-2 gap-2">
-                  <p className="text-[11px] text-white font-bold opacity-90 uppercase tracking-wider leading-tight">Completed</p>
-                  <FiBriefcase className="w-5 h-5 text-white opacity-80 shrink-0" />
+                  <p className="text-[11px] text-gray-500 font-bold uppercase tracking-wider leading-tight">Completed</p>
+                  <FiBriefcase className="w-5 h-5 text-green-500 opacity-80 shrink-0" />
                 </div>
                 <div className="mb-2">
-                  <p className="text-xl font-bold text-white leading-tight truncate">
+                  <p className="text-xl font-bold text-gray-800 leading-tight truncate">
                     {stats.completedJobs}
                   </p>
                 </div>
                 <div className="flex items-center gap-1">
-                  <FiCheckCircle className="w-3.5 h-3.5 text-white opacity-80" />
-                  <span className="text-[10px] text-white opacity-80 font-medium uppercase tracking-wider">Done</span>
+                  <FiCheckCircle className="w-3.5 h-3.5 text-green-500 opacity-80" />
+                  <span className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">Done</span>
                 </div>
               </div>
             </div>
@@ -770,18 +763,19 @@ const Dashboard = () => {
             {recentJobs.length > 0 && (
               <button
                 onClick={() => navigate('/worker/jobs')}
-                className="px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-300 active:scale-95 text-white"
+                className="px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-300 active:scale-95"
                 style={{
-                  background: `linear-gradient(135deg, ${themeColors.button} 0%, ${themeColors.button}dd 100%)`,
-                  boxShadow: `0 4px 12px ${themeColors.button}40, 0 2px 6px ${themeColors.button}30`,
+                  background: hexToRgba(themeColors.button, 0.05),
+                  color: themeColors.button,
+                  border: `1px solid ${hexToRgba(themeColors.button, 0.2)}`,
                 }}
                 onMouseEnter={(e) => {
+                  e.currentTarget.style.background = hexToRgba(themeColors.button, 0.1);
                   e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = `0 6px 16px ${themeColors.button}50, 0 3px 8px ${themeColors.button}40`;
                 }}
                 onMouseLeave={(e) => {
+                  e.currentTarget.style.background = hexToRgba(themeColors.button, 0.05);
                   e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = `0 4px 12px ${themeColors.button}40, 0 2px 6px ${themeColors.button}30`;
                 }}
               >
                 View All
@@ -791,25 +785,22 @@ const Dashboard = () => {
           {recentJobs.length > 0 ? (
             <div className="space-y-3">
               {recentJobs.map((job, index) => {
-                // Alternating colors
-                const isDarkBlue = index % 2 === 0;
-                const accentColor = isDarkBlue ? '#001947' : '#406788';
+                const accentColor = themeColors.button;
 
                 return (
                   <div
                     key={job.id}
                     onClick={() => navigate(`/worker/job/${job.id}`)}
-                    className="bg-white rounded-xl shadow-lg cursor-pointer active:scale-98 transition-all duration-200 relative overflow-hidden"
+                    className="bg-white rounded-xl shadow-sm cursor-pointer active:scale-98 transition-all duration-200 relative overflow-hidden"
                     style={{
-                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.08)',
-                      border: '1px solid rgba(0, 0, 0, 0.1)',
+                      border: '1px solid rgba(0, 0, 0, 0.05)',
                     }}
                   >
                     {/* Left accent border */}
                     <div
                       className="absolute left-0 top-0 bottom-0 w-1.5 rounded-l-xl"
                       style={{
-                        background: `linear-gradient(180deg, ${accentColor} 0%, ${accentColor}dd 100%)`,
+                        background: hexToRgba(accentColor, 0.15),
                       }}
                     />
 
@@ -820,9 +811,8 @@ const Dashboard = () => {
                         <div
                           className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 overflow-hidden"
                           style={{
-                            border: `2.5px solid ${accentColor}40`,
-                            boxShadow: `0 2px 8px ${accentColor}40, inset 0 1px 0 rgba(255, 255, 255, 0.4)`,
-                            background: `linear-gradient(135deg, ${accentColor}20 0%, ${accentColor}10 100%)`,
+                            border: `1px solid ${hexToRgba(accentColor, 0.2)}`,
+                            background: hexToRgba(accentColor, 0.05),
                           }}
                         >
                           <FiUser className="w-5 h-5" style={{ color: accentColor }} />
@@ -836,9 +826,9 @@ const Dashboard = () => {
                             <span
                               className="text-xs font-bold px-2 py-0.5 rounded-lg shrink-0"
                               style={{
-                                background: `linear-gradient(135deg, ${accentColor} 0%, ${accentColor}dd 100%)`,
-                                color: '#FFFFFF',
-                                boxShadow: `0 2px 5px ${hexToRgba(accentColor, 0.3)}`,
+                                background: hexToRgba(accentColor, 0.1),
+                                color: accentColor,
+                                border: `1px solid ${hexToRgba(accentColor, 0.2)}`,
                               }}
                             >
                               {job.serviceType || 'Service'}
@@ -888,21 +878,12 @@ const Dashboard = () => {
                             e.stopPropagation();
                             navigate(`/worker/job/${job.id}`);
                           }}
-                          className="p-2 rounded-lg shrink-0 transition-all duration-300 active:scale-95"
+                          className="p-2 rounded-lg shrink-0 transition-all duration-300 active:scale-95 bg-gray-50 hover:bg-gray-100"
                           style={{
-                            background: `linear-gradient(135deg, ${accentColor} 0%, ${accentColor}dd 100%)`,
-                            boxShadow: `0 3px 10px ${hexToRgba(accentColor, 0.3)}, 0 2px 5px ${hexToRgba(accentColor, 0.2)}`,
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.transform = 'scale(1.1)';
-                            e.currentTarget.style.boxShadow = `0 5px 14px ${hexToRgba(accentColor, 0.4)}, 0 3px 7px ${hexToRgba(accentColor, 0.3)}`;
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.transform = 'scale(1)';
-                            e.currentTarget.style.boxShadow = `0 3px 10px ${hexToRgba(accentColor, 0.3)}, 0 2px 5px ${hexToRgba(accentColor, 0.2)}`;
+                            border: '1px solid rgba(0, 0, 0, 0.05)',
                           }}
                         >
-                          <FiArrowRight className="w-4 h-4" style={{ color: '#FFFFFF' }} />
+                          <FiArrowRight className="w-4 h-4 text-gray-400" />
                         </button>
                       </div>
                     </div>
