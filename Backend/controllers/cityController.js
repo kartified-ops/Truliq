@@ -90,10 +90,12 @@ exports.updateCity = catchAsync(async (req, res) => {
     });
   }
 
-  city = await City.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
-    runValidators: true
+  // Update fields
+  Object.keys(req.body).forEach(key => {
+    city[key] = req.body[key];
   });
+
+  await city.save();
 
   res.status(200).json({
     success: true,

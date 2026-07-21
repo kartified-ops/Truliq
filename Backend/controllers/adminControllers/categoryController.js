@@ -153,7 +153,8 @@ const createCategory = async (req, res) => {
     const duplicateQuery = {
       $or: [
         { slug: slugToCheck }
-      ]
+      ],
+      status: { $ne: SERVICE_STATUS.DELETED }
     };
 
     const existingCategory = await Category.findOne(duplicateQuery);
@@ -289,7 +290,8 @@ const updateCategory = async (req, res) => {
 
       const duplicateQuery = {
         _id: { $ne: id },
-        slug: slugToCheck
+        slug: slugToCheck,
+        status: { $ne: SERVICE_STATUS.DELETED }
       };
 
       const existingCategory = await Category.findOne(duplicateQuery);
@@ -396,6 +398,7 @@ const deleteCategory = async (req, res) => {
 
     // Soft delete - set status to deleted
     category.status = SERVICE_STATUS.DELETED;
+    category.slug = `${category.slug}-deleted-${Date.now()}`;
     await category.save();
 
     res.status(200).json({

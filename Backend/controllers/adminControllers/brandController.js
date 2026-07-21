@@ -228,6 +228,7 @@ const createBrand = async (req, res) => {
 
     // Check if brand with same title or slug exists
     const existingBrand = await Brand.findOne({
+      status: { $ne: SERVICE_STATUS.DELETED },
       $or: [
         { title: title.trim() },
         { slug: slug?.trim().toLowerCase() }
@@ -380,6 +381,7 @@ const updateBrand = async (req, res) => {
     if (title || slug) {
       const existingBrand = await Brand.findOne({
         _id: { $ne: id },
+        status: { $ne: SERVICE_STATUS.DELETED },
         $or: [
           title ? { title: title.trim() } : {},
           slug ? { slug: slug.trim().toLowerCase() } : {}
@@ -486,6 +488,7 @@ const deleteBrand = async (req, res) => {
 
     // Soft delete - set status to deleted
     brand.status = SERVICE_STATUS.DELETED;
+    brand.slug = `${brand.slug}-deleted-${Date.now()}`;
     await brand.save();
 
     res.status(200).json({

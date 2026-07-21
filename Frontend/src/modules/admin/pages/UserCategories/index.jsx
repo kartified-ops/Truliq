@@ -32,17 +32,18 @@ const UserCategories = () => {
           setCities(loadedCities);
 
           // Auto-select default or first city if none selected
-          if (!selectedCity && loadedCities.length > 0) {
-            const defaultCity = loadedCities.find(c => c.isDefault);
-            // Handle potentially different ID formats
-            const cityId = defaultCity
-              ? (defaultCity._id || defaultCity.id)
-              : (loadedCities[0]._id || loadedCities[0].id);
+          // Removed to keep 'Global (All Cities)' as default
+          // if (!selectedCity && loadedCities.length > 0) {
+          //   const defaultCity = loadedCities.find(c => c.isDefault);
+          //   // Handle potentially different ID formats
+          //   const cityId = defaultCity
+          //     ? (defaultCity._id || defaultCity.id)
+          //     : (loadedCities[0]._id || loadedCities[0].id);
 
-            if (cityId) {
-              setSelectedCity(cityId);
-            }
-          }
+          //   if (cityId) {
+          //     setSelectedCity(cityId);
+          //   }
+          // }
         }
       } catch (error) {
         console.error('Failed to fetch cities:', error);
@@ -78,6 +79,7 @@ const UserCategories = () => {
               onChange={(e) => setSelectedCity(e.target.value)}
               className="px-4 py-2 bg-slate-700 text-white border border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500 min-w-[200px]"
             >
+              <option value="">Global (All Cities)</option>
               {cities.map(city => {
                 const cityId = city._id || city.id;
                 return <option key={cityId} value={cityId}>{city.name}</option>

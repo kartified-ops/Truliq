@@ -170,19 +170,13 @@ const CategoriesPage = ({ catalog, setCatalog, selectedCity }) => {
         cityIds: selectedCity ? [selectedCity] : [],
       };
 
-      // For updates, we need to respect existing cityIds possibly, but for now we just set/add the current city
-      // If we are in "Global" mode (selectedCity is empty), we might want to keep existing cityIds?
-      // User request implies: "link it with city id" when selected.
       if (editingId && !editingId.startsWith('ucat-')) {
         const existingCat = categories.find(c => c.id === editingId);
-        // If editing, and we have a selectedCity, ensure it's in the list (or replace? usually specific intent)
-        // Assuming "Link it" implies making it available for this city.
-        // But usually in this UI, if you are filtering by a city, you are managing THAT city's entities.
-        // Let's stick to: If selectedCity is present, set cityIds = [selectedCity]. 
-        // If generic want to add multiple cities, that might need a multi-select UI. 
-        // For now, adhering to user request: "link it with city id".
         if (selectedCity) {
           categoryData.cityIds = [selectedCity];
+        } else {
+          // If in global mode, preserve existing cityIds so it doesn't accidentally become Global
+          categoryData.cityIds = existingCat ? existingCat.cityIds : [];
         }
       }
 
