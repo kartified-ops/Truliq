@@ -181,6 +181,7 @@ const getPublicBrandBySlug = async (req, res) => {
         title: svc.title,
         subtitle: svc.description || '',
         price: svc.basePrice,
+        pricingUnit: svc.pricingUnit,
         rating: "4.8", // Default rating
         reviews: "1k+", // Default reviews
         imageUrl: svc.iconUrl || brand.iconUrl || '',
@@ -272,6 +273,7 @@ const getPublicServices = async (req, res) => {
         icon: svc.iconUrl,
         basePrice: svc.basePrice,
         gstPercentage: svc.gstPercentage,
+        pricingUnit: svc.pricingUnit,
         description: svc.description,
         brandId: svc.brandId?._id,
         brandName: svc.brandId?.title,

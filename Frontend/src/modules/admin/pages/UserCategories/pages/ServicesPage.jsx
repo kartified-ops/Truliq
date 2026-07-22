@@ -13,6 +13,7 @@ const serviceSchema = z.object({
   basePrice: z.number().min(0, "Price must be non-negative"),
   gstPercentage: z.number().min(0).max(100).default(18),
   discountPrice: z.number().optional(),
+  pricingUnit: z.string().optional(),
   categoryId: z.string().min(1, "Category is required")
 });
 
@@ -180,6 +181,7 @@ const ServicesPage = ({ catalog, setCatalog, selectedCity }) => {
     basePrice: "",
     gstPercentage: 18,
     discountPrice: "",
+    pricingUnit: "",
     categoryId: ""
   });
   const [saving, setSaving] = useState(false);
@@ -201,6 +203,7 @@ const ServicesPage = ({ catalog, setCatalog, selectedCity }) => {
       basePrice: "",
       gstPercentage: 18,
       discountPrice: "",
+      pricingUnit: "",
       categoryId: defaultCat
     });
     setIsModalOpen(false);
@@ -213,6 +216,7 @@ const ServicesPage = ({ catalog, setCatalog, selectedCity }) => {
       basePrice: service.basePrice,
       gstPercentage: service.gstPercentage || 18,
       discountPrice: service.discountPrice || "",
+      pricingUnit: service.pricingUnit || "",
       categoryId: service.categoryId?._id || service.categoryId || ""
     });
     setIsModalOpen(true);
@@ -227,6 +231,7 @@ const ServicesPage = ({ catalog, setCatalog, selectedCity }) => {
       basePrice: Number(form.basePrice),
       gstPercentage: Number(form.gstPercentage),
       discountPrice: form.discountPrice ? Number(form.discountPrice) : undefined,
+      pricingUnit: form.pricingUnit,
       categoryId: form.categoryId
     };
 
@@ -599,8 +604,18 @@ const ServicesPage = ({ catalog, setCatalog, selectedCity }) => {
                 onChange={e => setForm({ ...form, gstPercentage: e.target.value })}
                 placeholder="18"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                required
                 min="0"
                 max="100"
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-sm font-bold text-gray-700 mb-1">Pricing Unit (Optional)</label>
+              <input
+                value={form.pricingUnit}
+                onChange={e => setForm({ ...form, pricingUnit: e.target.value })}
+                placeholder="e.g. per sq ft, per visit"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
               />
             </div>
           </div>

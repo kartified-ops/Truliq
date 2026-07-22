@@ -312,8 +312,11 @@ const CategoryModal = React.memo(({ isOpen, onClose, category, location, cartCou
                               <div key={svc.id || svc._id} className="flex justify-between items-center p-3 border border-gray-100 rounded-xl hover:shadow-md transition-shadow">
                                 <div className="flex-1 pr-4">
                                   <h3 className="font-black text-gray-900 text-[15px] leading-snug mb-0.5">{svc.title}</h3>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-lg font-black text-emerald-600">₹{svc.discountPrice || svc.basePrice}</span>
+                                  <div className="flex items-baseline gap-2">
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-lg font-black text-emerald-600">₹{svc.discountPrice || svc.basePrice}</span>
+                                      {svc.pricingUnit && <span className="text-xs font-bold text-gray-500 lowercase"> / {svc.pricingUnit}</span>}
+                                    </div>
                                     {svc.discountPrice && svc.discountPrice < svc.basePrice && (
                                       <span className="text-xs text-gray-400 line-through font-bold opacity-60">₹{svc.basePrice}</span>
                                     )}

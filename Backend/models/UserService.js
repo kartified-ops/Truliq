@@ -43,6 +43,11 @@ const userServiceSchema = new mongoose.Schema({
     min: 0,
     default: 18
   },
+  pricingUnit: {
+    type: String,
+    trim: true,
+    default: ''
+  },
   status: {
     type: String,
     enum: Object.values(SERVICE_STATUS),
