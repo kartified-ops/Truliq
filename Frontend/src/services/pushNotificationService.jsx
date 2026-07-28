@@ -80,15 +80,41 @@ async function getFCMToken() {
     const registration = await registerServiceWorker();
     await registration.update(); // Update service worker
 
-    const token = await getToken(messaging, {
-      vapidKey: VAPID_KEY,
-      serviceWorkerRegistration: registration
-    });
+    try {
+      const token = await getToken(messaging, {
+        vapidKey: VAPID_KEY,
+        serviceWorkerRegistration: registration
+      });
+      return token || null;
+    } catch (tokenError) {
+      if (tokenError.name === 'VersionError' || (tokenError.message && tokenError.message.includes('requested version'))) {
+        console.warn('[FCM] VersionError encountered. Attempting to delete firebase-messaging-store IndexedDB and retry...', tokenError);
+        
+        // Attempt to delete the conflicted IndexedDB
+        await new Promise((resolve) => {
+          const req = indexedDB.deleteDatabase('firebase-messaging-store');
+          req.onsuccess = () => {
+            console.log('[FCM] ✅ Deleted firebase-messaging-store successfully.');
+            resolve();
+          };
+          req.onerror = () => {
+            console.error('[FCM] ❌ Error deleting firebase-messaging-store.');
+            resolve(); // Resolve anyway to try continuing
+          };
+          req.onblocked = () => {
+            console.warn('[FCM] ⚠️ Delete blocked by another tab.');
+            resolve();
+          };
+        });
 
-    if (token) {
-      return token;
-    } else {
-      return null;
+        // Retry getting token once
+        const retryToken = await getToken(messaging, {
+          vapidKey: VAPID_KEY,
+          serviceWorkerRegistration: registration
+        });
+        return retryToken || null;
+      }
+      throw tokenError;
     }
   } catch (error) {
     throw error;
@@ -167,7 +193,11 @@ async function registerFCMToken(userType = 'user', forceUpdate = false) {
       return null;
     }
   } catch (error) {
-    console.error('[FCM] ❌ CRITICAL ERROR during registration:', error);
+    if (error.name === 'VersionError' || (error.message && error.message.includes('requested version'))) {
+      console.warn('[FCM] ⚠️ FCM Registration failed due to IndexedDB version conflict. Push notifications may not work until browser data is cleared for this site.');
+    } else {
+      console.error('[FCM] ❌ CRITICAL ERROR during registration:', error);
+    }
     return null;
   }
 }
