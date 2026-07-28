@@ -403,7 +403,7 @@ async function initializePushNotifications() {
       // 1. Play sound
       try {
         const { playNotificationSound, playAlertRing } = await import('../utils/notificationSound');
-        if (['new_booking', 'job_assigned', 'test'].includes(notifType)) {
+        if (['new_booking', 'job_assigned', 'new_job', 'booking_request', 'test'].includes(notifType)) {
           playAlertRing(false);
         } else {
           playNotificationSound();

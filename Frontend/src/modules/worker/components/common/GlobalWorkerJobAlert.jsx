@@ -247,7 +247,8 @@ export default function GlobalWorkerJobAlert() {
       const payload = e.detail || {};
       const data = payload.data || {};
 
-      if ((data.type === 'job_assigned' || data.type === 'new_booking') && data.bookingId && data.bookingId !== 'test-id') {
+      const validTypes = ['job_assigned', 'new_booking', 'new_job', 'booking_request'];
+      if (validTypes.includes(data.type) && data.bookingId && data.bookingId !== 'test-id') {
         try {
           const res = await workerService.getJobById(data.bookingId);
           if (res.data) {
