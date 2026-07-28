@@ -27,6 +27,11 @@ const workerService = {
   },
 
   // Jobs
+  getPendingRequests: async () => {
+    const response = await api.get('/workers/jobs/pending-requests');
+    return response.data;
+  },
+
   getAssignedJobs: async (params) => {
     const response = await api.get('/workers/jobs', { params });
     return response.data;

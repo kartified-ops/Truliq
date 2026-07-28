@@ -1,4 +1,5 @@
 const Booking = require('../../models/Booking');
+const BookingRequest = require('../../models/BookingRequest');
 const { validationResult } = require('express-validator');
 const { BOOKING_STATUS, PAYMENT_STATUS } = require('../../utils/constants');
 
@@ -45,6 +46,51 @@ const getAssignedJobs = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch jobs. Please try again.'
+    });
+  }
+};
+
+/**
+ * Get pending booking requests for worker (not yet accepted)
+ */
+const getPendingRequests = async (req, res) => {
+  try {
+    const workerId = req.user.id;
+    
+    // Find all pending requests for this worker
+    const requests = await BookingRequest.find({ workerId, status: 'PENDING' })
+      .populate({
+        path: 'bookingId',
+        populate: [
+          { path: 'userId', select: 'name phone email' },
+          { path: 'serviceId', select: 'title description iconUrl' }
+        ]
+      })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Filter out requests where booking might be null or already accepted by someone else
+    const pendingBookings = requests
+      .filter(req => req.bookingId && req.bookingId.status === 'requested')
+      .map(req => {
+        // Return booking object enriched with request info
+        return {
+          ...req.bookingId,
+          requestId: req._id,
+          distance: req.distance,
+          expiresAt: req.expiresAt
+        };
+      });
+
+    res.status(200).json({
+      success: true,
+      data: pendingBookings
+    });
+  } catch (error) {
+    console.error('Get pending requests error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch pending requests'
     });
   }
 };
@@ -897,6 +943,7 @@ const respondToJob = async (req, res) => {
 
 module.exports = {
   getAssignedJobs,
+  getPendingRequests,
   getJobById,
   updateJobStatus,
   startJob,

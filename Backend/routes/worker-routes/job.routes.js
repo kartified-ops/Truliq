@@ -5,6 +5,7 @@ const { authenticate } = require('../../middleware/authMiddleware');
 const { isWorker } = require('../../middleware/roleMiddleware');
 const {
   getAssignedJobs,
+  getPendingRequests,
   getJobById,
   updateJobStatus,
   startJob,
@@ -37,6 +38,7 @@ const addNotesValidation = [
 ];
 
 // Routes
+router.get('/jobs/pending-requests', authenticate, isWorker, getPendingRequests);
 router.get('/jobs', authenticate, isWorker, getAssignedJobs);
 router.get('/jobs/:id', authenticate, isWorker, getJobById);
 router.put('/jobs/:id/respond', authenticate, isWorker, respondValidation, respondToJob);

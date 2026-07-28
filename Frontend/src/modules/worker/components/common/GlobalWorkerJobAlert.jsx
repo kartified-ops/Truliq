@@ -172,6 +172,57 @@ export default function GlobalWorkerJobAlert() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    const fetchPending = async () => {
+      try {
+        const token = localStorage.getItem('workerAccessToken');
+        if (!token) return;
+        const res = await workerService.getPendingRequests();
+        if (res.success && res.data && res.data.length > 0) {
+          const formattedJobs = res.data.map(jobData => ({
+            id: jobData._id,
+            _id: jobData._id,
+            serviceType: jobData.serviceId?.title || jobData.serviceName || 'Service Job',
+            customerName: jobData.userId?.name || 'Customer',
+            customerPhone: jobData.userId?.phone,
+            location: {
+              address: jobData.address?.addressLine1 || jobData.address?.address || 'Location shared',
+            },
+            price: jobData.finalAmount || jobData.price || jobData.amount,
+            scheduledDate: jobData.scheduledDate,
+            scheduledTime: jobData.scheduledTime,
+            bookingType: jobData.bookingType || 'instant',
+            bookedItems: jobData.bookedItems || [],
+            timeSlot: {
+              date: jobData.scheduledDate ? new Date(jobData.scheduledDate).toLocaleDateString() : '',
+              time: jobData.scheduledTime,
+              ...jobData.timeSlot
+            },
+            status: jobData.status,
+            createdAt: jobData.createdAt || new Date().toISOString(),
+            expiresAt: jobData.expiresAt
+          }));
+          
+          setActiveAlerts(prev => {
+            const newAlerts = [...prev];
+            let added = false;
+            formattedJobs.forEach(job => {
+              if (!newAlerts.find(b => String(b.id || b._id) === String(job.id))) {
+                newAlerts.push(job);
+                added = true;
+              }
+            });
+            if (added) playAlertRing(true);
+            return newAlerts;
+          });
+        }
+      } catch (err) {
+        console.error('Failed to fetch pending requests:', err);
+      }
+    };
+    fetchPending();
+  }, []);
+
+  useEffect(() => {
     const handleShowAlert = (e) => {
       if (e.detail) {
         setActiveAlerts(prev => {
