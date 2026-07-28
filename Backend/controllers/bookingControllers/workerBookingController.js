@@ -71,7 +71,7 @@ const getPendingRequests = async (req, res) => {
 
     // Filter out requests where booking might be null or already accepted by someone else
     const pendingBookings = requests
-      .filter(req => req.bookingId && req.bookingId.status === 'requested')
+      .filter(req => req.bookingId && (req.bookingId.status === 'requested' || req.bookingId.status === 'searching'))
       .map(req => {
         // Return booking object enriched with request info
         return {
