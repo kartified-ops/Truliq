@@ -821,10 +821,10 @@ const Dashboard = () => {
                         {/* Main Content */}
                         <div className="flex-1 min-w-0">
                           {/* Name and Service in one line */}
-                          <div className="flex items-center gap-2 mb-1.5">
-                            <p className="text-sm font-bold text-gray-800 truncate">{job.customerName}</p>
+                          <div className="flex items-center gap-2 mb-1.5 w-full">
+                            <p className="text-sm font-bold text-gray-800 truncate min-w-[50px] shrink">{job.customerName}</p>
                             <span
-                              className="text-xs font-bold px-2 py-0.5 rounded-lg shrink-0"
+                              className="text-xs font-bold px-2 py-0.5 rounded-lg truncate shrink-0 max-w-[160px]"
                               style={{
                                 background: hexToRgba(accentColor, 0.1),
                                 color: accentColor,
