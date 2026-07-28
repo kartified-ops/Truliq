@@ -71,7 +71,7 @@ const CategoryCard = memo(({ icon, title, onClick, hasSaleBadge = false, index =
         )}
       </div>
       <span
-        className="text-[11px] text-center text-gray-700 font-medium leading-tight tracking-tight mt-1 transition-colors duration-300 w-full line-clamp-2 px-1"
+        className="text-[11px] text-center text-gray-700 font-medium leading-tight tracking-tight mt-1 transition-colors duration-300 w-full line-clamp-3 px-1"
         style={{
           wordWrap: 'break-word',
           color: 'inherit'

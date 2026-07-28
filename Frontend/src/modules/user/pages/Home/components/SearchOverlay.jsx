@@ -44,26 +44,11 @@ const SearchOverlay = ({ isOpen, onClose, categories = [], onCategoryClick }) =>
           );
           setTrendingServices(filtered.slice(0, 5));
         } else {
-          // Fallback to project-specific trending services if API returns empty
-          console.log('Using fallback trending services');
-          setTrendingServices([
-            { id: 'trend-1', title: 'AC Repair & Service', category: 'AC & Appliance', imageUrl: '/assets/icons/services/ac.png' },
-            { id: 'trend-2', title: 'Washing Machine Repair', category: 'AC & Appliance', imageUrl: '/assets/icons/services/washing-machine.png' },
-            { id: 'trend-3', title: 'Microwave Repair', category: 'AC & Appliance', imageUrl: '/assets/icons/services/microwave.png' },
-            { id: 'trend-4', title: 'Refrigerator Repair', category: 'AC & Appliance', imageUrl: '/assets/icons/services/refrigerator.png' },
-            { id: 'trend-5', title: 'RO Water Purifier Service', category: 'AC & Appliance', imageUrl: '/assets/icons/services/ro.png' }
-          ]);
+          setTrendingServices([]);
         }
       } catch (error) {
         console.error("Failed to load trending services", error);
-        // Fallback on error too
-        setTrendingServices([
-          { id: 'trend-1', title: 'AC Repair & Service', category: 'AC & Appliance' },
-          { id: 'trend-2', title: 'Washing Machine Repair', category: 'AC & Appliance' },
-          { id: 'trend-3', title: 'Microwave Repair', category: 'AC & Appliance' },
-          { id: 'trend-4', title: 'Refrigerator Repair', category: 'AC & Appliance' },
-          { id: 'trend-5', title: 'RO Water Purifier Service', category: 'AC & Appliance' }
-        ]);
+        setTrendingServices([]);
       }
     };
     fetchTrending();
