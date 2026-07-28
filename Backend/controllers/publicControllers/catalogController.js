@@ -75,7 +75,7 @@ const getPublicBrands = async (req, res) => {
 
     if (search) {
       const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      query.title = { $regex: escapedSearch, $options: 'i' };
+      query.title = { $regex: '^' + escapedSearch, $options: 'i' };
     }
 
     let brands = await Brand.find(query)
@@ -256,7 +256,7 @@ const getPublicServices = async (req, res) => {
 
     if (req.query.search) {
       const escapedSearch = req.query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      query.title = { $regex: escapedSearch, $options: 'i' };
+      query.title = { $regex: '^' + escapedSearch, $options: 'i' };
     }
 
     const services = await Service.find(query)
@@ -275,6 +275,7 @@ const getPublicServices = async (req, res) => {
         gstPercentage: svc.gstPercentage,
         pricingUnit: svc.pricingUnit,
         description: svc.description,
+        categoryId: svc.categoryId?.toString(),
         brandId: svc.brandId?._id,
         brandName: svc.brandId?.title,
         brandIcon: svc.brandId?.iconUrl

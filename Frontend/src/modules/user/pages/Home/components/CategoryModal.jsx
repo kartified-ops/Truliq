@@ -104,6 +104,19 @@ const CategoryModal = React.memo(({ isOpen, onClose, category, location, cartCou
     }
   };
 
+  useEffect(() => {
+    if (services.length > 0 && category?.initialServiceId) {
+      setTimeout(() => {
+        const el = document.getElementById(`service-${category.initialServiceId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.classList.add('bg-green-50/70', 'scale-[1.02]');
+          setTimeout(() => el.classList.remove('bg-green-50/70', 'scale-[1.02]'), 1500);
+        }
+      }, 300); // Wait for modal animation
+    }
+  }, [services, category?.initialServiceId]);
+
   const handleBrandClick = (brand) => {
     setSelectedBrand(brand);
     setView('services');
@@ -309,7 +322,7 @@ const CategoryModal = React.memo(({ isOpen, onClose, category, location, cartCou
                         services.length > 0 ? (
                           <div className="space-y-4">
                             {services.map((svc) => (
-                              <div key={svc.id || svc._id} className="flex justify-between items-center p-3 border border-gray-100 rounded-xl hover:shadow-md transition-shadow">
+                              <div key={svc.id || svc._id} id={`service-${svc.id || svc._id}`} className="flex justify-between items-center p-3 border border-gray-100 rounded-xl hover:shadow-md transition-all duration-300">
                                 <div className="flex-1 pr-4">
                                   <h3 className="font-black text-gray-900 text-[15px] leading-snug mb-0.5">{svc.title}</h3>
                                   <div className="flex items-baseline gap-2">

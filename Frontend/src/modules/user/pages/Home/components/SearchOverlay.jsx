@@ -69,14 +69,14 @@ const SearchOverlay = ({ isOpen, onClose, categories = [], onCategoryClick }) =>
   // Debounced search
   useEffect(() => {
     const timer = setTimeout(async () => {
-      if (query.trim().length >= 2) {
+      if (query.trim().length >= 1) {
         setLoading(true);
         try {
           const lowerQ = query.toLowerCase();
 
           // 1. Search Categories (Local)
           const categoryMatches = categories.filter(c =>
-            c.title.toLowerCase().includes(lowerQ)
+            c.title.toLowerCase().startsWith(lowerQ)
           ).map(c => ({ ...c, isCategory: true }));
 
           // 2. Search Services (API)
@@ -129,17 +129,22 @@ const SearchOverlay = ({ isOpen, onClose, categories = [], onCategoryClick }) =>
       category = categories.find(c => c.title === item.category);
     }
 
+    if (!category) {
+      category = { id: catId || 'custom', title: item.category || 'Services' };
+    }
+
     if (category) {
       // If it's a service match, tell the modal to open THIS brand immediately
       const initialBrand = item.brandId ? {
         id: item.brandId,
         title: item.brandName || item.category,
         iconUrl: item.brandIcon || item.icon
-      } : (item.id && !item.isCategory ? item : null);
+      } : { id: 'direct-services' };
 
       onCategoryClick({
         ...category,
-        initialBrand: initialBrand
+        initialBrand: initialBrand,
+        initialServiceId: item.id
       });
     }
   };
@@ -195,7 +200,7 @@ const SearchOverlay = ({ isOpen, onClose, categories = [], onCategoryClick }) =>
 
           {/* Content Area */}
           <div className="flex-1 overflow-y-auto bg-gray-50/50">
-            {query.length >= 2 ? (
+            {query.length >= 1 ? (
               // Create Search Results List
               <div className="p-4 space-y-3">
                 {loading ? (
