@@ -28,6 +28,7 @@ import {
 } from 'react-icons/fi';
 import { MdAccountBalanceWallet } from 'react-icons/md';
 import NotificationBell from '../../components/common/NotificationBell';
+import FCMTesterCard from '../../../../components/common/FCMTesterCard';
 
 const Account = () => {
   const navigate = useNavigate();
@@ -292,6 +293,9 @@ const Account = () => {
               </div>
             </div>
           </motion.div>
+
+          {/* FCM Push Notification Tester Card */}
+          <FCMTesterCard userType="user" />
 
           {/* Designer Active Plan Card - temporarily hidden */}
           {/* {userProfile.plans && userProfile.plans.isActive && (

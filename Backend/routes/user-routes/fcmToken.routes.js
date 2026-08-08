@@ -46,37 +46,16 @@ router.post(['/', '/save', '/update', '/save-token'], authenticate, async (req, 
 
     const isMobile = isMobilePlatform(platform, req, req.body);
 
-    // Use atomic updates to prevent VersionError (Race Conditions)
+    // 1. Remove from both arrays to prevent duplicates (and clean up 'verification-pending')
+    await User.findByIdAndUpdate(userId, {
+      $pull: { fcmTokens: { $in: [token, 'verification-pending', 'undefined', 'null'] }, fcmTokenMobile: { $in: [token, 'verification-pending', 'undefined', 'null'] } }
+    });
 
-    // 1. Remove token if it exists (to avoid duplicates)
-    const pullQuery = isMobile
-      ? { $pull: { fcmTokenMobile: token } }
-      : { $pull: { fcmTokens: token } };
-
-    await User.findByIdAndUpdate(userId, pullQuery);
-
-    // 2. Add token to front with limit
-    const pushQuery = isMobile
-      ? {
-        $push: {
-          fcmTokenMobile: {
-            $each: [token],
-            $position: 0,
-            $slice: MAX_TOKENS
-          }
-        }
-      }
-      : {
-        $push: {
-          fcmTokens: {
-            $each: [token],
-            $position: 0,
-            $slice: MAX_TOKENS
-          }
-        }
-      };
-
-    const user = await User.findByIdAndUpdate(userId, pushQuery, { new: true });
+    // 2. Add uniquely to target array
+    const targetField = isMobile ? 'fcmTokenMobile' : 'fcmTokens';
+    const user = await User.findByIdAndUpdate(userId, {
+      $addToSet: { [targetField]: token }
+    }, { new: true });
 
     if (!user) {
       return res.status(404).json({ success: false, error: 'User not found' });

@@ -26,18 +26,12 @@ const handleAuthFcmToken = async (Model, docId, req) => {
 
     // 1. Remove from both arrays to prevent duplicates (and clean up 'verification-pending')
     await Model.findByIdAndUpdate(docId, {
-      $pull: { fcmTokens: { $in: [token, 'verification-pending'] }, fcmTokenMobile: { $in: [token, 'verification-pending'] } }
+      $pull: { fcmTokens: { $in: [token, 'verification-pending', 'undefined', 'null'] }, fcmTokenMobile: { $in: [token, 'verification-pending', 'undefined', 'null'] } }
     });
 
-    // 2. Add to front of target array (max 10 tokens)
+    // 2. Add uniquely to target array
     await Model.findByIdAndUpdate(docId, {
-      $push: {
-        [targetField]: {
-          $each: [token],
-          $position: 0,
-          $slice: 10
-        }
-      }
+      $addToSet: { [targetField]: token }
     });
     console.log(`[FCM Auth] ✅ Saved ${isMobileReq ? 'mobile' : 'web'} token for Worker ID: ${docId}`);
   } catch (err) {

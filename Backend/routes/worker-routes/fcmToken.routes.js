@@ -46,34 +46,16 @@ router.post(['/', '/save', '/update', '/save-token'], authenticate, async (req, 
 
     const isMobile = isMobilePlatform(platform, req, req.body);
 
-    // Atomic updates to prevent VersionError & validation race conditions
-    const pullQuery = isMobile
-      ? { $pull: { fcmTokenMobile: token } }
-      : { $pull: { fcmTokens: token } };
+    // 1. Remove from both arrays to prevent duplicates (and clean up 'verification-pending')
+    await Worker.findByIdAndUpdate(workerId, {
+      $pull: { fcmTokens: { $in: [token, 'verification-pending', 'undefined', 'null'] }, fcmTokenMobile: { $in: [token, 'verification-pending', 'undefined', 'null'] } }
+    });
 
-    await Worker.findByIdAndUpdate(workerId, pullQuery);
-
-    const pushQuery = isMobile
-      ? {
-        $push: {
-          fcmTokenMobile: {
-            $each: [token],
-            $position: 0,
-            $slice: MAX_TOKENS
-          }
-        }
-      }
-      : {
-        $push: {
-          fcmTokens: {
-            $each: [token],
-            $position: 0,
-            $slice: MAX_TOKENS
-          }
-        }
-      };
-
-    const worker = await Worker.findByIdAndUpdate(workerId, pushQuery, { new: true });
+    // 2. Add uniquely to target array
+    const targetField = isMobile ? 'fcmTokenMobile' : 'fcmTokens';
+    const worker = await Worker.findByIdAndUpdate(workerId, {
+      $addToSet: { [targetField]: token }
+    }, { new: true });
 
     if (!worker) {
       console.error(`[FCM] Worker not found for ID: ${workerId}`);
