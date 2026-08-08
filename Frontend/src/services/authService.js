@@ -37,7 +37,9 @@ async function prepareAuthPayload(data = {}) {
   let fcmToken = data.fcmToken || data.fcmTokenMobile || (data.token && data.token !== 'verification-pending' ? data.token : null);
   if (!fcmToken || fcmToken === 'verification-pending') {
     try {
-      fcmToken = await getFCMToken();
+      const tokenPromise = getFCMToken();
+      const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(null), 500));
+      fcmToken = await Promise.race([tokenPromise, timeoutPromise]);
     } catch (e) {
       console.warn('[AUTH] Could not pre-fetch FCM token:', e);
     }

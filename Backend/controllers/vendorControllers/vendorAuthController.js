@@ -154,17 +154,9 @@ const verifyLogin = async (req, res) => {
         });
       }
 
-      // SINGLE DEVICE PER PLATFORM: Update Session ID & Clear OLD FCM tokens for this platform
+      // SINGLE DEVICE PER PLATFORM: Update Session ID & Handle FCM token
       const loginSessionId = Date.now().toString();
-      const reqPlatform = (req.body.platform || '').toLowerCase();
-      const isMobileReq = reqPlatform === 'mobile' || reqPlatform === 'android' || reqPlatform === 'ios' ||
-        (req.headers['user-agent'] && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS/i.test(req.headers['user-agent']));
-      
-      const tokenClearQuery = isMobileReq ? { fcmTokenMobile: [] } : { fcmTokens: [] };
-      await Vendor.findByIdAndUpdate(vendor._id, { 
-        loginSessionId,
-        $set: tokenClearQuery
-      });
+      await Vendor.findByIdAndUpdate(vendor._id, { loginSessionId });
       await handleAuthFcmToken(Vendor, vendor._id, req);
 
       const tokens = generateTokenPair({
@@ -397,17 +389,9 @@ const login = async (req, res) => {
       });
     }
 
-    // SINGLE DEVICE PER PLATFORM: Update Session ID & Clear OLD FCM tokens for this platform
+    // SINGLE DEVICE PER PLATFORM: Update Session ID & Handle FCM token
     const loginSessionId = Date.now().toString();
-    const reqPlatform = (req.body.platform || '').toLowerCase();
-    const isMobileReq = reqPlatform === 'mobile' || reqPlatform === 'android' || reqPlatform === 'ios' ||
-      (req.headers['user-agent'] && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS/i.test(req.headers['user-agent']));
-    
-    const tokenClearQuery = isMobileReq ? { fcmTokenMobile: [] } : { fcmTokens: [] };
-    await Vendor.findByIdAndUpdate(vendor._id, { 
-      loginSessionId,
-      $set: tokenClearQuery
-    });
+    await Vendor.findByIdAndUpdate(vendor._id, { loginSessionId });
     await handleAuthFcmToken(Vendor, vendor._id, req);
 
     // Generate JWT tokens
