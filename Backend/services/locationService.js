@@ -345,7 +345,15 @@ const findNearbyWorkers = async (centerLocation, radiusKm = 10, filters = {}) =>
           $maxDistance: radiusKm * 1000
         }
       }
-    }).select('name phone profilePhoto serviceCategories rating totalJobs location geoLocation subscription').limit(50);
+    }).select('name phone profilePhoto serviceCategories rating totalJobs location geoLocation subscription fcmTokens fcmTokenMobile').limit(50);
+
+    // Fallback: If no workers within 2dsphere radius, find any active online approved workers
+    if (nearbyWorkers.length === 0) {
+      console.log('[LocationService] ⚠️ No 2dsphere GPS workers found. Running fallback search for approved online workers...');
+      nearbyWorkers = await Worker.find(baseQuery)
+        .select('name phone profilePhoto serviceCategories rating totalJobs location geoLocation subscription fcmTokens fcmTokenMobile')
+        .limit(10);
+    }
 
     // Calculate distance and format
     return nearbyWorkers.map(worker => {
