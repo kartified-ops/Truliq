@@ -13,31 +13,50 @@ const Worker = require('../../models/Worker');
 
 const MAX_TOKENS = 10; // Maximum tokens per platform
 
+const isMobilePlatform = (platform, req, body = {}) => {
+  if (body.fcmTokenMobile || body.mobileToken || body.isMobile === true) {
+    return true;
+  }
+  const p = platform ? String(platform).toLowerCase().trim() : '';
+  if (p === 'mobile' || p === 'android' || p === 'ios') return true;
+
+  const ua = req && req.headers ? (req.headers['user-agent'] || '') : '';
+  const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS|Fios/i.test(ua);
+  const isWebView = !!(body.isWebView || (ua && /wv|FB_IAB|FB4A|Instagram|Flutter/i.test(ua)));
+
+  if (isMobileUA || isWebView) return true;
+  return false;
+};
+
 /**
  * @route   POST /api/vendors/fcm-tokens/save
  * @desc    Save FCM token for vendor
  * @access  Private (Vendor)
  */
-router.post('/save', authenticate, async (req, res) => {
+router.post(['/', '/save', '/update', '/save-token'], authenticate, async (req, res) => {
   try {
-    const { token, platform = 'web' } = req.body;
+    const rawToken = req.body.fcmToken || req.body.fcmTokenMobile || req.body.deviceToken || req.body.fcm_token || req.body.mobileToken || req.body.pushToken || (req.body.token !== 'verification-pending' ? req.body.token : null);
+    const token = rawToken ? String(rawToken).trim() : null;
+    const platform = req.body.platform || 'web';
     const vendorId = req.user._id;
 
-    if (!token) {
-      return res.status(400).json({ success: false, error: 'Token is required' });
+    if (!token || token === 'verification-pending' || token === 'undefined' || token === 'null') {
+      return res.status(400).json({ success: false, error: 'Valid FCM token is required' });
     }
+
+    const isMobile = isMobilePlatform(platform, req, req.body);
 
     // Use atomic updates to prevent VersionError (Race Conditions)
 
     // 1. Remove token if it exists (to avoid duplicates)
-    const pullQuery = platform === 'mobile'
+    const pullQuery = isMobile
       ? { $pull: { fcmTokenMobile: token } }
       : { $pull: { fcmTokens: token } };
 
     await Vendor.findByIdAndUpdate(vendorId, pullQuery);
 
     // 2. Add token to front with limit
-    const pushQuery = platform === 'mobile'
+    const pushQuery = isMobile
       ? {
         $push: {
           fcmTokenMobile: {
@@ -93,9 +112,10 @@ router.post('/save', authenticate, async (req, res) => {
  * @desc    Remove FCM token for vendor
  * @access  Private (Vendor)
  */
-router.delete('/remove', authenticate, async (req, res) => {
+router.delete(['/', '/remove', '/delete'], authenticate, async (req, res) => {
   try {
-    const { token, platform = 'web' } = req.body;
+    const token = req.body.token || req.body.fcmToken || req.body.fcmTokenMobile || req.body.fcm_token || req.body.deviceToken;
+    const platform = req.body.platform || 'web';
     const vendorId = req.user._id;
 
     if (!token) {
@@ -108,10 +128,11 @@ router.delete('/remove', authenticate, async (req, res) => {
     }
 
     // Remove token based on platform
-    if (platform === 'web' && vendor.fcmTokens) {
-      vendor.fcmTokens = vendor.fcmTokens.filter(t => t !== token);
-    } else if (platform === 'mobile' && vendor.fcmTokenMobile) {
+    const isMobile = isMobilePlatform(platform, req, req.body);
+    if (isMobile && vendor.fcmTokenMobile) {
       vendor.fcmTokenMobile = vendor.fcmTokenMobile.filter(t => t !== token);
+    } else if (vendor.fcmTokens) {
+      vendor.fcmTokens = vendor.fcmTokens.filter(t => t !== token);
     }
 
     await vendor.save();
@@ -134,7 +155,7 @@ router.delete('/remove-all', authenticate, async (req, res) => {
     const { platform = 'web' } = req.body;
 
     // Clear only the specified platform's tokens
-    const updateQuery = platform === 'mobile'
+    const updateQuery = isMobilePlatform(platform, req, req.body)
       ? { $set: { fcmTokenMobile: [] } }
       : { $set: { fcmTokens: [] } };
 

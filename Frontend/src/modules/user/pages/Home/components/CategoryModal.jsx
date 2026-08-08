@@ -250,7 +250,7 @@ const CategoryModal = React.memo(({ isOpen, onClose, category, location, cartCou
                 <div className="px-4 py-6">
                   {/* Header */}
                   <div className="flex items-center gap-3 mb-6">
-                    {view === 'services' && brands.length > 0 && (
+                    {view === 'services' && (
                       <button
                         onClick={handleBackToBrands}
                         className="p-1 rounded-full hover:bg-gray-100"
@@ -260,7 +260,7 @@ const CategoryModal = React.memo(({ isOpen, onClose, category, location, cartCou
                     )}
                     <div>
                       <h1 className="text-xl font-bold text-gray-900">
-                        {view === 'brands' ? (category?.title || 'Brands') : (selectedBrand?.title || 'Services')}
+                        {view === 'brands' ? (category?.title || 'Brands') : (selectedBrand?.title || category?.title || 'Services')}
                       </h1>
                       {view === 'services' && <p className="text-xs text-gray-500">Select a service to add</p>}
                     </div>

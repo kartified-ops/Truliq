@@ -303,7 +303,15 @@ const Dashboard = () => {
   const handleTestPush = async () => {
     try {
       const { toast } = await import('react-hot-toast');
-      const loadingToast = toast.loading('Sending test push...');
+      const loadingToast = toast.loading('Registering FCM token & sending push...');
+
+      // First register/refresh token on user gesture
+      const token = await registerFCMToken('worker', true);
+      if (!token) {
+        toast.dismiss(loadingToast);
+        toast.error('FCM Token registration failed. Please allow notifications in browser settings!');
+        return;
+      }
 
       const res = await workerService.testPushNotification();
 
@@ -316,7 +324,7 @@ const Dashboard = () => {
     } catch (err) {
       console.error('Test push error:', err);
       const { toast } = await import('react-hot-toast');
-      toast.error('Error triggering test push');
+      toast.error('Error triggering test push: ' + (err.message || 'Unknown error'));
     }
   };
 
@@ -572,48 +580,52 @@ const Dashboard = () => {
         </div>
         */}
 
-        {/* Notification Status & Debug - NEW */}
-        {/* <div className="px-4 py-2">
-          <div className="bg-white/50 backdrop-blur-md rounded-2xl p-3 border border-white/20 shadow-sm flex items-center justify-between">
+        {/* Notification Status & Test Push Controls */}
+        <div className="px-4 py-2">
+          <div className="bg-white/80 backdrop-blur-md rounded-2xl p-3 border border-orange-100 shadow-sm flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div
-                className={`w-2 h-2 rounded-full ${Notification.permission === 'granted' ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`}
+                className={`w-2.5 h-2.5 rounded-full ${typeof window !== 'undefined' && window.Notification && Notification.permission === 'granted' ? 'bg-emerald-500 shadow-sm shadow-emerald-200' : 'bg-rose-500 animate-pulse'}`}
               />
               <div>
-                <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Notification Status</p>
-                <p className={`text-xs font-bold ${Notification.permission === 'granted' ? 'text-green-600' : 'text-red-600'}`}>
-                  {Notification.permission === 'granted' ? '✅ Active & Ready' : '❌ Blocked / Not Setup'}
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Push Status</p>
+                <p className={`text-xs font-bold ${typeof window !== 'undefined' && window.Notification && Notification.permission === 'granted' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  {typeof window !== 'undefined' && window.Notification && Notification.permission === 'granted' ? '✅ Enabled' : '❌ Disabled'}
                 </p>
               </div>
             </div>
 
             <div className="flex gap-2">
               <button
-                onClick={() => {
-                  if (window.fcmDebug) window.fcmDebug();
-                  if (window.testLocalFCMUI) window.testLocalFCMUI();
-                }}
-                className="p-2 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-bold hover:bg-indigo-100 active:scale-95 transition-all"
+                onClick={handleTestPush}
+                className="px-3 py-1.5 bg-orange-500 text-white rounded-xl text-xs font-bold shadow-md shadow-orange-500/20 hover:bg-orange-600 active:scale-95 transition-all flex items-center gap-1"
               >
-                TEST UI
+                🔔 Test Push
               </button>
               <button
                 onClick={async () => {
-                  const { registerFCMToken } = await import('../../../../services/pushNotificationService');
-                  registerFCMToken('worker', true);
+                  const { toast } = await import('react-hot-toast');
+                  const loadingToast = toast.loading('Re-registering FCM token...');
+                  const token = await registerFCMToken('worker', true);
+                  toast.dismiss(loadingToast);
+                  if (token) {
+                    toast.success('FCM Token registered successfully!');
+                  } else {
+                    toast.error('Token registration failed');
+                  }
                 }}
-                className="p-2 bg-orange-50 text-orange-600 rounded-lg text-[10px] font-bold hover:bg-orange-100 active:scale-95 transition-all"
+                className="px-2.5 py-1.5 bg-gray-100 text-gray-700 rounded-xl text-xs font-semibold hover:bg-gray-200 active:scale-95 transition-all"
               >
-                RE-REGISTER
+                🔄 Refresh Token
               </button>
             </div>
           </div>
-          {Notification.permission !== 'granted' && (
-            <p className="text-[9px] text-red-500 font-bold mt-1 px-1">
-              ⚠️ Notifications are disabled in your browser. Click the lock icon in the URL bar to fix.
+          {typeof window !== 'undefined' && window.Notification && Notification.permission !== 'granted' && (
+            <p className="text-[10px] text-rose-500 font-bold mt-1 px-1">
+              ⚠️ Notifications disabled. Click 🔒 icon in browser URL bar to allow.
             </p>
           )}
-        </div> */}
+        </div>
 
         {/* Stats Cards - Outside Gradient */}
         <div className="px-4 pt-4">

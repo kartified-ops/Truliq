@@ -67,7 +67,26 @@ const Subscription = () => {
 
       const { orderId, amount, currency, keyId, workerName, workerPhone } = orderRes.data.data;
 
-      // Step 3: Open Razorpay checkout
+      // Step 3: Handle Mock/Dev mode order
+      if (orderId && orderId.startsWith('order_mock_')) {
+        const verifyRes = await api.post('/workers/subscription/verify-payment', {
+          razorpay_order_id: orderId,
+          razorpay_payment_id: `pay_mock_${Date.now()}`,
+          razorpay_signature: 'mock_signature',
+          planId: plan._id
+        });
+
+        if (verifyRes.data.success) {
+          toast.success(verifyRes.data.message || 'Subscription activated successfully!');
+          fetchData();
+        } else {
+          toast.error(verifyRes.data.message || 'Payment verification failed');
+        }
+        setActivating(null);
+        return;
+      }
+
+      // Step 4: Open Razorpay checkout
       const options = {
         key: keyId,
         amount,

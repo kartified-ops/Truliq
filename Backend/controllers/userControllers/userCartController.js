@@ -1,6 +1,8 @@
 const Cart = require('../../models/Cart');
 const Service = require('../../models/UserService');
+const Brand = require('../../models/Brand');
 const { validationResult } = require('express-validator');
+const mongoose = require('mongoose');
 
 /**
  * Get user's cart
@@ -63,18 +65,27 @@ const addToCart = async (req, res) => {
       card          // Card details snapshot
     } = req.body;
 
-    console.log(`[AddToCart] Request details - Title: ${title}, Section: ${sectionTitle}`);
+    console.log(`[AddToCart] Request details - Title: ${title}, Section: ${sectionTitle}, ServiceId: ${serviceId}`);
 
-    // Verify service exists (only if serviceId is provided)
+    // Verify service exists (if serviceId is provided)
     let service = null;
-    if (serviceId) {
-      service = await Service.findById(serviceId);
+    if (serviceId && mongoose.Types.ObjectId.isValid(serviceId)) {
+      service = await Service.findById(serviceId).catch(() => null);
       if (!service) {
-        return res.status(404).json({
-          success: false,
-          message: 'Service not found'
-        });
+        // Also check if serviceId is a Brand ID
+        const brand = await Brand.findById(serviceId).catch(() => null);
+        if (!brand && !title) {
+          return res.status(404).json({
+            success: false,
+            message: 'Service not found'
+          });
+        }
       }
+    } else if (serviceId && !title) {
+      return res.status(404).json({
+        success: false,
+        message: 'Service not found'
+      });
     }
 
     // Get or create cart
@@ -119,9 +130,9 @@ const addToCart = async (req, res) => {
         card: card || null
       };
 
-      // Only add serviceId and categoryId if they are provided
-      if (serviceId) newItem.serviceId = serviceId;
-      if (categoryId) newItem.categoryId = categoryId;
+      // Only add serviceId and categoryId if they are valid ObjectIds
+      if (serviceId && mongoose.Types.ObjectId.isValid(serviceId)) newItem.serviceId = serviceId;
+      if (categoryId && mongoose.Types.ObjectId.isValid(categoryId)) newItem.categoryId = categoryId;
 
       console.log(`[AddToCart] Adding new item: ${title}`);
       cart.items.push(newItem);

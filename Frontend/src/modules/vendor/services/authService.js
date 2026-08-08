@@ -1,5 +1,32 @@
 import api from '../../../services/api';
-import { registerFCMToken } from '../../../services/pushNotificationService';
+import { registerFCMToken, getFCMToken } from '../../../services/pushNotificationService';
+
+function getPlatformType() {
+  if (typeof window === 'undefined') return 'web';
+  const ua = window.navigator.userAgent || window.navigator.vendor || window.opera || '';
+  const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS|Fios/i.test(ua);
+  const isIPadOS = (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isWebView = !!(window.flutter_inappwebview || window.ReactNativeWebView);
+  return (isMobileUA || isIPadOS || isWebView) ? 'mobile' : 'web';
+}
+
+async function prepareAuthPayload(data = {}) {
+  const platform = getPlatformType();
+  let fcmToken = data.fcmToken || data.fcmTokenMobile || (data.token && data.token !== 'verification-pending' ? data.token : null);
+  if (!fcmToken || fcmToken === 'verification-pending') {
+    try {
+      fcmToken = await getFCMToken();
+    } catch (e) {
+      console.warn('[VENDOR AUTH] Could not pre-fetch FCM token:', e);
+    }
+  }
+  const cleanFcmToken = (fcmToken && fcmToken !== 'verification-pending') ? fcmToken : null;
+  return {
+    ...data,
+    platform: data.platform || platform,
+    ...(cleanFcmToken ? { fcmToken: cleanFcmToken, fcmTokenMobile: cleanFcmToken } : {})
+  };
+}
 
 /**
  * Notify Flutter WebView about successful login
@@ -40,7 +67,8 @@ export const sendOTP = async (phone) => {
  */
 export const verifyLogin = async (data) => {
   try {
-    const response = await api.post('/vendors/auth/verify-login', data);
+    const payload = await prepareAuthPayload(data);
+    const response = await api.post('/vendors/auth/verify-login', payload);
 
     // Check if vendor is pending approval
     const isPending = response.data.vendor?.adminApproval?.toLowerCase() === 'pending';
@@ -73,7 +101,8 @@ export const verifyLogin = async (data) => {
  */
 export const login = async (credentials) => {
   try {
-    const response = await api.post('/vendors/auth/login', credentials);
+    const payload = await prepareAuthPayload(credentials);
+    const response = await api.post('/vendors/auth/login', payload);
 
     // Store tokens in localStorage
     if (response.data.success && response.data.accessToken) {
@@ -121,7 +150,8 @@ export const logout = async () => {
 export const register = async (vendorData) => {
   try {
     console.log('Calling vendor register API with data:', vendorData);
-    const response = await api.post('/vendors/auth/register', vendorData);
+    const payload = await prepareAuthPayload(vendorData);
+    const response = await api.post('/vendors/auth/register', payload);
     console.log('Vendor register API response:', response.data);
     return response.data;
   } catch (error) {

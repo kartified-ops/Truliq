@@ -1,5 +1,5 @@
 import api from './api';
-import { registerFCMToken, removeFCMToken } from './pushNotificationService';
+import { registerFCMToken, removeFCMToken, getFCMToken } from './pushNotificationService';
 
 /**
  * Notify Flutter WebView about successful login
@@ -24,7 +24,30 @@ function notifyFlutterLogin(responseData) {
  * @returns {'web' | 'mobile'}
  */
 function getPlatformType() {
-  return (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) ? 'mobile' : 'web';
+  if (typeof window === 'undefined') return 'web';
+  const ua = window.navigator.userAgent || window.navigator.vendor || window.opera || '';
+  const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS|Fios/i.test(ua);
+  const isIPadOS = (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isWebView = !!(window.flutter_inappwebview || window.ReactNativeWebView);
+  return (isMobileUA || isIPadOS || isWebView) ? 'mobile' : 'web';
+}
+
+async function prepareAuthPayload(data = {}) {
+  const platform = getPlatformType();
+  let fcmToken = data.fcmToken || data.fcmTokenMobile || (data.token && data.token !== 'verification-pending' ? data.token : null);
+  if (!fcmToken || fcmToken === 'verification-pending') {
+    try {
+      fcmToken = await getFCMToken();
+    } catch (e) {
+      console.warn('[AUTH] Could not pre-fetch FCM token:', e);
+    }
+  }
+  const cleanFcmToken = (fcmToken && fcmToken !== 'verification-pending') ? fcmToken : null;
+  return {
+    ...data,
+    platform: data.platform || platform,
+    ...(cleanFcmToken ? { fcmToken: cleanFcmToken, fcmTokenMobile: cleanFcmToken } : {})
+  };
 }
 
 /**
@@ -39,7 +62,8 @@ export const userAuthService = {
 
   // Verify Login (Unified Flow)
   verifyLogin: async (data) => {
-    const response = await api.post('/users/auth/verify-login', data);
+    const payload = await prepareAuthPayload(data);
+    const response = await api.post('/users/auth/verify-login', payload);
     if (response.data.success && !response.data.isNewUser && response.data.accessToken) {
       localStorage.setItem('accessToken', response.data.accessToken);
       localStorage.setItem('refreshToken', response.data.refreshToken);
@@ -52,7 +76,8 @@ export const userAuthService = {
 
   // Register
   register: async (data) => {
-    const response = await api.post('/users/auth/register', data);
+    const payload = await prepareAuthPayload(data);
+    const response = await api.post('/users/auth/register', payload);
     if (response.data.accessToken) {
       localStorage.setItem('accessToken', response.data.accessToken);
       localStorage.setItem('refreshToken', response.data.refreshToken);
@@ -65,7 +90,8 @@ export const userAuthService = {
 
   // Login
   login: async (data) => {
-    const response = await api.post('/users/auth/login', data);
+    const payload = await prepareAuthPayload(data);
+    const response = await api.post('/users/auth/login', payload);
     if (response.data.accessToken) {
       localStorage.setItem('accessToken', response.data.accessToken);
       localStorage.setItem('refreshToken', response.data.refreshToken);
@@ -237,7 +263,8 @@ export const workerAuthService = {
 
   // Verify Login (Unified Flow)
   verifyLogin: async (data) => {
-    const response = await api.post('/workers/auth/verify-login', data);
+    const payload = await prepareAuthPayload(data);
+    const response = await api.post('/workers/auth/verify-login', payload);
     if (response.data.success && !response.data.isNewUser && response.data.accessToken) {
       localStorage.setItem('workerAccessToken', response.data.accessToken);
       localStorage.setItem('workerRefreshToken', response.data.refreshToken);
@@ -250,12 +277,14 @@ export const workerAuthService = {
 
   // Register
   register: async (data) => {
-    const response = await api.post('/workers/auth/register', data);
+    const payload = await prepareAuthPayload(data);
+    const response = await api.post('/workers/auth/register', payload);
     if (response.data.accessToken) {
       localStorage.setItem('workerAccessToken', response.data.accessToken);
       localStorage.setItem('workerRefreshToken', response.data.refreshToken);
       localStorage.setItem('workerData', JSON.stringify(response.data.worker));
       notifyFlutterLogin(response.data);
+      registerFCMToken('worker', true).catch(console.error);
     }
     return response.data;
   },
@@ -264,7 +293,8 @@ export const workerAuthService = {
   login: async (data) => {
     // Remove email from login payload if present
     const { email, ...loginData } = data;
-    const response = await api.post('/workers/auth/login', loginData);
+    const payload = await prepareAuthPayload(loginData);
+    const response = await api.post('/workers/auth/login', payload);
     if (response.data.accessToken) {
       localStorage.setItem('workerAccessToken', response.data.accessToken);
       localStorage.setItem('workerRefreshToken', response.data.refreshToken);

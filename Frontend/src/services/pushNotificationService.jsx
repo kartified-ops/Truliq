@@ -9,11 +9,16 @@ import { toast } from 'react-hot-toast';
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
 
 /**
- * Check if running inside Flutter WebView
+ * Check if running on a mobile device (Mobile Browser, PWA, WebView, Flutter, React Native)
  * @returns {boolean}
  */
-function isFlutterWebView() {
-  return !!(window.flutter_inappwebview && window.flutter_inappwebview.callHandler);
+function isMobileDevice() {
+  if (typeof window === 'undefined') return false;
+  const ua = window.navigator.userAgent || window.navigator.vendor || window.opera || '';
+  const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS|Fios/i.test(ua);
+  const isIPadOS = (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isWebView = !!(window.flutter_inappwebview || window.ReactNativeWebView);
+  return isMobileUA || isIPadOS || isWebView;
 }
 
 /**
@@ -21,7 +26,7 @@ function isFlutterWebView() {
  * @returns {'web' | 'mobile'}
  */
 function getPlatformType() {
-  return isFlutterWebView() ? 'mobile' : 'web';
+  return isMobileDevice() ? 'mobile' : 'web';
 }
 
 /**
@@ -31,8 +36,9 @@ function getPlatformType() {
 async function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
     try {
-      const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-      console.log('✅ Service Worker registered:', registration.scope);
+      await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+      const registration = await navigator.serviceWorker.ready;
+      console.log('✅ Service Worker registered & ready:', registration.scope);
       return registration;
     } catch (error) {
       console.error('❌ Service Worker registration failed:', error);
@@ -78,7 +84,6 @@ async function getFCMToken() {
     }
 
     const registration = await registerServiceWorker();
-    await registration.update(); // Update service worker
 
     try {
       const token = await getToken(messaging, {
@@ -88,9 +93,16 @@ async function getFCMToken() {
       return token || null;
     } catch (tokenError) {
       if (tokenError.name === 'VersionError' || (tokenError.message && tokenError.message.includes('requested version'))) {
-        console.warn('[FCM] VersionError encountered. Attempting to delete firebase-messaging-store IndexedDB and retry...', tokenError);
+        console.warn('[FCM] VersionError encountered. Unregistering SW and resetting firebase-messaging-store IndexedDB...', tokenError);
         
-        // Attempt to delete the conflicted IndexedDB
+        // 1. Unregister active service worker to release database lock
+        try {
+          await registration.unregister();
+        } catch (unregErr) {
+          console.warn('[FCM] SW unregister warning:', unregErr);
+        }
+
+        // 2. Clear conflicted IndexedDB database
         await new Promise((resolve) => {
           const req = indexedDB.deleteDatabase('firebase-messaging-store');
           req.onsuccess = () => {
@@ -99,18 +111,21 @@ async function getFCMToken() {
           };
           req.onerror = () => {
             console.error('[FCM] ❌ Error deleting firebase-messaging-store.');
-            resolve(); // Resolve anyway to try continuing
+            resolve();
           };
           req.onblocked = () => {
-            console.warn('[FCM] ⚠️ Delete blocked by another tab.');
+            console.warn('[FCM] ⚠️ Delete blocked by open tab/worker.');
             resolve();
           };
         });
 
-        // Retry getting token once
+        // 3. Re-register fresh service worker
+        const newRegistration = await registerServiceWorker();
+
+        // 4. Retry getting token with clean state
         const retryToken = await getToken(messaging, {
           vapidKey: VAPID_KEY,
-          serviceWorkerRegistration: registration
+          serviceWorkerRegistration: newRegistration
         });
         return retryToken || null;
       }
@@ -134,11 +149,13 @@ async function registerFCMToken(userType = 'user', forceUpdate = false) {
 
     const hasPermission = await requestNotificationPermission();
     if (!hasPermission) {
+      console.warn(`[FCM] Notification permission not granted (${Notification.permission}). Token registration skipped.`);
       return null;
     }
 
     const token = await getFCMToken();
     if (!token) {
+      console.warn('[FCM] Firebase getToken returned null/empty.');
       return null;
     }
 
@@ -164,6 +181,7 @@ async function registerFCMToken(userType = 'user', forceUpdate = false) {
 
     const authToken = localStorage.getItem(authTokenKey);
     if (!authToken) {
+      console.warn(`[FCM] Cannot save token: No auth token found in localStorage for key '${authTokenKey}'.`);
       return null;
     }
 
@@ -178,7 +196,7 @@ async function registerFCMToken(userType = 'user', forceUpdate = false) {
       },
       body: JSON.stringify({
         token: token,
-        platform: 'web'
+        platform: platform
       })
     });
 
@@ -468,6 +486,17 @@ async function initializePushNotifications() {
     });
 
     console.log('[FCM] ✅ SW message listener registered.');
+    
+    // Auto-register FCM token for logged-in users/workers/vendors if permission is already granted
+    if (Notification.permission === 'granted') {
+      if (localStorage.getItem('workerAccessToken')) {
+        registerFCMToken('worker').catch((err) => console.warn('[FCM] Auto-register worker failed:', err));
+      } else if (localStorage.getItem('vendorAccessToken')) {
+        registerFCMToken('vendor').catch((err) => console.warn('[FCM] Auto-register vendor failed:', err));
+      } else if (localStorage.getItem('accessToken')) {
+        registerFCMToken('user').catch((err) => console.warn('[FCM] Auto-register user failed:', err));
+      }
+    }
     
     // Debug utility
     window.fcmDebug = async () => {

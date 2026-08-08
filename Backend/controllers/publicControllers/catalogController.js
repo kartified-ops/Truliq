@@ -64,7 +64,12 @@ const getPublicBrands = async (req, res) => {
 
     // Build query
     const query = { status: 'active' };
-    if (categoryId) query.categoryIds = categoryId;
+    if (categoryId) {
+      query.$or = [
+        { categoryIds: categoryId },
+        { categoryId: categoryId }
+      ];
+    }
     if (cityId) {
       query.$or = [
         { cityIds: cityId },
@@ -79,7 +84,7 @@ const getPublicBrands = async (req, res) => {
     }
 
     let brands = await Brand.find(query)
-      .select('title slug iconUrl logo imageUrl badge categoryIds basePrice discountPrice')
+      .select('title slug iconUrl logo imageUrl badge categoryIds categoryId basePrice discountPrice')
       .sort({ createdAt: -1 })
       .lean();
 
@@ -97,10 +102,13 @@ const getPublicBrands = async (req, res) => {
       }
 
       if (category) {
-        brands = brands.filter(b =>
-          Array.isArray(b.categoryIds) &&
-          b.categoryIds.some(id => id.toString() === category._id.toString())
-        );
+        brands = brands.filter(b => {
+          const ids = [
+            ...(Array.isArray(b.categoryIds) ? b.categoryIds.map(id => id.toString()) : []),
+            ...(b.categoryId ? [b.categoryId.toString()] : [])
+          ];
+          return ids.includes(category._id.toString());
+        });
       }
     }
 
@@ -116,7 +124,7 @@ const getPublicBrands = async (req, res) => {
         badge: brand.badge || '',
         price: brand.basePrice || 0, // Legacy support
         originalPrice: brand.discountPrice ? (brand.basePrice + brand.discountPrice) : (brand.basePrice || 0),
-        categoryId: brand.categoryIds && brand.categoryIds.length > 0 ? brand.categoryIds[0].toString() : null,
+        categoryId: (brand.categoryIds && brand.categoryIds.length > 0) ? brand.categoryIds[0].toString() : (brand.categoryId ? brand.categoryId.toString() : null),
         categoryIds: (brand.categoryIds || []).map(id => id.toString())
       }))
     });
@@ -241,6 +249,13 @@ const getPublicServices = async (req, res) => {
 
     if (brandId) {
       query.brandId = brandId;
+      if (categoryId && categoryId !== 'custom') {
+        query.$or = [
+          { categoryId: categoryId },
+          { categoryId: { $exists: false } },
+          { categoryId: null }
+        ];
+      }
     } else if (brandSlug) {
       const brand = await Brand.findOne({ slug: brandSlug });
       if (brand) {
@@ -248,10 +263,20 @@ const getPublicServices = async (req, res) => {
       } else {
         return res.status(200).json({ success: true, services: [] });
       }
-    }
+    } else if (categoryId && categoryId !== 'custom') {
+      // If no brandId, fetch services by categoryId OR services belonging to brands of this category
+      const categoryBrands = await Brand.find({
+        $or: [
+          { categoryIds: categoryId },
+          { categoryId: categoryId }
+        ]
+      }).select('_id');
+      const brandIds = categoryBrands.map(b => b._id);
 
-    if (categoryId && categoryId !== 'custom') {
-      query.categoryId = categoryId;
+      query.$or = [
+        { categoryId: categoryId },
+        { brandId: { $in: brandIds } }
+      ];
     }
 
     if (req.query.search) {
@@ -264,22 +289,82 @@ const getPublicServices = async (req, res) => {
       .sort({ createdAt: 1 })
       .lean();
 
+    let resultServices = services.map(svc => ({
+      id: svc._id.toString(),
+      title: svc.title,
+      slug: svc.slug,
+      icon: svc.iconUrl,
+      basePrice: svc.basePrice,
+      discountPrice: svc.discountPrice,
+      gstPercentage: svc.gstPercentage,
+      pricingUnit: svc.pricingUnit,
+      description: svc.description,
+      categoryId: svc.categoryId?.toString(),
+      brandId: svc.brandId?._id,
+      brandName: svc.brandId?.title,
+      brandIcon: svc.brandId?.iconUrl
+    }));
+
+    // Fallback: If no sub-services found in UserService collection, check matching Brands or Brand sections
+    if (resultServices.length === 0 && (brandId || categoryId)) {
+      const brandFilter = {};
+      if (brandId) {
+        brandFilter._id = brandId;
+      } else if (categoryId && categoryId !== 'custom') {
+        brandFilter.$or = [
+          { categoryIds: categoryId },
+          { categoryId: categoryId }
+        ];
+      }
+
+      const matchingBrands = await Brand.find(brandFilter).lean();
+
+      for (const brand of matchingBrands) {
+        // If brand has embedded sections with cards (legacy/seeded structure)
+        if (Array.isArray(brand.sections) && brand.sections.length > 0) {
+          for (const section of brand.sections) {
+            if (Array.isArray(section.cards) && section.cards.length > 0) {
+              for (const card of section.cards) {
+                resultServices.push({
+                  id: card.id || card._id?.toString() || `${brand._id}-${card.title}`,
+                  title: card.title,
+                  slug: brand.slug,
+                  icon: card.imageUrl || brand.iconUrl || brand.logo || '',
+                  basePrice: Number(card.price) || brand.basePrice || 0,
+                  discountPrice: card.originalPrice ? Number(card.price) : null,
+                  pricingUnit: card.duration || brand.pricingUnit || '',
+                  description: card.subtitle || card.description || '',
+                  categoryId: categoryId || (brand.categoryIds?.[0]?.toString()),
+                  brandId: brand._id.toString(),
+                  brandName: brand.title,
+                  brandIcon: brand.iconUrl || brand.logo
+                });
+              }
+            }
+          }
+        } else {
+          // If brand itself acts as a service
+          resultServices.push({
+            id: brand._id.toString(),
+            title: brand.title,
+            slug: brand.slug,
+            icon: brand.iconUrl || brand.logo || brand.imageUrl || '',
+            basePrice: brand.basePrice || brand.price || 0,
+            discountPrice: brand.discountPrice || null,
+            pricingUnit: brand.pricingUnit || '',
+            description: brand.description || '',
+            categoryId: categoryId || (brand.categoryIds?.[0]?.toString()),
+            brandId: brand._id.toString(),
+            brandName: brand.title,
+            brandIcon: brand.iconUrl || brand.logo
+          });
+        }
+      }
+    }
+
     res.status(200).json({
       success: true,
-      services: services.map(svc => ({
-        id: svc._id.toString(),
-        title: svc.title,
-        slug: svc.slug,
-        icon: svc.iconUrl,
-        basePrice: svc.basePrice,
-        gstPercentage: svc.gstPercentage,
-        pricingUnit: svc.pricingUnit,
-        description: svc.description,
-        categoryId: svc.categoryId?.toString(),
-        brandId: svc.brandId?._id,
-        brandName: svc.brandId?.title,
-        brandIcon: svc.brandId?.iconUrl
-      }))
+      services: resultServices
     });
   } catch (error) {
     console.error('Get public services error:', error);

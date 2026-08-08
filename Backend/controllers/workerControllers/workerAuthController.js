@@ -7,6 +7,45 @@ const { USER_ROLES, WORKER_STATUS } = require('../../utils/constants');
 const { validationResult } = require('express-validator');
 
 /**
+ * Helper to save FCM token during auth (login/verifyLogin/register) if provided in req.body
+ */
+const handleAuthFcmToken = async (Model, docId, req) => {
+  try {
+    const rawToken = req.body.fcmToken || req.body.fcmTokenMobile || req.body.deviceToken || req.body.fcm_token || req.body.mobileToken || req.body.pushToken || (req.body.token !== 'verification-pending' ? req.body.token : null);
+    if (!rawToken || typeof rawToken !== 'string' || !rawToken.trim()) return;
+
+    const token = rawToken.trim();
+    if (token === 'verification-pending' || token === 'undefined' || token === 'null') return;
+
+    const reqPlatform = (req.body.platform || '').toLowerCase();
+    const isMobileReq = !!(req.body.fcmTokenMobile || req.body.mobileToken || req.body.isMobile === true) ||
+      reqPlatform === 'mobile' || reqPlatform === 'android' || reqPlatform === 'ios' ||
+      (req.headers && req.headers['user-agent'] && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS|Fios/i.test(req.headers['user-agent']));
+    
+    const targetField = isMobileReq ? 'fcmTokenMobile' : 'fcmTokens';
+
+    // 1. Remove from both arrays to prevent duplicates (and clean up 'verification-pending')
+    await Model.findByIdAndUpdate(docId, {
+      $pull: { fcmTokens: { $in: [token, 'verification-pending'] }, fcmTokenMobile: { $in: [token, 'verification-pending'] } }
+    });
+
+    // 2. Add to front of target array (max 10 tokens)
+    await Model.findByIdAndUpdate(docId, {
+      $push: {
+        [targetField]: {
+          $each: [token],
+          $position: 0,
+          $slice: 10
+        }
+      }
+    });
+    console.log(`[FCM Auth] ✅ Saved ${isMobileReq ? 'mobile' : 'web'} token for Worker ID: ${docId}`);
+  } catch (err) {
+    console.error('[FCM Auth] Error saving worker token during auth:', err);
+  }
+};
+
+/**
  * Send OTP for worker registration/login
  */
 const sendOTP = async (req, res) => {
@@ -89,12 +128,18 @@ const verifyLogin = async (req, res) => {
         return res.status(403).json({ success: false, message: 'Account deactivated.' });
       }
 
-      // SINGLE DEVICE LOGIN: Update Session ID & Clear OLD FCM tokens
+      // SINGLE DEVICE PER PLATFORM: Update Session ID & Clear OLD FCM tokens for this platform
       const loginSessionId = Date.now().toString();
+      const reqPlatform = (req.body.platform || '').toLowerCase();
+      const isMobileReq = reqPlatform === 'mobile' || reqPlatform === 'android' || reqPlatform === 'ios' ||
+        (req.headers['user-agent'] && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS/i.test(req.headers['user-agent']));
+      
+      const tokenClearQuery = isMobileReq ? { fcmTokenMobile: [] } : { fcmTokens: [] };
       await Worker.findByIdAndUpdate(worker._id, { 
         loginSessionId,
-        $set: { fcmTokens: [], fcmTokenMobile: [] } // Clear all old tokens
+        $set: tokenClearQuery
       });
+      await handleAuthFcmToken(Worker, worker._id, req);
 
       const tokens = generateTokenPair({
         userId: worker._id,
@@ -210,6 +255,7 @@ const register = async (req, res) => {
     // Generate JWT tokens with initial session
     const loginSessionId = Date.now().toString();
     await Worker.findByIdAndUpdate(worker._id, { loginSessionId });
+    await handleAuthFcmToken(Worker, worker._id, req);
 
     const tokens = generateTokenPair({
       userId: worker._id,
@@ -276,10 +322,16 @@ const login = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Account deactivated.' });
     }
     const loginSessionId = Date.now().toString();
+    const reqPlatform = (req.body.platform || '').toLowerCase();
+    const isMobileReq = reqPlatform === 'mobile' || reqPlatform === 'android' || reqPlatform === 'ios' ||
+      (req.headers['user-agent'] && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS/i.test(req.headers['user-agent']));
+    
+    const tokenClearQuery = isMobileReq ? { fcmTokenMobile: [] } : { fcmTokens: [] };
     await Worker.findByIdAndUpdate(worker._id, { 
       loginSessionId,
-      $set: { fcmTokens: [], fcmTokenMobile: [] } // Clear all old tokens
+      $set: tokenClearQuery
     });
+    await handleAuthFcmToken(Worker, worker._id, req);
 
     const tokens = generateTokenPair({
       userId: worker._id,

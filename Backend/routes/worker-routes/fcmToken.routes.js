@@ -13,62 +13,74 @@ const Vendor = require('../../models/Vendor');
 
 const MAX_TOKENS = 10; // Maximum tokens per platform
 
+const isMobilePlatform = (platform, req, body = {}) => {
+  if (body.fcmTokenMobile || body.mobileToken || body.isMobile === true) {
+    return true;
+  }
+  const p = platform ? String(platform).toLowerCase().trim() : '';
+  if (p === 'mobile' || p === 'android' || p === 'ios') return true;
+
+  const ua = req && req.headers ? (req.headers['user-agent'] || '') : '';
+  const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS|Fios/i.test(ua);
+  const isWebView = !!(body.isWebView || (ua && /wv|FB_IAB|FB4A|Instagram|Flutter/i.test(ua)));
+
+  if (isMobileUA || isWebView) return true;
+  return false;
+};
+
 /**
  * @route   POST /api/workers/fcm-tokens/save
  * @desc    Save FCM token for worker
  * @access  Private (Worker)
  */
-router.post('/save', authenticate, async (req, res) => {
+router.post(['/', '/save', '/update', '/save-token'], authenticate, async (req, res) => {
   try {
-    const { token, platform = 'web' } = req.body;
+    const rawToken = req.body.fcmToken || req.body.fcmTokenMobile || req.body.deviceToken || req.body.fcm_token || req.body.mobileToken || req.body.pushToken || (req.body.token !== 'verification-pending' ? req.body.token : null);
+    const token = rawToken ? String(rawToken).trim() : null;
+    const platform = req.body.platform || 'web';
     const workerId = req.user._id || req.user.id;
 
-    if (!token) {
-      return res.status(400).json({ success: false, error: 'Token is required' });
+    if (!token || token === 'verification-pending' || token === 'undefined' || token === 'null') {
+      return res.status(400).json({ success: false, error: 'Valid FCM token is required' });
     }
 
-    // Find the worker
-    const worker = await Worker.findById(workerId);
+    const isMobile = isMobilePlatform(platform, req, req.body);
+
+    // Atomic updates to prevent VersionError & validation race conditions
+    const pullQuery = isMobile
+      ? { $pull: { fcmTokenMobile: token } }
+      : { $pull: { fcmTokens: token } };
+
+    await Worker.findByIdAndUpdate(workerId, pullQuery);
+
+    const pushQuery = isMobile
+      ? {
+        $push: {
+          fcmTokenMobile: {
+            $each: [token],
+            $position: 0,
+            $slice: MAX_TOKENS
+          }
+        }
+      }
+      : {
+        $push: {
+          fcmTokens: {
+            $each: [token],
+            $position: 0,
+            $slice: MAX_TOKENS
+          }
+        }
+      };
+
+    const worker = await Worker.findByIdAndUpdate(workerId, pushQuery, { new: true });
 
     if (!worker) {
       console.error(`[FCM] Worker not found for ID: ${workerId}`);
       return res.status(404).json({ success: false, error: 'Worker not found' });
     }
 
-    // Update tokens based on platform
-    if (platform === 'mobile') {
-      if (!worker.fcmTokenMobile) worker.fcmTokenMobile = [];
-      if (!worker.fcmTokenMobile.includes(token)) {
-        worker.fcmTokenMobile.push(token);
-      }
-    } else {
-      if (!worker.fcmTokens) worker.fcmTokens = [];
-      if (!worker.fcmTokens.includes(token)) {
-        worker.fcmTokens.push(token);
-      }
-    }
-
-    // Save with validation
-    await worker.save();
     console.log(`[FCM] ✅ Token saved for worker: ${workerId} (${platform})`);
-
-    // Remove this token from User and Vendor collections to prevent cross-account notifications
-    // COMMENTED OUT to allow testing on same device
-    /*
-    try {
-      await User.updateMany(
-        { $or: [{ fcmTokens: token }, { fcmTokenMobile: token }] },
-        { $pull: { fcmTokens: token, fcmTokenMobile: token } }
-      );
-
-      await Vendor.updateMany(
-        { $or: [{ fcmTokens: token }, { fcmTokenMobile: token }] },
-        { $pull: { fcmTokens: token, fcmTokenMobile: token } }
-      );
-    } catch (cleanupError) {
-      console.error('Error removing token from other collections:', cleanupError);
-    }
-    */
 
     res.json({ success: true, message: 'FCM token saved successfully' });
   } catch (error) {
@@ -86,9 +98,10 @@ router.post('/save', authenticate, async (req, res) => {
  * @desc    Remove FCM token for worker
  * @access  Private (Worker)
  */
-router.delete('/remove', authenticate, async (req, res) => {
+router.delete(['/', '/remove', '/delete'], authenticate, async (req, res) => {
   try {
-    const { token, platform = 'web' } = req.body;
+    const token = req.body.token || req.body.fcmToken || req.body.fcmTokenMobile || req.body.fcm_token || req.body.deviceToken;
+    const platform = req.body.platform || 'web';
     const workerId = req.user._id;
 
     if (!token) {
@@ -101,10 +114,11 @@ router.delete('/remove', authenticate, async (req, res) => {
     }
 
     // Remove token based on platform
-    if (platform === 'web' && worker.fcmTokens) {
-      worker.fcmTokens = worker.fcmTokens.filter(t => t !== token);
-    } else if (platform === 'mobile' && worker.fcmTokenMobile) {
+    const isMobile = isMobilePlatform(platform, req, req.body);
+    if (isMobile && worker.fcmTokenMobile) {
       worker.fcmTokenMobile = worker.fcmTokenMobile.filter(t => t !== token);
+    } else if (worker.fcmTokens) {
+      worker.fcmTokens = worker.fcmTokens.filter(t => t !== token);
     }
 
     await worker.save();
@@ -127,7 +141,7 @@ router.delete('/remove-all', authenticate, async (req, res) => {
     const { platform = 'web' } = req.body;
 
     // Clear only the specified platform's tokens
-    const updateQuery = platform === 'mobile'
+    const updateQuery = isMobilePlatform(platform, req, req.body)
       ? { $set: { fcmTokenMobile: [] } }
       : { $set: { fcmTokens: [] } };
 
