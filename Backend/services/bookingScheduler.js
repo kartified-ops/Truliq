@@ -326,10 +326,11 @@ class BookingScheduler {
           await createNotification({
             ...(bookingModel === 'worker' ? { workerId: partnerId } : { vendorId: partnerId }),
             type: 'booking_request',
-            title: 'New Booking Request',
+            title: 'New Booking Request 🔔',
             message: `New service request for ${serviceName} from ${customerName}`,
             relatedId: booking._id,
             relatedType: 'booking',
+            priority: 'high',
             data: {
               bookingId: booking._id,
               serviceName,
@@ -343,6 +344,7 @@ class BookingScheduler {
             },
             pushData: {
               type: 'new_booking',
+              priority: 'high',
               dataOnly: false,
               link: `/${bookingModel}/bookings/${booking._id}`
             }

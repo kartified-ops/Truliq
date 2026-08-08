@@ -111,7 +111,7 @@ const createNotification = async ({
       const payload = {
         title: title,
         body: message,
-        priority: priority || pushData.priority || 'normal',
+        priority: priority || pushData.priority || 'high',
         data: {
           ...data,
           ...pushData,

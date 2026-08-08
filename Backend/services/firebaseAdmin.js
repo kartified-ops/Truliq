@@ -156,6 +156,11 @@ async function sendPushNotification(recipientOrTokens, payload) {
         icon: 'ic_notification',
         color: '#FF6B00',
         sound: 'default',
+        channelId: payload.channelId || 'high_importance_channel',
+        priority: 'high',
+        visibility: 'public',
+        defaultSound: true,
+        defaultVibrateTimings: true,
       };
       message.apns = {
         headers: { 'apns-priority': '10', 'apns-push-type': 'alert' },
@@ -168,6 +173,7 @@ async function sendPushNotification(recipientOrTokens, payload) {
             sound: 'default',
             badge: 1,
             'mutable-content': 1,
+            'content-available': 1
           }
         }
       };
@@ -385,7 +391,7 @@ async function sendNotificationToWorker(workerId, payload, includeMobile = true)
     const finalPayload = {
       ...payload,
       title: `👷 [Pro] ${payload.title}`, // Add identification
-      dataOnly: true // FORCE DATA-ONLY FOR WORKERS so SW can play loud sound
+      dataOnly: false // Allow OS system notification + sound for workers
     };
 
     await sendPushNotification(tokens, finalPayload);
