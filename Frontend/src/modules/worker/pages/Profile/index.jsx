@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiUser, FiEdit2, FiMapPin, FiPhone, FiMail, FiBriefcase, FiStar, FiChevronRight, FiTag, FiLogOut, FiTrash2 } from 'react-icons/fi';
+import { FiUser, FiEdit2, FiMapPin, FiPhone, FiMail, FiBriefcase, FiStar, FiChevronRight, FiTag, FiLogOut, FiTrash2, FiBell, FiRefreshCw } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 import { workerTheme as themeColors } from '../../../../theme';
 import { workerAuthService } from '../../../../services/authService';
+import workerService from '../../../../services/workerService';
+import { registerFCMToken, requestNotificationPermission } from '../../../../services/pushNotificationService';
 import Header from '../../components/layout/Header';
 import BottomNav from '../../components/layout/BottomNav';
 import LogoLoader from '../../../../components/common/LogoLoader';
@@ -148,6 +150,26 @@ const Profile = () => {
   if (!profile) {
     return null;
   }
+
+  const handleTestPush = async () => {
+    try {
+      const loadingToast = toast.loading('Sending test push notification...');
+      try {
+        await registerFCMToken('worker', false);
+      } catch (e) {}
+
+      const res = await workerService.testPushNotification();
+      toast.dismiss(loadingToast);
+      if (res.success) {
+        toast.success('Test push sent! Check your notification tray.');
+      } else {
+        toast.error(res.error || 'Failed to send test push');
+      }
+    } catch (err) {
+      console.error('Test push error:', err);
+      toast.error('Error triggering test push: ' + (err.response?.data?.error || err.message || 'Unknown error'));
+    }
+  };
 
   return (
     <div className="min-h-screen pb-20" style={{ background: themeColors.backgroundGradient }}>
@@ -390,6 +412,70 @@ const Profile = () => {
           </div>
           <FiChevronRight className="w-5 h-5 text-gray-400" />
         </button>
+
+        {/* Push Notification Controls & Status */}
+        <div className="bg-white rounded-xl p-4 mt-4 shadow-md" style={{ boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)' }}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <FiBell className="w-5 h-5 text-orange-500" />
+              <div>
+                <h3 className="font-bold text-gray-800 text-sm">Push Notifications</h3>
+                <p className="text-xs text-gray-500">
+                  Status:{' '}
+                  {typeof window !== 'undefined' && window.Notification && Notification.permission === 'granted' ? (
+                    <span className="text-emerald-600 font-bold">Enabled</span>
+                  ) : (
+                    <span className="text-rose-500 font-bold">Disabled</span>
+                  )}
+                </p>
+              </div>
+            </div>
+            {typeof window !== 'undefined' && window.Notification && Notification.permission !== 'granted' && (
+              <button
+                onClick={async () => {
+                  const granted = await requestNotificationPermission();
+                  if (granted) {
+                    toast.success('Notification permission granted!');
+                    await registerFCMToken('worker', true);
+                  } else {
+                    toast.error('Permission denied in browser settings.');
+                  }
+                }}
+                className="px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-bold shadow active:scale-95 transition-all"
+              >
+                Enable
+              </button>
+            )}
+          </div>
+
+          <div className="flex gap-2 pt-2 border-t border-gray-100">
+            <button
+              onClick={handleTestPush}
+              className="flex-1 py-2 bg-orange-500 text-white rounded-xl text-xs font-bold shadow hover:bg-orange-600 active:scale-95 transition-all flex items-center justify-center gap-1.5"
+            >
+              <FiBell className="w-3.5 h-3.5" /> Test Push Notification
+            </button>
+            <button
+              onClick={async () => {
+                const loadingToast = toast.loading('Re-registering FCM token...');
+                const token = await registerFCMToken('worker', true);
+                toast.dismiss(loadingToast);
+                if (token) {
+                  toast.success('FCM Token registered successfully!');
+                }
+              }}
+              className="px-3 py-2 bg-gray-100 text-gray-700 rounded-xl text-xs font-semibold hover:bg-gray-200 active:scale-95 transition-all flex items-center justify-center gap-1"
+            >
+              <FiRefreshCw className="w-3.5 h-3.5" /> Refresh
+            </button>
+          </div>
+
+          {typeof window !== 'undefined' && !window.isSecureContext && (
+            <p className="text-[10px] text-amber-600 font-bold mt-2">
+              ⚠️ Insecure connection (HTTP). Web Push requires HTTPS or localhost on mobile.
+            </p>
+          )}
+        </div>
       </main>
 
       <BottomNav />

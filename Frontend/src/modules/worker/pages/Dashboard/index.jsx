@@ -5,7 +5,6 @@ import { FaWallet } from 'react-icons/fa';
 import { workerTheme as themeColors, vendorTheme } from '../../../../theme';
 import Header from '../../components/layout/Header';
 import workerService from '../../../../services/workerService';
-import { registerFCMToken } from '../../../../services/pushNotificationService';
 import { SkeletonProfileHeader, SkeletonDashboardStats, SkeletonList } from '../../../../components/common/SkeletonLoaders';
 import OptimizedImage from '../../../../components/common/OptimizedImage';
 import { useSocket } from '../../../../context/SocketContext';
@@ -580,56 +579,7 @@ const Dashboard = () => {
         </div>
         */}
 
-        {/* Notification Status & Test Push Controls */}
-        <div className="px-4 py-2">
-          <div className="bg-white/80 backdrop-blur-md rounded-2xl p-3 border border-orange-100 shadow-sm flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div
-                className={`w-2.5 h-2.5 rounded-full ${typeof window !== 'undefined' && window.Notification && Notification.permission === 'granted' ? 'bg-emerald-500 shadow-sm shadow-emerald-200' : 'bg-rose-500 animate-pulse'}`}
-              />
-              <div>
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Push Status</p>
-                <p className={`text-xs font-bold ${typeof window !== 'undefined' && window.Notification && Notification.permission === 'granted' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                  {typeof window !== 'undefined' && window.Notification && Notification.permission === 'granted' ? '✅ Enabled' : '❌ Disabled'}
-                </p>
-              </div>
-            </div>
 
-            <div className="flex gap-2">
-              <button
-                onClick={handleTestPush}
-                className="px-3 py-1.5 bg-orange-500 text-white rounded-xl text-xs font-bold shadow-md shadow-orange-500/20 hover:bg-orange-600 active:scale-95 transition-all flex items-center gap-1"
-              >
-                🔔 Test Push
-              </button>
-              <button
-                onClick={async () => {
-                  const { toast } = await import('react-hot-toast');
-                  const loadingToast = toast.loading('Re-registering FCM token...');
-                  const token = await registerFCMToken('worker', true);
-                  toast.dismiss(loadingToast);
-                  if (token) {
-                    toast.success('FCM Token registered successfully!');
-                  } else {
-                    toast.error('Token registration failed');
-                  }
-                }}
-                className="px-2.5 py-1.5 bg-gray-100 text-gray-700 rounded-xl text-xs font-semibold hover:bg-gray-200 active:scale-95 transition-all"
-              >
-                🔄 Refresh Token
-              </button>
-            </div>
-          </div>
-          {typeof window !== 'undefined' && !window.isSecureContext ? (
-            <p className="text-[10px] text-amber-600 font-bold mt-1 px-1">
-              ⚠️ Insecure connection (HTTP). Web Push requires HTTPS or localhost on mobile.
-            </p>
-          ) : typeof window !== 'undefined' && window.Notification && Notification.permission !== 'granted' ? (
-            <p className="text-[10px] text-rose-500 font-bold mt-1 px-1">
-              ⚠️ Notifications disabled. Click 🔒 icon in browser URL bar to allow.
-            </p>
-          ) : null}
-        </div>
 
         {/* Stats Cards - Outside Gradient */}
         <div className="px-4 pt-4">
