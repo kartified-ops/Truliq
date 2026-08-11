@@ -147,10 +147,6 @@ const Profile = () => {
     );
   }
 
-  if (!profile) {
-    return null;
-  }
-
   const handleTestPush = async () => {
     try {
       const loadingToast = toast.loading('Sending test push notification...');
@@ -170,6 +166,10 @@ const Profile = () => {
       toast.error('Error triggering test push: ' + (err.response?.data?.error || err.message || 'Unknown error'));
     }
   };
+
+  if (!profile) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen pb-20" style={{ background: themeColors.backgroundGradient }}>

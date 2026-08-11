@@ -5,6 +5,7 @@ import { FaWallet } from 'react-icons/fa';
 import { workerTheme as themeColors, vendorTheme } from '../../../../theme';
 import Header from '../../components/layout/Header';
 import workerService from '../../../../services/workerService';
+import { registerFCMToken } from '../../../../services/pushNotificationService';
 import { SkeletonProfileHeader, SkeletonDashboardStats, SkeletonList } from '../../../../components/common/SkeletonLoaders';
 import OptimizedImage from '../../../../components/common/OptimizedImage';
 import { useSocket } from '../../../../context/SocketContext';
@@ -298,34 +299,7 @@ const Dashboard = () => {
     };
   }, [socket, recentJobs]);
 
-  // Test Push Notification
-  const handleTestPush = async () => {
-    try {
-      const { toast } = await import('react-hot-toast');
-      const loadingToast = toast.loading('Sending test push notification...');
 
-      // Try refreshing token non-blockingly
-      try {
-        await registerFCMToken('worker', false);
-      } catch (tokenErr) {
-        console.warn('[Test Push] Token refresh warning:', tokenErr);
-      }
-
-      // Always call backend to send push to worker's saved FCM tokens in MongoDB
-      const res = await workerService.testPushNotification();
-
-      toast.dismiss(loadingToast);
-      if (res.success) {
-        toast.success('Test push sent! Check your notification tray.');
-      } else {
-        toast.error(res.error || 'Failed to send test push');
-      }
-    } catch (err) {
-      console.error('Test push error:', err);
-      const { toast } = await import('react-hot-toast');
-      toast.error('Error triggering test push: ' + (err.response?.data?.error || err.message || 'Unknown error'));
-    }
-  };
 
   if (loading) {
     return (
