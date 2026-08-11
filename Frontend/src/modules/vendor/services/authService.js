@@ -85,8 +85,8 @@ export const verifyLogin = async (data) => {
 
       // Register FCM token after successful login
       console.log('[VENDOR AUTH] Vendor login successful via verify-login, registering FCM token...');
-      registerFCMToken('vendor', true).catch(err => {
-        console.error('[VENDOR AUTH] FCM token registration failed:', err);
+      registerFCMToken('vendor', false).catch(err => {
+        console.warn('[VENDOR AUTH] Silent FCM token registration skipped:', err);
       });
     }
     return response.data;

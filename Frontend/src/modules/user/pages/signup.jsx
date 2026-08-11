@@ -117,7 +117,7 @@ const Signup = () => {
         if (response.success) {
           try {
             const { registerFCMToken } = await import('../../../services/pushNotificationService');
-            await registerFCMToken('user', true);
+            await registerFCMToken('user', false);
           } catch (e) { console.error(e); }
 
           toast.success(
@@ -206,7 +206,7 @@ const Signup = () => {
         setIsLoading(false);
         try {
           const { registerFCMToken } = await import('../../../services/pushNotificationService');
-          await registerFCMToken('user', true);
+          await registerFCMToken('user', false);
         } catch (fcmError) {
           console.error('FCM Registration failed on signup:', fcmError);
         }

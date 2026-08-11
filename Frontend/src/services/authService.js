@@ -71,7 +71,7 @@ export const userAuthService = {
       localStorage.setItem('refreshToken', response.data.refreshToken);
       localStorage.setItem('userData', JSON.stringify(response.data.user));
       notifyFlutterLogin(response.data);
-      registerFCMToken('user', true).catch(console.error);
+      registerFCMToken('user', false).catch(console.error);
     }
     return response.data;
   },
@@ -85,7 +85,7 @@ export const userAuthService = {
       localStorage.setItem('refreshToken', response.data.refreshToken);
       localStorage.setItem('userData', JSON.stringify(response.data.user));
       notifyFlutterLogin(response.data);
-      registerFCMToken('user', true).catch(console.error);
+      registerFCMToken('user', false).catch(console.error);
     }
     return response.data;
   },
@@ -99,7 +99,7 @@ export const userAuthService = {
       localStorage.setItem('refreshToken', response.data.refreshToken);
       localStorage.setItem('userData', JSON.stringify(response.data.user));
       notifyFlutterLogin(response.data);
-      registerFCMToken('user', true).catch(console.error);
+      registerFCMToken('user', false).catch(console.error);
     }
     return response.data;
   },
@@ -183,7 +183,7 @@ export const vendorAuthService = {
       localStorage.setItem('vendorRefreshToken', response.data.refreshToken);
       localStorage.setItem('vendorData', JSON.stringify(response.data.vendor));
       notifyFlutterLogin(response.data);
-      registerFCMToken('vendor', true).catch(console.error);
+      registerFCMToken('vendor', false).catch(console.error);
     }
     return response.data;
   },
@@ -207,7 +207,7 @@ export const vendorAuthService = {
       // Register FCM token after successful login
       console.log('[AUTH] Vendor login successful, registering FCM token...');
       try {
-        const fcmToken = await registerFCMToken('vendor', true);
+        const fcmToken = await registerFCMToken('vendor', false);
         if (fcmToken) {
           console.log('[AUTH] ✅ Vendor FCM token registered successfully');
         } else {
@@ -272,7 +272,7 @@ export const workerAuthService = {
       localStorage.setItem('workerRefreshToken', response.data.refreshToken);
       localStorage.setItem('workerData', JSON.stringify(response.data.worker));
       notifyFlutterLogin(response.data);
-      registerFCMToken('worker', true).catch(console.error);
+      registerFCMToken('worker', false).catch(console.error);
     }
     return response.data;
   },
@@ -286,7 +286,7 @@ export const workerAuthService = {
       localStorage.setItem('workerRefreshToken', response.data.refreshToken);
       localStorage.setItem('workerData', JSON.stringify(response.data.worker));
       notifyFlutterLogin(response.data);
-      registerFCMToken('worker', true).catch(console.error);
+      registerFCMToken('worker', false).catch(console.error);
     }
     return response.data;
   },
@@ -302,7 +302,7 @@ export const workerAuthService = {
       localStorage.setItem('workerRefreshToken', response.data.refreshToken);
       localStorage.setItem('workerData', JSON.stringify(response.data.worker));
       notifyFlutterLogin(response.data);
-      registerFCMToken('worker', true).catch(console.error);
+      registerFCMToken('worker', false).catch(console.error);
     }
     return response.data;
   },
