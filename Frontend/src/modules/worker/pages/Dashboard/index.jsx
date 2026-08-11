@@ -303,16 +303,16 @@ const Dashboard = () => {
   const handleTestPush = async () => {
     try {
       const { toast } = await import('react-hot-toast');
-      const loadingToast = toast.loading('Registering FCM token & sending push...');
+      const loadingToast = toast.loading('Sending test push notification...');
 
-      // First register/refresh token on user gesture
-      const token = await registerFCMToken('worker', true);
-      if (!token) {
-        toast.dismiss(loadingToast);
-        toast.error('FCM Token registration failed. Please allow notifications in browser settings!');
-        return;
+      // Try refreshing token non-blockingly
+      try {
+        await registerFCMToken('worker', false);
+      } catch (tokenErr) {
+        console.warn('[Test Push] Token refresh warning:', tokenErr);
       }
 
+      // Always call backend to send push to worker's saved FCM tokens in MongoDB
       const res = await workerService.testPushNotification();
 
       toast.dismiss(loadingToast);
@@ -324,7 +324,7 @@ const Dashboard = () => {
     } catch (err) {
       console.error('Test push error:', err);
       const { toast } = await import('react-hot-toast');
-      toast.error('Error triggering test push: ' + (err.message || 'Unknown error'));
+      toast.error('Error triggering test push: ' + (err.response?.data?.error || err.message || 'Unknown error'));
     }
   };
 
@@ -620,11 +620,15 @@ const Dashboard = () => {
               </button>
             </div>
           </div>
-          {typeof window !== 'undefined' && window.Notification && Notification.permission !== 'granted' && (
+          {typeof window !== 'undefined' && !window.isSecureContext ? (
+            <p className="text-[10px] text-amber-600 font-bold mt-1 px-1">
+              ⚠️ Insecure connection (HTTP). Web Push requires HTTPS or localhost on mobile.
+            </p>
+          ) : typeof window !== 'undefined' && window.Notification && Notification.permission !== 'granted' ? (
             <p className="text-[10px] text-rose-500 font-bold mt-1 px-1">
               ⚠️ Notifications disabled. Click 🔒 icon in browser URL bar to allow.
             </p>
-          )}
+          ) : null}
         </div>
 
         {/* Stats Cards - Outside Gradient */}

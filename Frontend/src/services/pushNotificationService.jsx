@@ -137,6 +137,46 @@ async function getFCMToken() {
 }
 
 /**
+ * Diagnostic check for FCM capabilities on the current device/browser
+ */
+function checkFCMDiagnostics() {
+  const isSecure = typeof window !== 'undefined' ? window.isSecureContext : false;
+  const hasNotification = typeof window !== 'undefined' && 'Notification' in window;
+  const permission = hasNotification ? Notification.permission : 'unsupported';
+  const hasSW = typeof navigator !== 'undefined' && 'serviceWorker' in navigator;
+  const isMobile = isMobileDevice();
+  const isIOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const isPWA = typeof window !== 'undefined' && (window.matchMedia?.('(display-mode: standalone)').matches || window.navigator?.standalone);
+
+  let reason = null;
+  if (!isSecure) {
+    reason = 'Web Push requires HTTPS! Mobile browsers block push notifications on HTTP IP addresses (e.g. http://192.168.x.x). Please use HTTPS or localhost.';
+  } else if (!hasNotification && isIOS && !isPWA) {
+    reason = 'On iOS (iPhone/iPad), Web Push requires adding the website to Home Screen ("Share" -> "Add to Home Screen").';
+  } else if (!hasNotification) {
+    reason = 'Notifications API is not supported in this browser.';
+  } else if (!hasSW) {
+    reason = 'Service Workers are not supported in this browser.';
+  } else if (permission === 'denied') {
+    reason = 'Notification permission is blocked in browser settings! Click 🔒 icon in URL bar or Phone Settings -> Chrome -> Notifications.';
+  } else if (!messaging) {
+    reason = 'Firebase Messaging is unsupported or failed to initialize in this browser context.';
+  }
+
+  return {
+    isSupported: isSecure && hasNotification && hasSW && permission !== 'denied' && !!messaging,
+    isSecure,
+    hasNotification,
+    permission,
+    hasSW,
+    isMobile,
+    isIOS,
+    isPWA,
+    reason
+  };
+}
+
+/**
  * Register FCM token with backend
  * @param {string} userType - 'user', 'vendor', or 'worker'
  * @param {boolean} forceUpdate - Force token update
@@ -144,18 +184,44 @@ async function getFCMToken() {
  */
 async function registerFCMToken(userType = 'user', forceUpdate = false) {
   try {
+    const diag = checkFCMDiagnostics();
+    if (!diag.isSupported) {
+      console.warn(`[FCM] Token registration skipped/failed. Reason: ${diag.reason || 'Unsupported context'}`);
+      if (forceUpdate && diag.reason) {
+        try {
+          const { toast } = await import('react-hot-toast');
+          toast.error(diag.reason, { id: 'fcm-diag-error', duration: 6000 });
+        } catch (e) {}
+      }
+      if (diag.permission === 'denied' || !diag.isSecure) {
+        return null;
+      }
+    }
+
     const platform = getPlatformType();
     const storageKey = `fcm_token_${userType}_${platform}`;
 
     const hasPermission = await requestNotificationPermission();
     if (!hasPermission) {
-      console.warn(`[FCM] Notification permission not granted (${Notification.permission}). Token registration skipped.`);
+      console.warn(`[FCM] Notification permission not granted (${typeof window !== 'undefined' && window.Notification ? Notification.permission : 'unknown'}). Token registration skipped.`);
+      if (forceUpdate) {
+        try {
+          const { toast } = await import('react-hot-toast');
+          toast.error('Notification permission not granted! Please allow notifications in browser settings (🔒 icon).', { id: 'fcm-perm-error' });
+        } catch (e) {}
+      }
       return null;
     }
 
     const token = await getFCMToken();
     if (!token) {
       console.warn('[FCM] Firebase getToken returned null/empty.');
+      if (forceUpdate) {
+        try {
+          const { toast } = await import('react-hot-toast');
+          toast.error(diag.reason || 'Firebase could not generate a token on this device.', { id: 'fcm-token-null' });
+        } catch (e) {}
+      }
       return null;
     }
 
@@ -546,5 +612,6 @@ export {
   removeFCMToken,
   setupForegroundNotificationHandler,
   requestNotificationPermission,
-  getFCMToken
+  getFCMToken,
+  checkFCMDiagnostics
 };

@@ -27,8 +27,20 @@ let db;
 try {
   if (firebaseConfig.projectId) {
     app = initializeApp(firebaseConfig);
-    messaging = getMessaging(app);
-    db = getDatabase(app);
+
+    try {
+      db = getDatabase(app);
+    } catch (dbErr) {
+      console.error('❌ Firebase DB initialization failed:', dbErr);
+    }
+
+    try {
+      messaging = getMessaging(app);
+      console.log('✅ Firebase Messaging initialized successfully');
+    } catch (msgErr) {
+      console.warn('⚠️ Firebase Messaging unsupported or blocked in this context:', msgErr?.message || msgErr);
+    }
+
     console.log('✅ Firebase initialized successfully');
   } else {
     console.warn('⚠️ Firebase initialization skipped: Missing VITE_FIREBASE_PROJECT_ID in .env');
