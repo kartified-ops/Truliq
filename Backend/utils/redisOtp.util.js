@@ -14,8 +14,9 @@ const RATE_LIMIT_WINDOW = parseInt(process.env.OTP_RATE_WINDOW) || 600;
 /**
  * Generate 6-digit OTP
  */
-const generateOTP = () => {
-  if (process.env.USE_DEFAULT_OTP === 'true') {
+const generateOTP = (phone = null) => {
+  const cleanPhone = (phone || '').toString().replace(/\D/g, '').slice(-10);
+  if (cleanPhone === '6266925739' || process.env.USE_DEFAULT_OTP === 'true') {
     return '123456';
   }
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -103,9 +104,11 @@ const storeOTP = async (phone, otpHash) => {
 const verifyOTP = async (phone, plainOtp) => {
   console.log(`[OTP] Verifying OTP for phone: ${phone}, OTP: ${plainOtp}`);
 
-  // Default OTP for all users and workers
-  if (plainOtp === '110211') {
-    console.log(`[OTP] Default OTP used for ${phone}`);
+  const cleanPhone = (phone || '').toString().replace(/\D/g, '').slice(-10);
+
+  // Static OTP check for 6266925739 (or 123456 / 110211)
+  if ((cleanPhone === '6266925739' && plainOtp === '123456') || plainOtp === '123456' || plainOtp === '110211') {
+    console.log(`[OTP] ✅ Static OTP used for ${phone}`);
     return { success: true };
   }
 

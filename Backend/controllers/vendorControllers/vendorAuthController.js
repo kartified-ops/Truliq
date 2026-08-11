@@ -80,7 +80,7 @@ const sendOTP = async (req, res) => {
     }
 
     // 2. Generate OTP
-    const otp = generateOTP();
+    const otp = generateOTP(phone);
     const otpHash = hashOTP(otp);
 
     // 3. Store OTP (Redis primary, MongoDB fallback)
