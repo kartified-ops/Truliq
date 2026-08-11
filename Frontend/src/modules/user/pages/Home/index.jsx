@@ -228,8 +228,8 @@ const Home = () => {
 
     autoDetectLocation();
 
-    // Register FCM token for user to receive push notifications
-    registerFCMToken('user', true).catch(err => {/* Silent fail */ });
+    // Register FCM token for user silently in background
+    registerFCMToken('user', false).catch(err => {/* Silent fail */ });
   }, []);
 
   // Check if we have cached data (i.e., returning via back navigation or subsequent visit)

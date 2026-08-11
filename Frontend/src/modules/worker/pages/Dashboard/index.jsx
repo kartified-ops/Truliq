@@ -272,8 +272,8 @@ const Dashboard = () => {
   useEffect(() => {
     fetchDashboardData();
 
-    // Ask for notification permission and register FCM
-    registerFCMToken('worker', true).catch(err => console.error('FCM registration failed:', err));
+    // Register FCM token silently in background on page mount
+    registerFCMToken('worker', false).catch(err => console.warn('[FCM] Silent auto-register skipped:', err));
 
     // Listen for updates
     const handleUpdate = () => {

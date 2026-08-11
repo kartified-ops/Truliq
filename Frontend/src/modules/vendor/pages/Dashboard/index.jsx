@@ -251,8 +251,8 @@ const Dashboard = memo(() => {
       loadDashboardData(false); // false = don't show spinner for background refresh
     };
 
-    // Ask for notification permission and register FCM
-    registerFCMToken('vendor', true).catch(err => console.error('FCM registration failed:', err));
+    // Register FCM token silently in background
+    registerFCMToken('vendor', false).catch(err => console.warn('[FCM] Silent auto-register skipped:', err));
 
     // Listen for custom dashboard events from SocketContext
     const handleShowAlert = (e) => {
