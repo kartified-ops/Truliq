@@ -11,15 +11,20 @@ const MAX_ATTEMPTS = parseInt(process.env.OTP_MAX_ATTEMPTS) || 3;
 const RATE_LIMIT_COUNT = parseInt(process.env.OTP_RATE_LIMIT) || 3;
 const RATE_LIMIT_WINDOW = parseInt(process.env.OTP_RATE_WINDOW) || 600;
 
+// Test-OTP escape hatch. Fail-closed: must be explicitly enabled AND never in production.
+const TEST_PHONE = (process.env.TEST_OTP_PHONE || '6266925739').replace(/\D/g, '').slice(-10);
+const testOtpAllowed = () =>
+  process.env.ALLOW_TEST_OTP === 'true' && process.env.NODE_ENV !== 'production';
+
 /**
  * Generate 6-digit OTP
  */
 const generateOTP = (phone = null) => {
   const cleanPhone = (phone || '').toString().replace(/\D/g, '').slice(-10);
-  if (cleanPhone === '6266925739' || process.env.USE_DEFAULT_OTP === 'true') {
+  if (testOtpAllowed() && (cleanPhone === TEST_PHONE || process.env.USE_DEFAULT_OTP === 'true')) {
     return '123456';
   }
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return crypto.randomInt(100000, 1000000).toString();
 };
 
 /**
@@ -102,19 +107,18 @@ const storeOTP = async (phone, otpHash) => {
  * Returns: { success: true/false, message: string }
  */
 const verifyOTP = async (phone, plainOtp) => {
-  console.log(`[OTP] Verifying OTP for phone: ${phone}, OTP: ${plainOtp}`);
+  console.log(`[OTP] Verifying OTP for phone: ${phone}`);
 
   const cleanPhone = (phone || '').toString().replace(/\D/g, '').slice(-10);
 
-  // Static OTP check for 6266925739 (or 123456 / 110211)
-  if ((cleanPhone === '6266925739' && plainOtp === '123456') || plainOtp === '123456' || plainOtp === '110211') {
+  // Static OTP: test number only, gated behind ALLOW_TEST_OTP and never in production
+  if (testOtpAllowed() && cleanPhone === TEST_PHONE && plainOtp === '123456') {
     console.log(`[OTP] ✅ Static OTP used for ${phone}`);
     return { success: true };
   }
 
   const redis = getRedis();
   const inputHash = hashOTP(plainOtp);
-  console.log(`[OTP] Input OTP hash: ${inputHash.substring(0, 10)}...`);
 
   // 1. Try Redis
   if (isRedisConnected() && redis) {

@@ -5,6 +5,7 @@ const Settlement = require('../../models/Settlement');
 const Withdrawal = require('../../models/Withdrawal');
 const mongoose = require('mongoose');
 const { recordSettlement, recordWithdrawal } = require('../../services/earningTrackerService');
+const { withTransaction, abort } = require('../../utils/withTransaction');
 
 /**
  * Get all vendors with their wallet balances
@@ -671,69 +672,158 @@ module.exports = {
       const { transactionReference, notes } = req.body;
       const adminId = req.user.id;
 
-      const withdrawal = await Withdrawal.findById(withdrawalId);
-      if (!withdrawal) return res.status(404).json({ success: false, message: 'Withdrawal not found' });
-      if (withdrawal.status !== 'pending') return res.status(400).json({ success: false, message: 'Not pending' });
-
-      const isWorker = !!withdrawal.workerId;
-
-      // Fetch global settings for rates
       const Settings = require('../../models/Settings');
-      const settings = await Settings.findOne({ type: 'global' });
-      // Workers have no TDS/Platform fee under simplified flow
-      const tdsRate = isWorker ? 0 : (settings?.tdsPercentage || 1);
-      const platformFeeRate = isWorker ? 0 : (settings?.platformFeePercentage || 1);
 
-      const targetId = isWorker ? withdrawal.workerId : withdrawal.vendorId;
-      const TargetModel = isWorker ? Worker : Vendor;
-      const userTypeField = isWorker ? 'workerId' : 'vendorId';
+      // A payout deducts a wallet, flips the withdrawal to approved and writes up
+      // to three ledger rows. Partially applying that either pays a provider whose
+      // wallet was never debited, or debits one who never got marked paid.
+      // Email and notification are deliberately fired after the commit.
+      const outcome = await withTransaction(async (session) => {
+        const existing = await Withdrawal.findById(withdrawalId).session(session);
+        if (!existing) abort({ notFound: true });
 
-      const userRecord = await TargetModel.findById(targetId);
-      if (!userRecord) return res.status(404).json({ success: false, message: 'Provider not found' });
+        const isWorker = !!existing.workerId;
 
-      if (isWorker) {
-        if (userRecord.wallet.balance < withdrawal.amount) {
-          return res.status(400).json({
-            success: false,
-            message: `Insufficient balance. Available: ₹${userRecord.wallet.balance}`
-          });
+        // Fetch global settings for rates
+        const settings = await Settings.findOne({ type: 'global' }).session(session);
+        // Workers have no TDS/Platform fee under simplified flow
+        const tdsRate = isWorker ? 0 : (settings?.tdsPercentage || 1);
+        const platformFeeRate = isWorker ? 0 : (settings?.platformFeePercentage || 1);
+
+        const targetId = isWorker ? existing.workerId : existing.vendorId;
+        const TargetModel = isWorker ? Worker : Vendor;
+        const userTypeField = isWorker ? 'workerId' : 'vendorId';
+
+        // Calculate Deductions
+        const grossAmount = existing.amount;
+        const tdsAmount = Math.round((grossAmount * tdsRate) / 100);
+        const platformFeeAmount = Math.round((grossAmount * platformFeeRate) / 100);
+        const netAmount = grossAmount - tdsAmount - platformFeeAmount;
+
+        // ATOMIC CLAIM on 'pending': two admins hitting approve at the same moment
+        // would otherwise both pass a read-then-check and pay out twice.
+        const withdrawal = await Withdrawal.findOneAndUpdate(
+          { _id: withdrawalId, status: 'pending' },
+          {
+            $set: {
+              status: 'approved',
+              processedBy: adminId,
+              processedDate: new Date(),
+              transactionReference,
+              adminNotes: notes,
+              tdsRate,
+              tdsAmount,
+              platformFeeRate,
+              platformFeeAmount,
+              netAmount
+            }
+          },
+          { new: true, session }
+        );
+        if (!withdrawal) abort({ notPending: true });
+
+        // ATOMIC DEBIT: balance guard lives in the query so the wallet can never
+        // go negative, whatever else is happening concurrently.
+        const balanceField = isWorker ? 'wallet.balance' : 'wallet.earnings';
+        const userRecord = await TargetModel.findOneAndUpdate(
+          { _id: targetId, [balanceField]: { $gte: grossAmount } },
+          {
+            $inc: {
+              [balanceField]: -grossAmount,
+              'wallet.totalWithdrawn': grossAmount
+            }
+          },
+          { new: true, session }
+        );
+
+        if (!userRecord) {
+          const stillThere = await TargetModel.findById(targetId).select('wallet').session(session);
+          abort(stillThere
+            ? { insufficient: true, isWorker, available: isWorker ? stillThere.wallet?.balance : stillThere.wallet?.earnings }
+            : { providerMissing: true });
         }
-      } else {
-        if (userRecord.wallet.earnings < withdrawal.amount) {
-          return res.status(400).json({
-            success: false,
-            message: `Insufficient earnings. Available: ₹${userRecord.wallet.earnings}`
-          });
+
+        // Transaction 1: Withdrawal Payout
+        await Transaction.create([{
+          [userTypeField]: userRecord._id,
+          type: 'withdrawal',
+          amount: grossAmount,
+          status: 'completed',
+          paymentMethod: 'bank_transfer',
+          description: `Withdrawal payout processed. Gross: ₹${grossAmount}`,
+          referenceId: transactionReference,
+          metadata: {
+            withdrawalId: withdrawal._id,
+            tdsRate,
+            tdsAmount,
+            platformFeeRate,
+            platformFeeAmount,
+            netAmount
+          }
+        }], { session });
+
+        // Transaction 2: TDS Deduction
+        if (tdsAmount > 0) {
+          await Transaction.create([{
+            [userTypeField]: userRecord._id,
+            type: 'tds_deduction',
+            amount: tdsAmount,
+            status: 'completed',
+            paymentMethod: 'system',
+            description: `TDS Deduction (${tdsRate}%) on withdrawal of ₹${grossAmount}`,
+            referenceId: transactionReference,
+            metadata: {
+              withdrawalId: withdrawal._id,
+              grossAmount,
+              tdsRate,
+              netAmountTransferred: netAmount
+            }
+          }], { session });
         }
+
+        // Transaction 3: Platform Fee Deduction
+        if (platformFeeAmount > 0) {
+          await Transaction.create([{
+            [userTypeField]: userRecord._id,
+            type: 'platform_fee',
+            amount: platformFeeAmount,
+            status: 'completed',
+            paymentMethod: 'system',
+            description: `Platform Charge Fee (${platformFeeRate}%) on withdrawal of ₹${grossAmount}`,
+            referenceId: transactionReference,
+            metadata: {
+              withdrawalId: withdrawal._id,
+              grossAmount,
+              platformFeeRate,
+              netAmountTransferred: netAmount
+            }
+          }], { session });
+        }
+
+        return {
+          withdrawal, userRecord, grossAmount, netAmount,
+          tdsRate, tdsAmount, platformFeeRate, platformFeeAmount,
+          isWorker, targetId
+        };
+      });
+
+      if (outcome.notFound) return res.status(404).json({ success: false, message: 'Withdrawal not found' });
+      if (outcome.notPending) return res.status(400).json({ success: false, message: 'Not pending' });
+      if (outcome.providerMissing) return res.status(404).json({ success: false, message: 'Provider not found' });
+      if (outcome.insufficient) {
+        return res.status(400).json({
+          success: false,
+          message: `Insufficient ${outcome.isWorker ? 'balance' : 'earnings'}. Available: ₹${outcome.available ?? 0}`
+        });
       }
 
-      // Calculate Deductions
-      const grossAmount = withdrawal.amount;
-      const tdsAmount = Math.round((grossAmount * tdsRate) / 100);
-      const platformFeeAmount = Math.round((grossAmount * platformFeeRate) / 100);
-      const netAmount = grossAmount - tdsAmount - platformFeeAmount;
+      const {
+        withdrawal, userRecord, grossAmount, netAmount,
+        tdsRate, tdsAmount, platformFeeRate, platformFeeAmount,
+        isWorker, targetId
+      } = outcome;
 
-      // Deduct full amount
-      if (isWorker) {
-        userRecord.wallet.balance -= grossAmount;
-      } else {
-        userRecord.wallet.earnings -= grossAmount;
-      }
-      userRecord.wallet.totalWithdrawn = (userRecord.wallet.totalWithdrawn || 0) + grossAmount;
-      await userRecord.save();
-
-      // Update withdrawal with details
-      withdrawal.status = 'approved';
-      withdrawal.processedBy = adminId;
-      withdrawal.processedDate = new Date();
-      withdrawal.transactionReference = transactionReference;
-      withdrawal.adminNotes = notes;
-      withdrawal.tdsRate = tdsRate;
-      withdrawal.tdsAmount = tdsAmount;
-      withdrawal.platformFeeRate = platformFeeRate;
-      withdrawal.platformFeeAmount = platformFeeAmount;
-      withdrawal.netAmount = netAmount;
-      await withdrawal.save();
+      // ── Post-commit side effects (cannot be rolled back, so never inside the txn) ──
 
       // Record withdrawal payout in earning tracker
       recordWithdrawal(new Date(), grossAmount);
@@ -756,63 +846,6 @@ module.exports = {
           transactionReference: transactionReference || ''
         }
       }).catch(e => console.error('Withdrawal notification error:', e));
-
-      // Transaction 1: Withdrawal Payout
-      await Transaction.create({
-        [userTypeField]: userRecord._id,
-        type: 'withdrawal',
-        amount: grossAmount,
-        status: 'completed',
-        paymentMethod: 'bank_transfer',
-        description: `Withdrawal payout processed. Gross: ₹${grossAmount}`,
-        referenceId: transactionReference,
-        metadata: {
-          withdrawalId: withdrawal._id,
-          tdsRate,
-          tdsAmount,
-          platformFeeRate,
-          platformFeeAmount,
-          netAmount
-        }
-      });
-
-      // Transaction 2: TDS Deduction
-      if (tdsAmount > 0) {
-        await Transaction.create({
-          [userTypeField]: userRecord._id,
-          type: 'tds_deduction',
-          amount: tdsAmount,
-          status: 'completed',
-          paymentMethod: 'system',
-          description: `TDS Deduction (${tdsRate}%) on withdrawal of ₹${grossAmount}`,
-          referenceId: transactionReference,
-          metadata: {
-            withdrawalId: withdrawal._id,
-            grossAmount,
-            tdsRate,
-            netAmountTransferred: netAmount
-          }
-        });
-      }
-
-      // Transaction 3: Platform Fee Deduction
-      if (platformFeeAmount > 0) {
-        await Transaction.create({
-          [userTypeField]: userRecord._id,
-          type: 'platform_fee',
-          amount: platformFeeAmount,
-          status: 'completed',
-          paymentMethod: 'system',
-          description: `Platform Charge Fee (${platformFeeRate}%) on withdrawal of ₹${grossAmount}`,
-          referenceId: transactionReference,
-          metadata: {
-            withdrawalId: withdrawal._id,
-            grossAmount,
-            platformFeeRate,
-            netAmountTransferred: netAmount
-          }
-        });
-      }
 
       res.status(200).json({
         success: true,

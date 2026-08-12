@@ -493,13 +493,20 @@ const refreshToken = async (req, res) => {
       });
     }
 
-    // Verify Session ID for Vendor (disabled for development/testing)
-    // if (decoded.loginSessionId !== vendor.loginSessionId) {
-    //   return res.status(401).json({
-    //     success: false,
-    //     message: 'Account logged in on a new device. Please login again.'
-    //   });
-    // }
+    // Verify Session ID — logout nulls it, a new login rotates it. Without this,
+    // refresh would happily mint a fresh access token for a logged-out session.
+    if (decoded.loginSessionId && vendor.loginSessionId !== decoded.loginSessionId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Session expired. Please login again.'
+      });
+    }
+
+    // Legacy tokens carry no session id — mint one now so the new token is revocable
+    if (!vendor.loginSessionId) {
+      vendor.loginSessionId = Date.now().toString();
+      await Vendor.findByIdAndUpdate(vendor._id, { loginSessionId: vendor.loginSessionId });
+    }
 
     // Generate new token pair with same session ID
     const tokens = generateTokenPair({

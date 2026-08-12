@@ -19,7 +19,10 @@ const verifyTopupValidation = [
   body('razorpay_order_id').trim().notEmpty().withMessage('Order ID is required'),
   body('razorpay_payment_id').trim().notEmpty().withMessage('Payment ID is required'),
   body('razorpay_signature').trim().notEmpty().withMessage('Signature is required'),
-  body('amount').isFloat({ min: 100 }).withMessage('Amount must be at least ₹100')
+  // The credited amount is read back from Razorpay, NOT from here — trusting the
+  // client's number was exploitable. This stays only as a dev-mock fallback for
+  // local runs with no Razorpay credentials, and is ignored in production.
+  body('amount').optional().isFloat({ min: 1 }).withMessage('Amount must be a positive number')
 ];
 
 // Routes

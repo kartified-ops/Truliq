@@ -1,5 +1,6 @@
 const Vendor = require('../../models/Vendor');
 const { validationResult } = require('express-validator');
+const { DEFAULT_SERVICE_PAYOUT_PCT } = require('../../utils/commission');
 
 /**
  * Get vendor settings
@@ -30,7 +31,7 @@ const getSettings = async (req, res) => {
         global: {
           serviceGstPercentage: globalSettings?.serviceGstPercentage ?? 18,
           partsGstPercentage: globalSettings?.partsGstPercentage ?? 18,
-          servicePayoutPercentage: globalSettings?.servicePayoutPercentage ?? 70,
+          servicePayoutPercentage: globalSettings?.servicePayoutPercentage ?? DEFAULT_SERVICE_PAYOUT_PCT,
           partsPayoutPercentage: globalSettings?.partsPayoutPercentage ?? 10
         }
       }

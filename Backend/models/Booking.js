@@ -195,6 +195,10 @@ const bookingSchema = new mongoose.Schema({
     default: PAYMENT_STATUS.PENDING,
     index: true
   },
+  refundedAmount: {
+    type: Number,
+    default: 0
+  },
   paymentMethod: {
     type: String, // 'wallet', 'razorpay', 'online', 'cash', 'card', 'plan_benefit'
     default: null

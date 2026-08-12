@@ -3,6 +3,8 @@ const Booking = require('../../models/Booking');
 const Worker = require('../../models/Worker');
 const { validationResult } = require('express-validator');
 const { BOOKING_STATUS, PAYMENT_STATUS } = require('../../utils/constants');
+const { DEFAULT_SERVICE_PAYOUT_PCT } = require('../../utils/commission');
+const { withTransaction, abort } = require('../../utils/withTransaction');
 const { createNotification } = require('../notificationControllers/notificationController');
 const { sendNotificationToUser, sendNotificationToVendor, sendNotificationToWorker } = require('../../services/firebaseAdmin');
 
@@ -1032,7 +1034,7 @@ const completeSelfJob = async (req, res) => {
     // ── Fetch Settings (frozen snapshot for this bill) ──
     const Settings = require('../../models/Settings');
     const settings = await Settings.findOne({ type: 'global' });
-    const serviceSplitPct = settings?.servicePayoutPercentage ?? 70;
+    const serviceSplitPct = settings?.servicePayoutPercentage ?? DEFAULT_SERVICE_PAYOUT_PCT;
     const partsSplitPct = settings?.partsPayoutPercentage ?? 10;
     const serviceGstPct = settings?.serviceGstPercentage ?? 18;
     const partsGstPct = settings?.partsGstPercentage ?? 18;
@@ -1286,106 +1288,119 @@ const collectSelfCash = async (req, res) => {
     const { id } = req.params;
     const { otp } = req.body;
 
-    const booking = await Booking.findOne({ _id: id, vendorId }).select('+paymentOtp');
-    if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
-    if (booking.status !== BOOKING_STATUS.WORK_DONE) return res.status(400).json({ success: false, message: 'Work not done yet' });
-    if (booking.paymentOtp !== otp) return res.status(400).json({ success: false, message: 'Invalid OTP' });
-
-    // ── Fetch the VendorBill (single source of truth) ──
     const VendorBill = require('../../models/VendorBill');
-    const bill = await VendorBill.findOne({ bookingId: booking._id });
-    if (!bill) return res.status(500).json({ success: false, message: 'Bill not found — cannot process payment' });
-
-    const grandTotal = Number(bill.grandTotal) || 0;
-    const vendorEarning = Number(bill.vendorTotalEarning) || 0;
-
-    // ── Update Booking status ──
-    booking.status = BOOKING_STATUS.COMPLETED;
-    booking.paymentMethod = 'cash collected'; // Standardized label
-    booking.paymentStatus = PAYMENT_STATUS.COLLECTED_BY_VENDOR;
-    booking.cashCollected = true;
-    booking.cashCollectedBy = 'vendor';
-    booking.cashCollectorId = vendorId;
-    booking.cashCollectedAt = new Date();
-    booking.completedAt = new Date();
-    booking.paymentOtp = undefined;
-    await booking.save();
-
-    // ── Update VendorBill status ──
-    bill.status = 'paid';
-    bill.paidAt = new Date();
-    await bill.save();
-
-    // ── Update Vendor Wallet (Atomic with $inc) ──
     const Vendor = require('../../models/Vendor');
-    const vendorDoc = await Vendor.findById(vendorId).select('wallet');
+    const Transaction = require('../../models/Transaction');
 
-    if (vendorDoc) {
-      const currentDues = (vendorDoc.wallet.dues || 0) + grandTotal;
-      const cashLimit = vendorDoc.wallet.cashLimit || 10000;
-      // Net owed = dues − earnings (vendor keeps their share from cash)
-      const netOwed = currentDues - ((vendorDoc.wallet.earnings || 0) + vendorEarning);
-      const isBlocked = netOwed > cashLimit;
+    // Booking completion, bill settlement, vendor wallet and two ledger rows all
+    // commit together. Read inside the callback so a retry gets fresh documents.
+    const outcome = await withTransaction(async (session) => {
+      const booking = await Booking.findOne({ _id: id, vendorId }).select('+paymentOtp').session(session);
+      if (!booking) abort({ notFound: true });
+      if (booking.status !== BOOKING_STATUS.WORK_DONE) abort({ notDone: true });
+      if (booking.paymentOtp !== otp) abort({ badOtp: true });
 
-      const updateQuery = {
-        $inc: {
-          'wallet.dues': grandTotal,
-          'wallet.earnings': vendorEarning,
-          'wallet.totalCashCollected': grandTotal
-        }
-      };
+      // ── Fetch the VendorBill (single source of truth) ──
+      const bill = await VendorBill.findOne({ bookingId: booking._id }).session(session);
+      if (!bill) abort({ noBill: true });
 
-      if (isBlocked) {
-        updateQuery.$set = {
-          'wallet.isBlocked': true,
-          'wallet.blockedAt': new Date(),
-          'wallet.blockReason': `Cash limit exceeded. Net owed: ₹${netOwed.toFixed(2)}, Limit: ₹${cashLimit}`
+      const grandTotal = Number(bill.grandTotal) || 0;
+      const vendorEarning = Number(bill.vendorTotalEarning) || 0;
+
+      // ── Update Booking status ──
+      booking.status = BOOKING_STATUS.COMPLETED;
+      booking.paymentMethod = 'cash collected'; // Standardized label
+      booking.paymentStatus = PAYMENT_STATUS.COLLECTED_BY_VENDOR;
+      booking.cashCollected = true;
+      booking.cashCollectedBy = 'vendor';
+      booking.cashCollectorId = vendorId;
+      booking.cashCollectedAt = new Date();
+      booking.completedAt = new Date();
+      booking.paymentOtp = undefined;
+      await booking.save({ session });
+
+      // ── Update VendorBill status ──
+      bill.status = 'paid';
+      bill.paidAt = new Date();
+      await bill.save({ session });
+
+      // ── Update Vendor Wallet (Atomic with $inc) ──
+      const vendorDoc = await Vendor.findById(vendorId).select('wallet').session(session);
+
+      if (vendorDoc) {
+        const currentDues = (vendorDoc.wallet.dues || 0) + grandTotal;
+        const cashLimit = vendorDoc.wallet.cashLimit || 10000;
+        // Net owed = dues − earnings (vendor keeps their share from cash)
+        const netOwed = currentDues - ((vendorDoc.wallet.earnings || 0) + vendorEarning);
+        const isBlocked = netOwed > cashLimit;
+
+        const updateQuery = {
+          $inc: {
+            'wallet.dues': grandTotal,
+            'wallet.earnings': vendorEarning,
+            'wallet.totalCashCollected': grandTotal
+          }
         };
-      }
 
-      await Vendor.findByIdAndUpdate(vendorId, updateQuery);
-
-      // ── Create Transaction Records ──
-      const Transaction = require('../../models/Transaction');
-
-      // Transaction 1: Cash Collected (Platform is owed this amount)
-      await Transaction.create({
-        vendorId,
-        bookingId: booking._id,
-        type: 'cash_collected',
-        amount: grandTotal,
-        status: 'completed',
-        paymentMethod: 'cash collected', // Standardized label
-        description: `Cash ₹${grandTotal} collected for booking #${booking.bookingNumber}. Dues increased.`,
-        metadata: {
-          type: 'dues_increase',
-          collectedBy: 'vendor',
-          billId: bill._id.toString(),
-          grandTotal,
-          vendorEarning,
-          companyRevenue: bill.companyRevenue
+        if (isBlocked) {
+          updateQuery.$set = {
+            'wallet.isBlocked': true,
+            'wallet.blockedAt': new Date(),
+            'wallet.blockReason': `Cash limit exceeded. Net owed: ₹${netOwed.toFixed(2)}, Limit: ₹${cashLimit}`
+          };
         }
-      });
 
-      // Transaction 2: Earnings Credit (Vendor's rightful share)
-      if (vendorEarning > 0) {
-        await Transaction.create({
+        await Vendor.findByIdAndUpdate(vendorId, updateQuery, { session });
+
+        // ── Create Transaction Records ──
+        // Transaction 1: Cash Collected (Platform is owed this amount)
+        await Transaction.create([{
           vendorId,
           bookingId: booking._id,
-          type: 'earnings_credit',
-          amount: vendorEarning,
+          type: 'cash_collected',
+          amount: grandTotal,
           status: 'completed',
-          paymentMethod: 'wallet',
-          description: `Earnings ₹${vendorEarning} credited for booking #${booking.bookingNumber} (70% service + 10% parts)`,
+          paymentMethod: 'cash collected', // Standardized label
+          description: `Cash ₹${grandTotal} collected for booking #${booking.bookingNumber}. Dues increased.`,
           metadata: {
-            type: 'earnings_increase',
+            type: 'dues_increase',
+            collectedBy: 'vendor',
             billId: bill._id.toString(),
-            serviceEarning: bill.vendorServiceEarning,
-            partsEarning: bill.vendorPartsEarning
+            grandTotal,
+            vendorEarning,
+            companyRevenue: bill.companyRevenue
           }
-        });
+        }], { session });
+
+        // Transaction 2: Earnings Credit (Vendor's rightful share)
+        if (vendorEarning > 0) {
+          await Transaction.create([{
+            vendorId,
+            bookingId: booking._id,
+            type: 'earnings_credit',
+            amount: vendorEarning,
+            status: 'completed',
+            paymentMethod: 'wallet',
+            description: `Earnings ₹${vendorEarning} credited for booking #${booking.bookingNumber}`,
+            metadata: {
+              type: 'earnings_increase',
+              billId: bill._id.toString(),
+              serviceEarning: bill.vendorServiceEarning,
+              partsEarning: bill.vendorPartsEarning
+            }
+          }], { session });
+        }
       }
-    }
+
+      return { booking, bill, grandTotal, vendorEarning };
+    });
+
+    if (outcome.notFound) return res.status(404).json({ success: false, message: 'Booking not found' });
+    if (outcome.notDone) return res.status(400).json({ success: false, message: 'Work not done yet' });
+    if (outcome.badOtp) return res.status(400).json({ success: false, message: 'Invalid OTP' });
+    if (outcome.noBill) return res.status(500).json({ success: false, message: 'Bill not found — cannot process payment' });
+
+    const { booking, grandTotal } = outcome;
 
     // ── Notify user ──
     const { createNotification } = require('../notificationControllers/notificationController');

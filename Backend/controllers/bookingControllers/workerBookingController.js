@@ -2,6 +2,7 @@ const Booking = require('../../models/Booking');
 const BookingRequest = require('../../models/BookingRequest');
 const { validationResult } = require('express-validator');
 const { BOOKING_STATUS, PAYMENT_STATUS } = require('../../utils/constants');
+const { withTransaction, abort } = require('../../utils/withTransaction');
 
 /**
  * Get assigned jobs for worker
@@ -598,144 +599,151 @@ const collectCash = async (req, res) => {
     const { id } = req.params;
     const { otp } = req.body;
 
-    const booking = await Booking.findOne({ _id: id, workerId }).select('+paymentOtp');
-
-    if (!booking) {
-      return res.status(404).json({ success: false, message: 'Job not found' });
-    }
-
-    if (booking.status !== BOOKING_STATUS.WORK_DONE) {
-      return res.status(400).json({ success: false, message: 'Work is not marked as done yet' });
-    }
-
-    if (booking.paymentOtp !== otp) {
-      return res.status(400).json({ success: false, message: 'Invalid OTP' });
-    }
-
-    // Fetch VendorBill (single source of truth)
     const VendorBill = require('../../models/VendorBill');
-    const bill = await VendorBill.findOne({ bookingId: booking._id });
-    if (!bill) {
-      return res.status(500).json({ success: false, message: 'Bill not found — cannot process payment' });
-    }
+    const Worker = require('../../models/Worker');
+    const Vendor = require('../../models/Vendor');
+    const Transaction = require('../../models/Transaction');
 
-    const grandTotal = Number(bill.grandTotal) || 0;
-    const vendorEarning = Number(bill.vendorTotalEarning) || 0;
+    // Booking + bill + wallet + ledger rows commit as one unit. Documents are read
+    // inside the callback so a retry after a write conflict works on fresh state.
+    const outcome = await withTransaction(async (session) => {
+      const booking = await Booking.findOne({ _id: id, workerId }).select('+paymentOtp').session(session);
 
-    // Update Booking Status
-    booking.status = BOOKING_STATUS.COMPLETED;
-    booking.paymentMethod = 'cash collected'; // Standardized label
-    booking.paymentStatus = PAYMENT_STATUS.COLLECTED_BY_VENDOR;
-    booking.cashCollected = true;
-    booking.cashCollectedBy = 'worker';
-    booking.cashCollectorId = workerId;
-    booking.cashCollectedAt = new Date();
-    booking.completedAt = new Date();
-    booking.paymentOtp = undefined;
-    await booking.save();
+      if (!booking) abort({ notFound: true });
+      if (booking.status !== BOOKING_STATUS.WORK_DONE) abort({ notDone: true });
+      if (booking.paymentOtp !== otp) abort({ badOtp: true });
 
-    // Mark bill as paid
-    bill.status = 'paid';
-    bill.paidAt = new Date();
-    await bill.save();
+      // Fetch VendorBill (single source of truth)
+      const bill = await VendorBill.findOne({ bookingId: booking._id }).session(session);
+      if (!bill) abort({ noBill: true });
 
-    // Update Wallet based on Booking Model
-    if (booking.bookingModel === 'worker') {
-      const Worker = require('../../models/Worker');
-      const workerDoc = await Worker.findById(workerId);
-      if (workerDoc) {
-        // In Direct Worker Model, Worker keeps 100% of cash.
-        // We only track it for reporting.
-        workerDoc.wallet.totalCashCollected = (workerDoc.wallet.totalCashCollected || 0) + grandTotal;
-        workerDoc.wallet.earnings = (workerDoc.wallet.earnings || 0) + grandTotal;
+      const grandTotal = Number(bill.grandTotal) || 0;
+      const vendorEarning = Number(bill.vendorTotalEarning) || 0;
+
+      // Update Booking Status
+      booking.status = BOOKING_STATUS.COMPLETED;
+      booking.paymentMethod = 'cash collected'; // Standardized label
+      booking.paymentStatus = PAYMENT_STATUS.COLLECTED_BY_VENDOR;
+      booking.cashCollected = true;
+      booking.cashCollectedBy = 'worker';
+      booking.cashCollectorId = workerId;
+      booking.cashCollectedAt = new Date();
+      booking.completedAt = new Date();
+      booking.paymentOtp = undefined;
+      await booking.save({ session });
+
+      // Mark bill as paid
+      bill.status = 'paid';
+      bill.paidAt = new Date();
+      await bill.save({ session });
+
+      // Update Wallet based on Booking Model
+      if (booking.bookingModel === 'worker') {
+        // In Direct Worker Model, Worker keeps 100% of cash — tracked for reporting.
         // No 'balance' update for cash because worker ALREADY has the cash.
-        await workerDoc.save();
-
-        // Create Transaction for Worker
-        const Transaction = require('../../models/Transaction');
-        await Transaction.create({
+        const workerDoc = await Worker.findByIdAndUpdate(
           workerId,
-          bookingId: booking._id,
-          type: 'cash_collected',
-          amount: grandTotal,
-          status: 'completed',
-          paymentMethod: 'cash collected',
-          description: `Cash ₹${grandTotal} collected for booking #${booking.bookingNumber}`,
-          metadata: {
-            type: 'cash_reporting',
-            billId: bill._id.toString(),
-            grandTotal
-          }
-        });
-      }
-    } else if (booking.vendorId) {
-      // Legacy Vendor Logic (already exists)
-      const Vendor = require('../../models/Vendor');
-      const vendorDoc = await Vendor.findById(booking.vendorId).select('wallet');
-      if (vendorDoc) {
-        const currentDues = (vendorDoc.wallet.dues || 0) + grandTotal;
-        const cashLimit = vendorDoc.wallet.cashLimit || 10000;
-        const netOwed = currentDues - ((vendorDoc.wallet.earnings || 0) + vendorEarning);
-        const isBlocked = netOwed > cashLimit;
+          {
+            $inc: {
+              'wallet.totalCashCollected': grandTotal,
+              'wallet.earnings': grandTotal
+            }
+          },
+          { new: true, session }
+        );
 
-        const updateQuery = {
-          $inc: {
-            'wallet.dues': grandTotal,
-            'wallet.earnings': vendorEarning,
-            'wallet.totalCashCollected': grandTotal
-          }
-        };
-
-        if (isBlocked) {
-          updateQuery.$set = {
-            'wallet.isBlocked': true,
-            'wallet.blockedAt': new Date(),
-            'wallet.blockReason': `Cash limit exceeded. Net owed: ₹${netOwed.toFixed(2)}, Limit: ₹${cashLimit}`
-          };
+        if (workerDoc) {
+          await Transaction.create([{
+            workerId,
+            bookingId: booking._id,
+            type: 'cash_collected',
+            amount: grandTotal,
+            status: 'completed',
+            paymentMethod: 'cash collected',
+            description: `Cash ₹${grandTotal} collected for booking #${booking.bookingNumber}`,
+            metadata: {
+              type: 'cash_reporting',
+              billId: bill._id.toString(),
+              grandTotal
+            }
+          }], { session });
         }
+      } else if (booking.vendorId) {
+        // Legacy Vendor Logic (already exists)
+        const vendorDoc = await Vendor.findById(booking.vendorId).select('wallet').session(session);
+        if (vendorDoc) {
+          const currentDues = (vendorDoc.wallet.dues || 0) + grandTotal;
+          const cashLimit = vendorDoc.wallet.cashLimit || 10000;
+          const netOwed = currentDues - ((vendorDoc.wallet.earnings || 0) + vendorEarning);
+          const isBlocked = netOwed > cashLimit;
 
-        await Vendor.findByIdAndUpdate(booking.vendorId, updateQuery);
+          const updateQuery = {
+            $inc: {
+              'wallet.dues': grandTotal,
+              'wallet.earnings': vendorEarning,
+              'wallet.totalCashCollected': grandTotal
+            }
+          };
 
-        // Create Transactions
-        const Transaction = require('../../models/Transaction');
-        await Transaction.create({
-          vendorId: booking.vendorId,
-          bookingId: booking._id,
-          workerId,
-          type: 'cash_collected',
-          amount: grandTotal,
-          status: 'completed',
-          paymentMethod: 'cash collected',
-          description: `Cash ₹${grandTotal} collected by worker for booking #${booking.bookingNumber}`,
-          metadata: {
-            type: 'dues_increase',
-            collectedBy: 'worker',
-            billId: bill._id.toString(),
-            grandTotal,
-            vendorEarning,
-            companyRevenue: bill.companyRevenue
+          if (isBlocked) {
+            updateQuery.$set = {
+              'wallet.isBlocked': true,
+              'wallet.blockedAt': new Date(),
+              'wallet.blockReason': `Cash limit exceeded. Net owed: ₹${netOwed.toFixed(2)}, Limit: ₹${cashLimit}`
+            };
           }
-        });
 
-        if (vendorEarning > 0) {
-          await Transaction.create({
+          await Vendor.findByIdAndUpdate(booking.vendorId, updateQuery, { session });
+
+          // Create Transactions
+          await Transaction.create([{
             vendorId: booking.vendorId,
             bookingId: booking._id,
-            type: 'earnings_credit',
-            amount: vendorEarning,
+            workerId,
+            type: 'cash_collected',
+            amount: grandTotal,
             status: 'completed',
-            paymentMethod: 'wallet',
-            description: `Earnings ₹${vendorEarning} credited for booking #${booking.bookingNumber}`,
+            paymentMethod: 'cash collected',
+            description: `Cash ₹${grandTotal} collected by worker for booking #${booking.bookingNumber}`,
             metadata: {
-              type: 'earnings_increase',
+              type: 'dues_increase',
+              collectedBy: 'worker',
               billId: bill._id.toString(),
-              serviceEarning: bill.vendorServiceEarning,
-              partsEarning: bill.vendorPartsEarning
+              grandTotal,
+              vendorEarning,
+              companyRevenue: bill.companyRevenue
             }
-          });
+          }], { session });
+
+          if (vendorEarning > 0) {
+            await Transaction.create([{
+              vendorId: booking.vendorId,
+              bookingId: booking._id,
+              type: 'earnings_credit',
+              amount: vendorEarning,
+              status: 'completed',
+              paymentMethod: 'wallet',
+              description: `Earnings ₹${vendorEarning} credited for booking #${booking.bookingNumber}`,
+              metadata: {
+                type: 'earnings_increase',
+                billId: bill._id.toString(),
+                serviceEarning: bill.vendorServiceEarning,
+                partsEarning: bill.vendorPartsEarning
+              }
+            }], { session });
+          }
         }
       }
-    }
+
+      return { booking, bill, grandTotal, vendorEarning };
+    });
+
+    if (outcome.notFound) return res.status(404).json({ success: false, message: 'Job not found' });
+    if (outcome.notDone) return res.status(400).json({ success: false, message: 'Work is not marked as done yet' });
+    if (outcome.badOtp) return res.status(400).json({ success: false, message: 'Invalid OTP' });
+    if (outcome.noBill) return res.status(500).json({ success: false, message: 'Bill not found — cannot process payment' });
+
+    const { booking, grandTotal } = outcome;
 
     // Notify User
     const { createNotification } = require('../notificationControllers/notificationController');

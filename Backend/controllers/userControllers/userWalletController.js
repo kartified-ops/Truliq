@@ -1,6 +1,8 @@
 const User = require('../../models/User');
 const { validationResult } = require('express-validator');
 const { createOrder } = require('../../services/razorpayService');
+const { withTransaction, abort } = require('../../utils/withTransaction');
+const { confirmGatewayPayment } = require('../../utils/confirmGatewayPayment');
 
 /**
  * Get wallet balance
@@ -113,8 +115,7 @@ const verifyWalletTopup = async (req, res) => {
     const {
       razorpay_order_id,
       razorpay_payment_id,
-      razorpay_signature,
-      amount
+      razorpay_signature
     } = req.body;
 
     // Verify signature
@@ -128,43 +129,82 @@ const verifyWalletTopup = async (req, res) => {
       });
     }
 
-    // Get user
-    const user = await User.findById(userId);
-    if (!user) {
+    // The credited amount comes from Razorpay, NOT from req.body. The signature
+    // only proves the order/payment ids are genuine — it says nothing about the
+    // amount, so trusting the client's number let anyone pay ₹100 and claim ₹100000.
+    const confirmed = await confirmGatewayPayment({
+      orderId: razorpay_order_id,
+      paymentId: razorpay_payment_id
+    });
+    if (!confirmed.ok) {
+      return res.status(confirmed.status).json({ success: false, message: confirmed.message });
+    }
+
+    // Dev-mock orders can't be confirmed against a gateway, so they fall back to
+    // the requested amount. isDevMockOrder() is hard-disabled in production.
+    const amount = confirmed.mock ? Number(req.body.amount) : confirmed.amount;
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid payment amount' });
+    }
+
+    const Transaction = require('../../models/Transaction');
+
+    // Credit + ledger row commit together, and the ledger row's unique-ish
+    // referenceId check makes a replayed signature a no-op instead of free money.
+    const outcome = await withTransaction(async (session) => {
+      const alreadyCredited = await Transaction.findOne({
+        referenceId: razorpay_payment_id,
+        type: 'credit'
+      }).session(session);
+
+      if (alreadyCredited) abort({ alreadyCredited: true });
+
+      const updated = await User.findByIdAndUpdate(
+        userId,
+        { $inc: { 'wallet.balance': amount } },
+        { new: true, session }
+      );
+
+      if (!updated) abort({ notFound: true });
+
+      const previousBalance = (updated.wallet.balance || 0) - amount;
+
+      await Transaction.create([{
+        userId: updated._id,
+        type: 'credit',
+        amount,
+        status: 'completed',
+        paymentMethod: 'razorpay', // or online
+        description: 'Wallet Top-up',
+        balanceBefore: previousBalance,
+        balanceAfter: updated.wallet.balance,
+        referenceId: razorpay_payment_id,
+        metadata: {
+          orderId: razorpay_order_id
+        }
+      }], { session });
+
+      return { balance: updated.wallet.balance };
+    });
+
+    if (outcome.notFound) {
       return res.status(404).json({
         success: false,
         message: 'User not found'
       });
     }
-
-    // Add money to wallet
-    const previousBalance = user.wallet.balance || 0;
-    user.wallet.balance = previousBalance + amount;
-    await user.save();
-
-    // Create Transaction Record
-    const Transaction = require('../../models/Transaction');
-    await Transaction.create({
-      userId: user._id,
-      type: 'credit',
-      amount: amount,
-      status: 'completed',
-      paymentMethod: 'razorpay', // or online
-      description: 'Wallet Top-up',
-      balanceBefore: previousBalance,
-      balanceAfter: user.wallet.balance,
-      referenceId: razorpay_payment_id,
-      metadata: {
-        orderId: razorpay_order_id,
-        signature: razorpay_signature
-      }
-    });
+    if (outcome.alreadyCredited) {
+      return res.status(400).json({
+        success: false,
+        message: 'This payment has already been credited'
+      });
+    }
 
     res.status(200).json({
       success: true,
       message: 'Money added to wallet successfully',
       data: {
-        balance: user.wallet.balance
+        balance: outcome.balance
       }
     });
   } catch (error) {

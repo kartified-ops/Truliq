@@ -4,6 +4,7 @@ const Worker = require('../../models/Worker');
 const User = require('../../models/User');
 const Service = require('../../models/UserService');
 const { BOOKING_STATUS, PAYMENT_STATUS, VENDOR_STATUS } = require('../../utils/constants');
+const { getCommissionRates } = require('../../utils/commission');
 
 /**
  * Get Booking Report Data
@@ -277,13 +278,15 @@ exports.getRevenueReport = async (req, res) => {
     let groupFormat = '%Y-%m';
     if (period === 'daily') groupFormat = '%Y-%m-%d';
 
+    const { platformShare } = await getCommissionRates();
+
     const revenueTrends = await Booking.aggregate([
       { $match: { status: BOOKING_STATUS.COMPLETED, paymentStatus: PAYMENT_STATUS.SUCCESS } },
       {
         $group: {
           _id: { $dateToString: { format: groupFormat, date: '$completedAt' } },
           revenue: { $sum: '$finalAmount' },
-          commission: { $sum: { $multiply: ['$finalAmount', 0.2] } } // 20% commission
+          commission: { $sum: { $multiply: ['$finalAmount', platformShare] } }
         }
       },
       { $sort: { _id: 1 } }

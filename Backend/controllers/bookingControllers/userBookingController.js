@@ -8,6 +8,7 @@ const Vendor = require('../../models/Vendor');
 const Worker = require('../../models/Worker');
 const Review = require('../../models/Review');
 const { validationResult } = require('express-validator');
+const { withTransaction, abort } = require('../../utils/withTransaction');
 const { BOOKING_STATUS, PAYMENT_STATUS } = require('../../utils/constants');
 const { createNotification } = require('../notificationControllers/notificationController');
 const { sendNotificationToUser, sendNotificationToVendor, sendNotificationToWorker } = require('../../services/firebaseAdmin');
@@ -871,56 +872,90 @@ const cancelBooking = async (req, res) => {
       }
     }
 
-    // Update User Wallet
-    if (refundAmount > 0 || (cancellationFee > 0 && !isPaid)) {
-      const User = require('../../models/User');
-      const Transaction = require('../../models/Transaction');
+    const previousStatus = booking.status;
 
-      const user = await User.findById(userId);
-
-      // 1. Process Refund
+    // The refund credit, its ledger row and the cancellation itself are one unit:
+    // committing the wallet credit without the cancellation would let the same
+    // booking be cancelled (and refunded) again.
+    //
+    // Writes use updateOne/$inc rather than doc.save() on purpose — withTransaction()
+    // retries on write conflicts, and these documents were loaded before the
+    // callback, so a re-run would find them "clean" and silently skip the save.
+    const cancelOutcome = await withTransaction(async (session) => {
+      const cancelFields = {
+        status: BOOKING_STATUS.CANCELLED,
+        cancelledAt: new Date(),
+        cancelledBy: 'user',
+        cancellationReason: cancellationReason || 'Cancelled by user'
+      };
       if (refundAmount > 0) {
-        user.wallet.balance = (user.wallet.balance || 0) + refundAmount;
-
-        await Transaction.create({
-          userId: user._id,
-          type: 'refund',
-          amount: refundAmount,
-          status: 'completed',
-          paymentMethod: 'wallet',
-          description: `Refund for booking #${booking.bookingNumber}`,
-          bookingId: booking._id,
-          balanceAfter: user.wallet.balance
-        });
-
-        booking.paymentStatus = PAYMENT_STATUS.REFUNDED;
+        cancelFields.paymentStatus = PAYMENT_STATUS.REFUNDED;
+        cancelFields.refundedAmount = refundAmount;
       }
 
-      // 2. Process Cancellation Fee (Add to Penalty Bucket if Unpaid)
-      if (cancellationFee > 0 && !isPaid) {
-        // Use wallet.penalty bucket
-        user.wallet.penalty = (user.wallet.penalty || 0) + cancellationFee;
-        // Do NOT create a 'debit' transaction yet, as money hasn't left. 
-        // Or create a 'penalty_added' transaction?
-        // User didn't ask for transaction record logic, just functionality.
-        // We will skip transaction for penalty addition to keep it simple, 
-        // as the actual CHARGE happens on next booking creation.
+      const claim = await Booking.updateOne(
+        { _id: booking._id, status: { $ne: BOOKING_STATUS.CANCELLED } },
+        { $set: cancelFields },
+        { session }
+      );
 
-        console.log(`[CancelBooking] Added penalty of ₹${cancellationFee} to user ${userId}. Total Penalty: ${user.wallet.penalty}`);
+      if (claim.modifiedCount === 0) abort({ alreadyCancelled: true });
+
+      // Update User Wallet
+      if (refundAmount > 0 || (cancellationFee > 0 && !isPaid)) {
+        const User = require('../../models/User');
+        const Transaction = require('../../models/Transaction');
+
+        const walletInc = {};
+        // 1. Process Refund
+        if (refundAmount > 0) walletInc['wallet.balance'] = refundAmount;
+        // 2. Process Cancellation Fee (Add to Penalty Bucket if Unpaid).
+        //    No debit transaction here — no money has left yet; the actual charge
+        //    happens when the next booking is created.
+        if (cancellationFee > 0 && !isPaid) walletInc['wallet.penalty'] = cancellationFee;
+
+        const updatedUser = await User.findByIdAndUpdate(
+          userId,
+          { $inc: walletInc },
+          { new: true, session }
+        );
+
+        if (!updatedUser) abort({ userMissing: true });
+
+        if (refundAmount > 0) {
+          await Transaction.create([{
+            userId: updatedUser._id,
+            type: 'refund',
+            amount: refundAmount,
+            status: 'completed',
+            paymentMethod: 'wallet',
+            description: `Refund for booking #${booking.bookingNumber}`,
+            bookingId: booking._id,
+            balanceAfter: updatedUser.wallet.balance
+          }], { session });
+        }
+
+        if (cancellationFee > 0 && !isPaid) {
+          console.log(`[CancelBooking] Added penalty of ₹${cancellationFee} to user ${userId}. Total Penalty: ${updatedUser.wallet.penalty}`);
+        }
       }
 
-      await user.save();
+      return { ok: true };
+    });
+
+    if (cancelOutcome.alreadyCancelled) {
+      return res.status(400).json({ success: false, message: 'Booking is already cancelled' });
+    }
+    if (cancelOutcome.userMissing) {
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    const previousStatus = booking.status;
-    
-    // Update booking status
+    // Mirror the committed state onto the in-memory doc for the response/sockets below
     booking.status = BOOKING_STATUS.CANCELLED;
     booking.cancelledAt = new Date();
     booking.cancelledBy = 'user';
     booking.cancellationReason = cancellationReason || 'Cancelled by user';
-
-    await booking.save();
+    if (refundAmount > 0) booking.paymentStatus = PAYMENT_STATUS.REFUNDED;
 
     // Send cancellation sockets to pending partners if booking was in SEARCHING state
     if (previousStatus === BOOKING_STATUS.SEARCHING || previousStatus === 'REQUESTED') {

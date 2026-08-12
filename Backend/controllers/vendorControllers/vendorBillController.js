@@ -4,6 +4,7 @@ const VendorServiceCatalog = require('../../models/VendorServiceCatalog');
 const VendorPartsCatalog = require('../../models/VendorPartsCatalog');
 const Settings = require('../../models/Settings');
 const { BILL_STATUS } = require('../../utils/constants');
+const { DEFAULT_SERVICE_PAYOUT_PCT } = require('../../utils/commission');
 
 /**
  * Create or Update Vendor Bill
@@ -47,7 +48,7 @@ const createOrUpdateBill = async (req, res) => {
     // Check if it's a Direct Worker flow to apply 100% payout
     const isDirectWorkerFlow = booking.bookingModel === 'worker';
 
-    const serviceSplitPct = isDirectWorkerFlow ? 100 : (settings?.servicePayoutPercentage ?? 70);
+    const serviceSplitPct = isDirectWorkerFlow ? 100 : (settings?.servicePayoutPercentage ?? DEFAULT_SERVICE_PAYOUT_PCT);
     const partsSplitPct = isDirectWorkerFlow ? 100 : (settings?.partsPayoutPercentage ?? 10);
     const serviceGstPct = 0;
     const partsGstPct = 0;

@@ -61,8 +61,11 @@ app.use(cors({
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
 
-    // Allow allowedOrigins or any Vercel preview URL for this project
-    if (allowedOrigins.indexOf(origin) !== -1 || origin.includes('.vercel.app')) {
+    // Allow allowedOrigins, plus Vercel preview URLs outside production.
+    // `.vercel.app` is a shared domain — trusting it in production with
+    // credentials:true lets anyone's preview deploy call this API as the user.
+    const allowVercelPreviews = process.env.NODE_ENV !== 'production';
+    if (allowedOrigins.indexOf(origin) !== -1 || (allowVercelPreviews && origin.endsWith('.vercel.app'))) {
       callback(null, true);
     } else {
       console.log('BLOCKED CORS ORIGIN:', origin);

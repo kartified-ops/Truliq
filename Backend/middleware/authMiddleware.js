@@ -44,10 +44,6 @@ const authenticate = async (req, res, next) => {
     switch (decoded.role) {
       case USER_ROLES.USER:
         user = await User.findById(decoded.userId).select('-password').lean();
-        // SINGLE DEVICE LOGOUT Logic (disabled for development/testing)
-        // if (user && user.loginSessionId && decoded.loginSessionId && user.loginSessionId !== decoded.loginSessionId) {
-        //   return res.status(401).json({ success: false, message: 'Account logged in on another device. Please login again.' });
-        // }
         break;
       case USER_ROLES.VENDOR:
         user = await Vendor.findById(decoded.userId).select('-password').lean();
@@ -57,21 +53,9 @@ const authenticate = async (req, res, next) => {
             message: 'Your vendor account is pending approval or has been rejected.'
           });
         }
-
-        // SINGLE DEVICE LOGOUT Logic: Check if token's session ID matches DB (disabled for development/testing)
-        // if (user && user.loginSessionId && decoded.loginSessionId && user.loginSessionId !== decoded.loginSessionId) {
-        //   return res.status(401).json({
-        //     success: false,
-        //     message: 'Account logged in on another device. Please login again.'
-        //   });
-        // }
         break;
       case USER_ROLES.WORKER:
         user = await Worker.findById(decoded.userId).select('-password').lean();
-        // SINGLE DEVICE LOGOUT Logic (disabled for development/testing)
-        // if (user && user.loginSessionId && decoded.loginSessionId && user.loginSessionId !== decoded.loginSessionId) {
-        //   return res.status(401).json({ success: false, message: 'Account logged in on another device. Please login again.' });
-        // }
         break;
       case USER_ROLES.ADMIN:
       case 'super_admin':
@@ -92,6 +76,16 @@ const authenticate = async (req, res, next) => {
       return res.status(401).json({
         success: false,
         message: 'User not found. Please login again.'
+      });
+    }
+
+    // SESSION INVALIDATION: logout sets loginSessionId to null and a new login
+    // rotates it, so any token carrying a stale session id is dead. Tokens minted
+    // before this shipped have no loginSessionId and are skipped until they expire.
+    if (decoded.loginSessionId && user.loginSessionId !== decoded.loginSessionId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Session expired. Please login again.'
       });
     }
 

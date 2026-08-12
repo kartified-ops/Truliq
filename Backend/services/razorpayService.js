@@ -118,6 +118,27 @@ const verifyPayment = (razorpay_order_id, razorpay_payment_id, razorpay_signatur
 /**
  * Get payment details
  */
+/**
+ * Fetch an order from Razorpay.
+ *
+ * This is the authoritative record of what the server asked the customer to pay:
+ * both `amount` and `notes` are set by us at order-creation time and cannot be
+ * influenced by the client. Verification flows should resolve what was actually
+ * bought from here rather than trusting ids echoed back in the request body.
+ */
+const getOrderDetails = async (orderId) => {
+  try {
+    if (!razorpay) {
+      return { success: false, error: 'Razorpay not initialized' };
+    }
+    const order = await razorpay.orders.fetch(orderId);
+    return { success: true, order };
+  } catch (error) {
+    console.error('Razorpay get order error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
 const getPaymentDetails = async (paymentId) => {
   try {
     const payment = await razorpay.payments.fetch(paymentId);
@@ -316,6 +337,7 @@ const getQRCodePayments = async (id) => {
 module.exports = {
   createOrder,
   verifyPayment,
+  getOrderDetails,
   getPaymentDetails,
   refundPayment,
   createQRCode,

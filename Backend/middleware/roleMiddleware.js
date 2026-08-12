@@ -59,22 +59,24 @@ const isAdminOrVendor = (req, res, next) => {
  */
 const isSuperAdmin = async (req, res, next) => {
   try {
-    /* if (req.userRole !== USER_ROLES.ADMIN && req.userRole !== 'super_admin') {
+    const adminRoles = [USER_ROLES.ADMIN, 'super_admin', 'admin', 'ADMIN'];
+    if (!adminRoles.includes(req.userRole)) {
       return res.status(403).json({
         success: false,
         message: 'Access denied. Admin role required.'
       });
     }
 
+    // Role lives on the Admin document, not the JWT — always re-check against the DB
     const Admin = require('../models/Admin');
-    const admin = await Admin.findById(req.user.id);
+    const admin = await Admin.findById(req.user.id).select('role').lean();
 
     if (!admin || admin.role !== 'super_admin') {
       return res.status(403).json({
         success: false,
         message: 'Access denied. Super Admin role required.'
       });
-    } */
+    }
 
     next();
   } catch (error) {

@@ -6,6 +6,7 @@ const Withdrawal = require('../../models/Withdrawal');
 const Settlement = require('../../models/Settlement');
 const Scrap = require('../../models/Scrap');
 const { BOOKING_STATUS, PAYMENT_STATUS, VENDOR_STATUS } = require('../../utils/constants');
+const { getCommissionRates } = require('../../utils/commission');
 
 /**
  * Get overall dashboard stats
@@ -75,7 +76,8 @@ const getDashboardStats = async (req, res) => {
     ]);
 
     const revenue = revenueResult[0] || { totalRevenue: 0, totalBookings: 0 };
-    const platformCommission = revenue.totalRevenue * 0.2; // 20% commission
+    const { platformShare } = await getCommissionRates();
+    const platformCommission = revenue.totalRevenue * platformShare;
 
     // Vendor approval stats
     const pendingVendors = await Vendor.countDocuments({ approvalStatus: VENDOR_STATUS.PENDING, ...dateFilter });
@@ -182,6 +184,8 @@ const getRevenueAnalytics = async (req, res) => {
       if (endDate) dateFilter.completedAt.$lte = new Date(endDate);
     }
 
+    const { platformShare } = await getCommissionRates();
+
     // Revenue analytics
     const revenueData = await Booking.aggregate([
       {
@@ -201,7 +205,7 @@ const getRevenueAnalytics = async (req, res) => {
           },
           revenue: { $sum: '$finalAmount' },
           bookings: { $sum: 1 },
-          platformCommission: { $sum: { $multiply: ['$finalAmount', 0.2] } }
+          platformCommission: { $sum: { $multiply: ['$finalAmount', platformShare] } }
         }
       },
       { $sort: { _id: 1 } }

@@ -31,7 +31,8 @@ const initializeSocket = (server) => {
           });
         }
 
-        if (!origin || allowedOrigins.includes(origin) || origin.includes('.vercel.app')) {
+        const allowVercelPreviews = process.env.NODE_ENV !== 'production';
+        if (!origin || allowedOrigins.includes(origin) || (allowVercelPreviews && origin.endsWith('.vercel.app'))) {
           callback(null, true);
         } else {
           console.log('[Socket.io] BLOCKED CORS ORIGIN:', origin);
@@ -110,6 +111,30 @@ const initializeSocket = (server) => {
 
     // Live Tracking Events
     socket.on('join_tracking', async (bookingId) => {
+      // Only parties to this booking may watch its live location
+      try {
+        const Booking = require('../models/Booking');
+        const booking = await Booking.findById(bookingId)
+          .select('userId vendorId workerId')
+          .lean();
+
+        if (!booking) return;
+
+        const isParty =
+          (socket.userRole === 'USER' && booking.userId?.toString() === socket.userId.toString()) ||
+          (socket.userRole === 'VENDOR' && booking.vendorId?.toString() === socket.userId.toString()) ||
+          (socket.userRole === 'WORKER' && booking.workerId?.toString() === socket.userId.toString()) ||
+          socket.userRole === 'ADMIN';
+
+        if (!isParty) {
+          console.warn(`[Socket] BLOCKED tracking join: ${socket.userRole} ${socket.userId} -> booking ${bookingId}`);
+          return;
+        }
+      } catch (error) {
+        console.error('[Socket] join_tracking authorization failed:', error);
+        return;
+      }
+
       socket.join(`booking_${bookingId}`);
       console.log(`User ${socket.userId} joined tracking for booking_${bookingId}`);
 

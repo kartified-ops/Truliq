@@ -5,6 +5,7 @@ const Withdrawal = require('../../models/Withdrawal');
 const Booking = require('../../models/Booking');
 const Worker = require('../../models/Worker');
 const { uploadPaymentScreenshot } = require('../../utils/cloudinaryUpload');
+const { withTransaction, abort } = require('../../utils/withTransaction');
 
 /**
  * Get vendor wallet with ledger balance
@@ -429,39 +430,56 @@ const requestSettlement = async (req, res) => {
 const requestWithdrawal = async (req, res) => {
   try {
     const vendorId = req.user.id;
-    const { amount, bankDetails, notes } = req.body;
+    const { bankDetails, notes } = req.body;
+    const amount = Number(req.body.amount);
 
-    if (!amount || amount <= 0) {
+    if (!Number.isFinite(amount) || amount <= 0) {
       return res.status(400).json({ success: false, message: 'Valid amount is required' });
     }
 
-    const vendor = await Vendor.findById(vendorId);
-    if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
+    // Reading the pending total and inserting the new request inside one
+    // transaction is what makes "requested <= available" actually hold; the
+    // previous insert-then-verify could only detect a conflict after the fact.
+    const outcome = await withTransaction(async (session) => {
+      const vendor = await Vendor.findById(vendorId).session(session);
+      if (!vendor) abort({ notFound: true });
 
-    const currentEarnings = vendor.wallet?.earnings || 0;
+      const currentEarnings = vendor.wallet?.earnings || 0;
 
-    // Check pending withdrawals?
-    const pendingWithdrawals = await Withdrawal.aggregate([
-      { $match: { vendorId: vendor._id, status: 'pending' } },
-      { $group: { _id: null, total: { $sum: '$amount' } } }
-    ]);
-    const pendingAmount = pendingWithdrawals[0]?.total || 0;
-    const availableEarnings = currentEarnings - pendingAmount;
+      const pendingWithdrawals = await Withdrawal.aggregate([
+        { $match: { vendorId: vendor._id, status: 'pending' } },
+        { $group: { _id: null, total: { $sum: '$amount' } } }
+      ]).session(session);
 
-    if (amount > availableEarnings) {
+      const pendingAmount = pendingWithdrawals[0]?.total || 0;
+      const availableEarnings = currentEarnings - pendingAmount;
+
+      if (amount > availableEarnings) {
+        abort({ insufficient: true, availableEarnings, pendingAmount });
+      }
+
+      const [created] = await Withdrawal.create([{
+        vendorId,
+        amount,
+        bankDetails,
+        adminNotes: notes,
+        status: 'pending'
+      }], { session });
+
+      return { withdrawal: created, vendor };
+    });
+
+    if (outcome.notFound) {
+      return res.status(404).json({ success: false, message: 'Vendor not found' });
+    }
+    if (outcome.insufficient) {
       return res.status(400).json({
         success: false,
-        message: `Insufficient earnings. Available: ₹${availableEarnings} (Pending: ₹${pendingAmount})`
+        message: `Insufficient earnings. Available: ₹${outcome.availableEarnings} (Pending: ₹${outcome.pendingAmount})`
       });
     }
 
-    const withdrawal = await Withdrawal.create({
-      vendorId,
-      amount,
-      bankDetails,
-      adminNotes: notes,
-      status: 'pending'
-    });
+    const { withdrawal, vendor } = outcome;
 
     // 🔔 NOTIFY ALL ADMINS about withdrawal request
     try {

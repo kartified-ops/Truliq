@@ -2,6 +2,8 @@ const Worker = require('../../models/Worker');
 const Transaction = require('../../models/Transaction');
 const Booking = require('../../models/Booking');
 const { createOrder, verifyPayment } = require('../../services/razorpayService');
+const { withTransaction, abort } = require('../../utils/withTransaction');
+const { confirmGatewayPayment } = require('../../utils/confirmGatewayPayment');
 const PlatformEarning = require('../../models/PlatformEarning');
 
 /**
@@ -159,41 +161,56 @@ const requestWithdrawal = async (req, res) => {
     const workerId = req.user.id;
     const { amount, bankDetails } = req.body;
 
-    const worker = await Worker.findById(workerId);
-    if (!worker) {
-      return res.status(404).json({ success: false, message: 'Worker not found' });
-    }
-
     const withdrawAmount = Number(amount);
-    if (!withdrawAmount || withdrawAmount <= 0) {
+    if (!Number.isFinite(withdrawAmount) || withdrawAmount <= 0) {
       return res.status(400).json({ success: false, message: 'Invalid withdrawal amount' });
     }
 
-    if (worker.wallet.balance < withdrawAmount) {
+    // The balance check, the "one pending request" check and the insert have to
+    // see the same snapshot, otherwise two concurrent requests both pass and the
+    // worker ends up with more requested than they hold.
+    const outcome = await withTransaction(async (session) => {
+      const worker = await Worker.findById(workerId).session(session);
+      if (!worker) abort({ notFound: true });
+
+      if ((worker.wallet?.balance || 0) < withdrawAmount) {
+        abort({ insufficient: true });
+      }
+
+      // Check for existing pending withdrawal
+      const existingPending = await Withdrawal.findOne({
+        workerId,
+        status: 'pending'
+      }).session(session);
+
+      if (existingPending) abort({ alreadyPending: true });
+
+      // Create withdrawal request
+      const [created] = await Withdrawal.create([{
+        workerId,
+        amount: withdrawAmount,
+        bankDetails: bankDetails || worker.bankDetails, // Use provided or saved bank details
+        status: 'pending',
+        requestDate: new Date()
+      }], { session });
+
+      return { withdrawal: created, worker };
+    });
+
+    if (outcome.notFound) {
+      return res.status(404).json({ success: false, message: 'Worker not found' });
+    }
+    if (outcome.insufficient) {
       return res.status(400).json({ success: false, message: 'Insufficient balance' });
     }
-
-    // Check for existing pending withdrawal
-    const existingPending = await Withdrawal.findOne({ 
-      workerId, 
-      status: 'pending' 
-    });
-    
-    if (existingPending) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'You already have a pending withdrawal request' 
+    if (outcome.alreadyPending) {
+      return res.status(400).json({
+        success: false,
+        message: 'You already have a pending withdrawal request'
       });
     }
 
-    // Create withdrawal request
-    const withdrawal = await Withdrawal.create({
-      workerId,
-      amount: withdrawAmount,
-      bankDetails: bankDetails || worker.bankDetails, // Use provided or saved bank details
-      status: 'pending',
-      requestDate: new Date()
-    });
+    const { withdrawal, worker } = outcome;
 
     // Notify Admin
     const { createNotification } = require('../notificationControllers/notificationController');
@@ -241,8 +258,15 @@ const createDuesPaymentOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Dues amount is too small to process online' });
     }
 
-    // Create Razorpay order
-    const orderResult = await createOrder(duesAmount, `Dues payment for worker ${worker.name}`);
+    // Create Razorpay order.
+    // Signature is createOrder(amount, currency, receipt, notes) — the description
+    // used to be passed as `currency`, which made Razorpay reject the order.
+    const orderResult = await createOrder(
+      duesAmount,
+      'INR',
+      `DUES_${workerId}_${Date.now()}`,
+      { workerId: workerId.toString(), type: 'worker_dues', workerName: worker.name }
+    );
     
     if (!orderResult.success) {
       return res.status(500).json({ success: false, message: 'Failed to create payment order' });
@@ -280,48 +304,89 @@ const verifyDuesPayment = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Payment verification failed' });
     }
 
-    const worker = await Worker.findById(workerId);
-    if (!worker) {
+    // Read what was actually captured rather than assuming the full dues were
+    // paid: dues can grow between order creation and payment, and zeroing them
+    // regardless would wipe a balance the worker never settled.
+    const confirmed = await confirmGatewayPayment({
+      orderId: razorpay_order_id,
+      paymentId: razorpay_payment_id
+    });
+    if (!confirmed.ok) {
+      return res.status(confirmed.status).json({ success: false, message: confirmed.message });
+    }
+
+    if (!confirmed.mock && confirmed.notes?.workerId &&
+        String(confirmed.notes.workerId) !== String(workerId)) {
+      return res.status(403).json({ success: false, message: 'This order belongs to a different account' });
+    }
+
+    // Dues reduction and its ledger row commit together.
+    const outcome = await withTransaction(async (session) => {
+      const already = await Transaction.findOne({
+        'metadata.transactionId': razorpay_payment_id,
+        type: 'settlement'
+      }).session(session);
+      if (already) abort({ alreadyApplied: true });
+
+      const worker = await Worker.findById(workerId).session(session);
+      if (!worker) abort({ notFound: true });
+
+      const currentDues = worker.wallet?.dues || 0;
+      // Dev-mock orders have no gateway amount to read, so they settle the full
+      // dues as before. isDevMockOrder() is hard-disabled in production.
+      const paidAmount = confirmed.mock ? currentDues : confirmed.amount;
+      // Never drive dues negative if the worker overpays.
+      const applied = Math.min(paidAmount, currentDues);
+
+      worker.wallet.dues = currentDues - applied;
+
+      // Unblock once the outstanding balance is back within the cash limit
+      if (worker.wallet.isBlocked && worker.wallet.dues <= (worker.wallet.cashLimit || 0)) {
+        worker.wallet.isBlocked = false;
+        worker.wallet.blockedAt = null;
+        worker.wallet.blockReason = null;
+      }
+
+      await worker.save({ session });
+
+      const [transaction] = await Transaction.create([{
+        workerId: worker._id,
+        type: 'settlement',
+        amount: applied, // The amount actually applied against dues
+        description: `Paid platform dues via Razorpay`,
+        status: 'completed',
+        metadata: {
+          paymentMethod: 'razorpay',
+          transactionId: razorpay_payment_id,
+          orderId: razorpay_order_id,
+          amountPaid: paidAmount,
+          notes: 'Worker cleared their platform dues'
+        }
+      }], { session });
+
+      return {
+        transaction,
+        applied,
+        dues: worker.wallet.dues,
+        isBlocked: worker.wallet.isBlocked
+      };
+    });
+
+    if (outcome.notFound) {
       return res.status(404).json({ success: false, message: 'Worker not found' });
     }
-
-    const paidAmount = worker.wallet?.dues || 0;
-    
-    // Clear dues
-    worker.wallet.dues = 0;
-    
-    // Check if worker was blocked due to dues limit, then unblock
-    if (worker.wallet.isBlocked && worker.wallet.dues <= worker.wallet.cashLimit) {
-      worker.wallet.isBlocked = false;
-      worker.wallet.blockedAt = null;
-      worker.wallet.blockReason = null;
+    if (outcome.alreadyApplied) {
+      return res.status(400).json({ success: false, message: 'This payment has already been applied' });
     }
-    
-    await worker.save();
-
-    // Create a transaction record for this payment
-    const transaction = await Transaction.create({
-      workerId: worker._id,
-      type: 'settlement',
-      amount: paidAmount, // The amount worker paid to admin
-      description: `Paid platform dues via Razorpay`,
-      status: 'completed',
-      metadata: {
-        paymentMethod: 'razorpay',
-        transactionId: razorpay_payment_id,
-        orderId: razorpay_order_id,
-        notes: 'Worker cleared their platform dues'
-      }
-    });
 
     res.status(200).json({
       success: true,
       message: 'Dues paid successfully',
       data: {
-        transactionId: transaction._id,
-        amount: paidAmount,
-        dues: worker.wallet.dues,
-        isBlocked: worker.wallet.isBlocked
+        transactionId: outcome.transaction._id,
+        amount: outcome.applied,
+        dues: outcome.dues,
+        isBlocked: outcome.isBlocked
       }
     });
 

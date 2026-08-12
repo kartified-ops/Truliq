@@ -7,6 +7,8 @@ const { PAYMENT_STATUS, BOOKING_STATUS } = require('../../utils/constants');
 const { createOrder, verifyPayment, refundPayment } = require('../../services/razorpayService');
 const { createNotification } = require('../notificationControllers/notificationController');
 const { recordBookingEarning } = require('../../services/earningTrackerService');
+const { withTransaction, abort } = require('../../utils/withTransaction');
+const { confirmGatewayPayment } = require('../../utils/confirmGatewayPayment');
 
 /**
  * Create Razorpay order for booking payment
@@ -113,110 +115,142 @@ const verifyPaymentWebhook = async (req, res) => {
       });
     }
 
-    // Find booking by Razorpay order ID
-    const booking = await Booking.findOne({ razorpayOrderId: razorpay_order_id });
+    const Transaction = require('../../models/Transaction');
+    const Vendor = require('../../models/Vendor');
+    const Worker = require('../../models/Worker');
+    const VendorBill = require('../../models/VendorBill');
 
-    if (!booking) {
+    // Booking claim + user transaction + bill + partner wallet credit all commit
+    // together or not at all. Notifications and socket emits stay outside — they
+    // can't be rolled back, and the callback may be retried on write conflicts.
+    const outcome = await withTransaction(async (session) => {
+      // ATOMIC CLAIM: a valid signature can be replayed by the client. Claiming the
+      // booking in the query means only the first call proceeds to credit wallets —
+      // every replay falls through to the "already verified" branch below.
+      const booking = await Booking.findOneAndUpdate(
+        {
+          razorpayOrderId: razorpay_order_id,
+          paymentStatus: { $ne: PAYMENT_STATUS.SUCCESS }
+        },
+        {
+          $set: {
+            paymentStatus: PAYMENT_STATUS.SUCCESS,
+            paymentMethod: 'online',
+            razorpayPaymentId: razorpay_payment_id,
+            paymentId: razorpay_payment_id
+          }
+        },
+        { new: true, session }
+      );
+
+      if (!booking) {
+        // Either no such order, or another request already verified this payment
+        const existing = await Booking.findOne({ razorpayOrderId: razorpay_order_id })
+          .select('_id')
+          .session(session);
+        return { booking: null, existing };
+      }
+
+      // Update booking status based on current state
+      if (booking.status === BOOKING_STATUS.WORK_DONE) {
+        booking.status = BOOKING_STATUS.COMPLETED;
+        booking.completedAt = new Date();
+        await booking.save({ session });
+      }
+
+      // User payment transaction
+      await Transaction.create([{
+        userId: booking.userId,
+        bookingId: booking._id,
+        amount: booking.finalAmount,
+        type: 'payment',
+        paymentMethod: 'razorpay',
+        status: 'completed',
+        description: `Online payment for booking ${booking.bookingNumber}`,
+        referenceId: razorpay_payment_id
+      }], { session });
+
+      // Fetch VendorBill for earnings (only if bill exists = post-completion payment)
+      const bill = await VendorBill.findOne({ bookingId: booking._id }).session(session);
+
+      const isWorkerBooking = booking.bookingModel === 'worker';
+
+      if (bill) {
+        const partnerEarning = isWorkerBooking ? bill.grandTotal : bill.vendorTotalEarning;
+
+        // Mark bill as paid
+        bill.status = 'paid';
+        bill.paidAt = new Date();
+        await bill.save({ session });
+
+        // Online payment: only earnings increase, NO dues (platform holds the money)
+        if (isWorkerBooking && booking.workerId) {
+          await Worker.findByIdAndUpdate(booking.workerId, {
+            $inc: { 'wallet.earnings': partnerEarning, 'wallet.balance': partnerEarning }
+          }, { session });
+
+          // Earnings credit transaction for Worker
+          if (partnerEarning > 0) {
+            await Transaction.create([{
+              workerId: booking.workerId,
+              bookingId: booking._id,
+              amount: partnerEarning,
+              type: 'earnings_credit',
+              paymentMethod: 'system',
+              status: 'completed',
+              description: `Earnings ₹${partnerEarning} credited for booking ${booking.bookingNumber} (online payment)`,
+              metadata: {
+                type: 'earnings_increase',
+                billId: bill._id.toString()
+              }
+            }], { session });
+          }
+        } else if (booking.vendorId) {
+          await Vendor.findByIdAndUpdate(booking.vendorId, {
+            $inc: { 'wallet.earnings': partnerEarning }
+          }, { session });
+
+          // Earnings credit transaction for Vendor
+          if (partnerEarning > 0) {
+            await Transaction.create([{
+              vendorId: booking.vendorId,
+              bookingId: booking._id,
+              amount: partnerEarning,
+              type: 'earnings_credit',
+              paymentMethod: 'system',
+              status: 'completed',
+              description: `Earnings ₹${partnerEarning} credited for booking ${booking.bookingNumber} (online payment)`,
+              metadata: {
+                type: 'earnings_increase',
+                billId: bill._id.toString(),
+                serviceEarning: bill.vendorServiceEarning,
+                partsEarning: bill.vendorPartsEarning
+              }
+            }], { session });
+          }
+        }
+
+        console.log(`[Payment] Credited ₹${partnerEarning} to ${isWorkerBooking ? 'worker' : 'vendor'}`);
+      }
+
+      return { booking, bill };
+    });
+
+    if (!outcome.booking) {
+      if (outcome.existing) {
+        return res.status(200).json({
+          success: true,
+          message: 'Payment already verified',
+          data: { bookingId: outcome.existing._id, alreadyProcessed: true }
+        });
+      }
       return res.status(404).json({
         success: false,
         message: 'Booking not found'
       });
     }
 
-    // Update booking payment status
-    booking.paymentStatus = PAYMENT_STATUS.SUCCESS;
-    booking.paymentMethod = 'online';
-    booking.razorpayPaymentId = razorpay_payment_id;
-    booking.paymentId = razorpay_payment_id;
-
-    // Update booking status based on current state
-    if (booking.status === BOOKING_STATUS.WORK_DONE) {
-      booking.status = BOOKING_STATUS.COMPLETED;
-      booking.completedAt = new Date();
-    }
-
-    await booking.save();
-
-    // ── Credit Partner Wallet from VendorBill (single source of truth) ──
-    const Transaction = require('../../models/Transaction');
-    const Vendor = require('../../models/Vendor');
-    const Worker = require('../../models/Worker');
-    const VendorBill = require('../../models/VendorBill');
-
-    // User payment transaction
-    await Transaction.create({
-      userId: booking.userId,
-      bookingId: booking._id,
-      amount: booking.finalAmount,
-      type: 'payment',
-      paymentMethod: 'razorpay',
-      status: 'completed',
-      description: `Online payment for booking ${booking.bookingNumber}`,
-      referenceId: razorpay_payment_id
-    });
-
-    // Fetch VendorBill for earnings (only if bill exists = post-completion payment)
-    const bill = await VendorBill.findOne({ bookingId: booking._id });
-
-    const isWorkerBooking = booking.bookingModel === 'worker';
-
-    if (bill) {
-      const partnerEarning = isWorkerBooking ? bill.grandTotal : bill.vendorTotalEarning;
-
-      // Mark bill as paid
-      bill.status = 'paid';
-      bill.paidAt = new Date();
-      await bill.save();
-
-      // Online payment: only earnings increase, NO dues (platform holds the money)
-      if (isWorkerBooking && booking.workerId) {
-        await Worker.findByIdAndUpdate(booking.workerId, {
-          $inc: { 'wallet.earnings': partnerEarning, 'wallet.balance': partnerEarning }
-        });
-
-        // Earnings credit transaction for Worker
-        if (partnerEarning > 0) {
-          await Transaction.create({
-            workerId: booking.workerId,
-            bookingId: booking._id,
-            amount: partnerEarning,
-            type: 'earnings_credit',
-            paymentMethod: 'system',
-            status: 'completed',
-            description: `Earnings ₹${partnerEarning} credited for booking ${booking.bookingNumber} (online payment)`,
-            metadata: {
-              type: 'earnings_increase',
-              billId: bill._id.toString()
-            }
-          });
-        }
-      } else if (booking.vendorId) {
-        await Vendor.findByIdAndUpdate(booking.vendorId, {
-          $inc: { 'wallet.earnings': partnerEarning }
-        });
-
-        // Earnings credit transaction for Vendor
-        if (partnerEarning > 0) {
-          await Transaction.create({
-            vendorId: booking.vendorId,
-            bookingId: booking._id,
-            amount: partnerEarning,
-            type: 'earnings_credit',
-            paymentMethod: 'system',
-            status: 'completed',
-            description: `Earnings ₹${partnerEarning} credited for booking ${booking.bookingNumber} (online payment)`,
-            metadata: {
-              type: 'earnings_increase',
-              billId: bill._id.toString(),
-              serviceEarning: bill.vendorServiceEarning,
-              partsEarning: bill.vendorPartsEarning
-            }
-          });
-        }
-      }
-
-      console.log(`[Payment] Credited ₹${partnerEarning} to ${isWorkerBooking ? 'worker' : 'vendor'}`);
-    }
+    const { booking, bill } = outcome;
 
     // Record stats in the Daily Earning Tracker (Async)
     recordBookingEarning({
@@ -335,125 +369,154 @@ const processWalletPayment = async (req, res) => {
       });
     }
 
-    // Get booking
-    const booking = await Booking.findOne({ _id: bookingId, userId });
+    const Transaction = require('../../models/Transaction');
+    const Vendor = require('../../models/Vendor');
+    const Worker = require('../../models/Worker');
+    const VendorBill = require('../../models/VendorBill');
 
-    if (!booking) {
+    // The user debit and the partner credit are the two halves of one payment.
+    // Committing one without the other either loses the customer's money or
+    // pays a partner who was never charged.
+    //
+    // Everything is read INSIDE the callback on purpose: withTransaction() retries
+    // on write conflicts, and a document fetched outside would keep its "already
+    // saved" state on the second pass, making its .save() a silent no-op.
+    const walletOutcome = await withTransaction(async (session) => {
+      // Claim the booking and mark it paid in one step, so a double-submit can't
+      // debit the wallet twice for the same booking.
+      const booking = await Booking.findOneAndUpdate(
+        { _id: bookingId, userId, paymentStatus: { $ne: PAYMENT_STATUS.SUCCESS } },
+        {
+          $set: {
+            paymentStatus: PAYMENT_STATUS.SUCCESS,
+            paymentMethod: 'wallet',
+            paymentId: `WALLET_${Date.now()}`
+          }
+        },
+        { new: true, session }
+      );
+
+      if (!booking) {
+        const exists = await Booking.findOne({ _id: bookingId, userId })
+          .select('_id')
+          .session(session);
+        abort(exists ? { alreadyPaid: true } : { notFound: true });
+      }
+
+      // ATOMIC DEBIT: the balance check lives in the query, so two concurrent
+      // requests can't both pass it and overdraw the wallet.
+      const debitedUser = await User.findOneAndUpdate(
+        { _id: userId, 'wallet.balance': { $gte: booking.finalAmount } },
+        { $inc: { 'wallet.balance': -booking.finalAmount } },
+        { new: true, session }
+      );
+
+      // abort(), not return — a plain return would COMMIT the booking claim above
+      // and hand the customer a paid booking they were never charged for.
+      if (!debitedUser) abort({ insufficient: true });
+
+      await Transaction.create([{
+        userId,
+        bookingId: booking._id,
+        amount: booking.finalAmount,
+        type: 'debit',
+        paymentMethod: 'wallet',
+        status: 'completed',
+        description: `Wallet payment for booking ${booking.bookingNumber}`,
+        balanceAfter: debitedUser.wallet.balance
+      }], { session });
+
+      // Update booking status
+      if (booking.status === BOOKING_STATUS.WORK_DONE) {
+        booking.status = BOOKING_STATUS.COMPLETED;
+        booking.completedAt = new Date();
+        await booking.save({ session });
+      }
+
+      // ── Credit Partner Wallet from VendorBill (single source of truth) ──
+      const bill = await VendorBill.findOne({ bookingId: booking._id }).session(session);
+
+      const isWorkerBooking = booking.bookingModel === 'worker';
+
+      if (bill) {
+        const partnerEarning = isWorkerBooking ? bill.grandTotal : bill.vendorTotalEarning;
+
+        // Mark bill as paid
+        bill.status = 'paid';
+        bill.paidAt = new Date();
+        await bill.save({ session });
+
+        // Wallet payment: only earnings increase, NO dues (platform holds the money)
+        if (isWorkerBooking && booking.workerId) {
+          await Worker.findByIdAndUpdate(booking.workerId, {
+            $inc: { 'wallet.earnings': partnerEarning, 'wallet.balance': partnerEarning }
+          }, { session });
+
+          if (partnerEarning > 0) {
+            await Transaction.create([{
+              workerId: booking.workerId,
+              bookingId: booking._id,
+              amount: partnerEarning,
+              type: 'earnings_credit',
+              paymentMethod: 'system',
+              status: 'completed',
+              description: `Earnings ₹${partnerEarning} credited for booking ${booking.bookingNumber} (wallet payment)`,
+              metadata: {
+                type: 'earnings_increase',
+                billId: bill._id.toString()
+              }
+            }], { session });
+          }
+        } else if (booking.vendorId) {
+          await Vendor.findByIdAndUpdate(booking.vendorId, {
+            $inc: { 'wallet.earnings': partnerEarning }
+          }, { session });
+
+          if (partnerEarning > 0) {
+            await Transaction.create([{
+              vendorId: booking.vendorId,
+              bookingId: booking._id,
+              amount: partnerEarning,
+              type: 'earnings_credit',
+              paymentMethod: 'system',
+              status: 'completed',
+              description: `Earnings ₹${partnerEarning} credited for booking ${booking.bookingNumber} (wallet payment)`,
+              metadata: {
+                type: 'earnings_increase',
+                billId: bill._id.toString(),
+                serviceEarning: bill.vendorServiceEarning,
+                partsEarning: bill.vendorPartsEarning
+              }
+            }], { session });
+          }
+        }
+
+        console.log(`[Wallet Payment] Credited ₹${partnerEarning} to ${isWorkerBooking ? 'worker' : 'vendor'}`);
+      }
+
+      return { bill, booking };
+    });
+
+    if (walletOutcome.notFound) {
       return res.status(404).json({
         success: false,
         message: 'Booking not found'
       });
     }
-
-    // Check if payment already done
-    if (booking.paymentStatus === PAYMENT_STATUS.SUCCESS) {
+    if (walletOutcome.alreadyPaid) {
       return res.status(400).json({
         success: false,
         message: 'Payment already completed for this booking'
       });
     }
-
-    // Check wallet balance
-    if (user.wallet.balance < booking.finalAmount) {
+    if (walletOutcome.insufficient) {
       return res.status(400).json({
         success: false,
         message: 'Insufficient wallet balance'
       });
     }
 
-    // Deduct from user wallet
-    user.wallet.balance -= booking.finalAmount;
-    await user.save();
-
-    const Transaction = require('../../models/Transaction');
-    await Transaction.create({
-      userId,
-      bookingId: booking._id,
-      amount: booking.finalAmount,
-      type: 'debit',
-      paymentMethod: 'wallet',
-      status: 'completed',
-      description: `Wallet payment for booking ${booking.bookingNumber}`,
-      balanceAfter: user.wallet.balance
-    });
-
-    // Update booking payment status
-    booking.paymentStatus = PAYMENT_STATUS.SUCCESS;
-    booking.paymentMethod = 'wallet';
-    booking.paymentId = `WALLET_${Date.now()}`;
-
-    // Update booking status
-    if (booking.status === BOOKING_STATUS.WORK_DONE) {
-      booking.status = BOOKING_STATUS.COMPLETED;
-      booking.completedAt = new Date();
-    }
-
-    await booking.save();
-
-    // ── Credit Partner Wallet from VendorBill (single source of truth) ──
-    const Vendor = require('../../models/Vendor');
-    const Worker = require('../../models/Worker');
-    const VendorBill = require('../../models/VendorBill');
-
-    const bill = await VendorBill.findOne({ bookingId: booking._id });
-
-    const isWorkerBooking = booking.bookingModel === 'worker';
-
-    if (bill) {
-      const partnerEarning = isWorkerBooking ? bill.grandTotal : bill.vendorTotalEarning;
-
-      // Mark bill as paid
-      bill.status = 'paid';
-      bill.paidAt = new Date();
-      await bill.save();
-
-      // Wallet payment: only earnings increase, NO dues (platform holds the money)
-      if (isWorkerBooking && booking.workerId) {
-        await Worker.findByIdAndUpdate(booking.workerId, {
-          $inc: { 'wallet.earnings': partnerEarning, 'wallet.balance': partnerEarning }
-        });
-
-        if (partnerEarning > 0) {
-          await Transaction.create({
-            workerId: booking.workerId,
-            bookingId: booking._id,
-            amount: partnerEarning,
-            type: 'earnings_credit',
-            paymentMethod: 'system',
-            status: 'completed',
-            description: `Earnings ₹${partnerEarning} credited for booking ${booking.bookingNumber} (wallet payment)`,
-            metadata: {
-              type: 'earnings_increase',
-              billId: bill._id.toString()
-            }
-          });
-        }
-      } else if (booking.vendorId) {
-        await Vendor.findByIdAndUpdate(booking.vendorId, {
-          $inc: { 'wallet.earnings': partnerEarning }
-        });
-
-        if (partnerEarning > 0) {
-          await Transaction.create({
-            vendorId: booking.vendorId,
-            bookingId: booking._id,
-            amount: partnerEarning,
-            type: 'earnings_credit',
-            paymentMethod: 'system',
-            status: 'completed',
-            description: `Earnings ₹${partnerEarning} credited for booking ${booking.bookingNumber} (wallet payment)`,
-            metadata: {
-              type: 'earnings_increase',
-              billId: bill._id.toString(),
-              serviceEarning: bill.vendorServiceEarning,
-              partsEarning: bill.vendorPartsEarning
-            }
-          });
-        }
-      }
-
-      console.log(`[Wallet Payment] Credited ₹${partnerEarning} to ${isWorkerBooking ? 'worker' : 'vendor'}`);
-    }
+    const { bill, booking } = walletOutcome;
 
     // Record stats in the Daily Earning Tracker (Async)
     recordBookingEarning({
@@ -585,12 +648,70 @@ const processRefund = async (req, res) => {
       });
     }
 
-    // Process refund based on payment method
-    if (booking.paymentMethod === 'razorpay' && booking.razorpayPaymentId) {
-      // Razorpay refund
+    // Never refund more than the customer actually paid
+    const paidAmount = Number(booking.finalAmount) || 0;
+    const refundAmount = amount === undefined || amount === null ? paidAmount : Number(amount);
+
+    if (!Number.isFinite(refundAmount) || refundAmount <= 0 || refundAmount > paidAmount) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid refund amount. Must be between 1 and ${paidAmount}.`
+      });
+    }
+
+    if (booking.paymentMethod !== 'wallet' &&
+        !(booking.paymentMethod === 'razorpay' && booking.razorpayPaymentId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Refund not supported for this payment method'
+      });
+    }
+
+    // Claiming SUCCESS -> REFUNDED in the query is what stops a double-submit from
+    // refunding twice; only the first request past this point moves any money.
+    const claimRefund = (session) => Booking.findOneAndUpdate(
+      { _id: bookingId, paymentStatus: PAYMENT_STATUS.SUCCESS },
+      { $set: { paymentStatus: PAYMENT_STATUS.REFUNDED, refundedAmount: refundAmount } },
+      { new: true, session }
+    );
+
+    if (booking.paymentMethod === 'wallet') {
+      // Wallet refund: booking status and the wallet credit are two documents, so
+      // they commit together or not at all.
+      const outcome = await withTransaction(async (session) => {
+        const claimed = await claimRefund(session);
+        if (!claimed) abort({ alreadyRefunded: true });
+
+        await User.findByIdAndUpdate(claimed.userId, {
+          $inc: { 'wallet.balance': refundAmount }
+        }, { session });
+
+        return { claimed };
+      });
+
+      if (outcome.alreadyRefunded) {
+        return res.status(400).json({
+          success: false,
+          message: 'This booking has already been refunded'
+        });
+      }
+      booking.paymentStatus = PAYMENT_STATUS.REFUNDED;
+    } else {
+      // Razorpay refund hits an external API. That call cannot be rolled back and
+      // must not hold a transaction open across a network round trip, so instead:
+      // claim first (single document, already atomic), then call out, then undo the
+      // claim if the gateway rejected it.
+      const claimed = await claimRefund();
+      if (!claimed) {
+        return res.status(400).json({
+          success: false,
+          message: 'This booking has already been refunded'
+        });
+      }
+
       const refundResult = await refundPayment(
         booking.razorpayPaymentId,
-        amount || booking.finalAmount,
+        refundAmount,
         {
           bookingId: booking._id.toString(),
           reason: 'Booking cancellation'
@@ -598,39 +719,25 @@ const processRefund = async (req, res) => {
       );
 
       if (!refundResult.success) {
+        // Compensate: give the booking its refundable state back
+        await Booking.updateOne(
+          { _id: bookingId },
+          { $set: { paymentStatus: PAYMENT_STATUS.SUCCESS, refundedAmount: 0 } }
+        );
         return res.status(500).json({
           success: false,
           message: 'Failed to process refund'
         });
       }
-
-      // Update booking payment status
       booking.paymentStatus = PAYMENT_STATUS.REFUNDED;
-    } else if (booking.paymentMethod === 'wallet') {
-      // Wallet refund - add back to user wallet
-      const user = await User.findById(booking.userId);
-      if (user) {
-        user.wallet.balance += (amount || booking.finalAmount);
-        await user.save();
-      }
-
-      // Update booking payment status
-      booking.paymentStatus = PAYMENT_STATUS.REFUNDED;
-    } else {
-      return res.status(400).json({
-        success: false,
-        message: 'Refund not supported for this payment method'
-      });
     }
-
-    await booking.save();
 
     res.status(200).json({
       success: true,
       message: 'Refund processed successfully',
       data: {
         bookingId: booking._id,
-        refundAmount: amount || booking.finalAmount
+        refundAmount
       }
     });
   } catch (error) {
@@ -839,28 +946,107 @@ const createPlanOrder = async (req, res) => {
 
 const verifyPlanPayment = async (req, res) => {
   try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, planId } = req.body;
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+    const userId = req.user.id;
+
+    if (!razorpay_order_id || !razorpay_payment_id) {
+      return res.status(400).json({ success: false, message: 'Missing payment details' });
+    }
 
     // Import verifyPayment if needed, but it's destructured at top
     const isValid = verifyPayment(razorpay_order_id, razorpay_payment_id, razorpay_signature);
     if (!isValid) return res.status(400).json({ success: false, message: 'Invalid signature' });
 
+    // Confirm with the gateway. The signature alone doesn't say WHICH plan was
+    // paid for, so taking planId from the body let anyone buy the cheapest plan
+    // and activate the most expensive one.
+    const confirmed = await confirmGatewayPayment({
+      orderId: razorpay_order_id,
+      paymentId: razorpay_payment_id
+    });
+    if (!confirmed.ok) {
+      return res.status(confirmed.status).json({ success: false, message: confirmed.message });
+    }
+
+    // createPlanOrder stamps { type:'plan', planId, userId } into the order notes.
+    // Outside dev-mock those notes are the only trusted source of the plan id.
+    const notes = confirmed.notes || {};
+    const planId = confirmed.mock ? req.body.planId : notes.planId;
+
+    if (!planId) {
+      return res.status(400).json({ success: false, message: 'Order is not a plan purchase' });
+    }
+    if (!confirmed.mock && notes.userId && String(notes.userId) !== String(userId)) {
+      return res.status(403).json({ success: false, message: 'This order belongs to a different account' });
+    }
+
     const plan = await Plan.findById(planId);
-    const user = await User.findById(req.user.id);
+    if (!plan) return res.status(404).json({ success: false, message: 'Plan not found' });
 
-    const validityDays = plan.validityDays || 30;
-    user.plans = {
-      isActive: true,
-      name: plan.name,
-      expiry: new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000),
-      price: plan.price
-    };
+    const Transaction = require('../../models/Transaction');
+    const paidAmount = confirmed.mock ? plan.price : confirmed.amount;
 
-    await user.save();
+    // Plan activation and its ledger row commit together; the referenceId lookup
+    // makes a replayed request a no-op instead of a free extension.
+    const outcome = await withTransaction(async (session) => {
+      const already = await Transaction.findOne({
+        referenceId: razorpay_payment_id,
+        type: 'plan_purchase'
+      }).session(session);
+      if (already) abort({ alreadyActivated: true });
 
-    res.status(200).json({ success: true, message: 'Plan activated' });
+      const validityDays = plan.validityDays || 30;
+      const expiry = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
+
+      const updatedUser = await User.findByIdAndUpdate(
+        userId,
+        {
+          $set: {
+            plans: {
+              isActive: true,
+              name: plan.name,
+              expiry,
+              price: plan.price
+            }
+          }
+        },
+        { new: true, session }
+      );
+      if (!updatedUser) abort({ notFound: true });
+
+      await Transaction.create([{
+        userId,
+        type: 'plan_purchase',
+        amount: paidAmount,
+        status: 'completed',
+        paymentMethod: 'razorpay',
+        description: `Plan purchase: ${plan.name} (${validityDays} days)`,
+        referenceId: razorpay_payment_id,
+        metadata: {
+          orderId: razorpay_order_id,
+          planId: plan._id.toString(),
+          expiry
+        }
+      }], { session });
+
+      return { expiry };
+    });
+
+    if (outcome.notFound) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    if (outcome.alreadyActivated) {
+      return res.status(400).json({ success: false, message: 'This payment has already been applied' });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Plan activated',
+      data: { name: plan.name, expiry: outcome.expiry }
+    });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error('Verify plan payment error:', error);
+    res.status(500).json({ success: false, message: 'Failed to activate plan' });
   }
 };
 

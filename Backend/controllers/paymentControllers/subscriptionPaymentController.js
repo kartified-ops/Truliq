@@ -1,6 +1,8 @@
 const { createOrder, verifyPayment } = require('../../services/razorpayService');
 const Worker = require('../../models/Worker');
 const WorkerSubscriptionPlan = require('../../models/WorkerSubscriptionPlan');
+const { withTransaction, abort } = require('../../utils/withTransaction');
+const { confirmGatewayPayment } = require('../../utils/confirmGatewayPayment');
 
 /**
  * POST /api/workers/subscription/create-order
@@ -76,13 +78,40 @@ exports.createSubscriptionOrder = async (req, res) => {
  */
 exports.verifySubscriptionPayment = async (req, res) => {
   try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, planId } = req.body;
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
     const workerId = req.user.id;
+
+    if (!razorpay_order_id || !razorpay_payment_id) {
+      return res.status(400).json({ success: false, message: 'Missing payment details' });
+    }
 
     // Verify payment signature
     const isValid = verifyPayment(razorpay_order_id, razorpay_payment_id, razorpay_signature);
     if (!isValid) {
       return res.status(400).json({ success: false, message: 'Invalid payment signature. Payment verification failed.' });
+    }
+
+    // Confirm with the gateway. A valid signature proves the payment ids are
+    // genuine but says nothing about WHICH plan was bought, so taking planId from
+    // the body let a worker pay for the cheapest plan and activate the longest one.
+    const confirmed = await confirmGatewayPayment({
+      orderId: razorpay_order_id,
+      paymentId: razorpay_payment_id
+    });
+    if (!confirmed.ok) {
+      return res.status(confirmed.status).json({ success: false, message: confirmed.message });
+    }
+
+    // createSubscriptionOrder stamps { workerId, planId, type:'worker_subscription' }
+    // into the order notes — server-set, so the client cannot influence them.
+    const notes = confirmed.notes || {};
+    const planId = confirmed.mock ? req.body.planId : notes.planId;
+
+    if (!planId) {
+      return res.status(400).json({ success: false, message: 'Order is not a subscription purchase' });
+    }
+    if (!confirmed.mock && notes.workerId && String(notes.workerId) !== String(workerId)) {
+      return res.status(403).json({ success: false, message: 'This order belongs to a different account' });
     }
 
     // Get plan details
@@ -91,60 +120,83 @@ exports.verifySubscriptionPayment = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Plan not found' });
     }
 
-    // Get worker
-    const worker = await Worker.findById(workerId);
-    if (!worker) {
-      return res.status(404).json({ success: false, message: 'Worker not found' });
-    }
-
-    // Calculate new expiry date
-    const now = new Date();
-    // If subscription still active → extend from current expiry
-    // If expired or none → start from now
-    const currentExpiry = worker.subscription?.expiryDate
-      ? new Date(worker.subscription.expiryDate)
-      : null;
-
-    const baseDate = (currentExpiry && currentExpiry > now) ? currentExpiry : now;
-    const expiryDate = new Date(baseDate);
-    expiryDate.setDate(expiryDate.getDate() + plan.durationDays);
-
-    // Activate subscription
-    worker.subscription = {
-      isActive: true,
-      planId: plan._id,
-      planName: plan.title,
-      startDate: now,
-      expiryDate,
-      durationDays: plan.durationDays,
-      lastPaymentId: razorpay_payment_id,
-      lastOrderId: razorpay_order_id
-    };
-
-    await worker.save();
-
-    // --- RECORD TRANSACTION ---
     const Transaction = require('../../models/Transaction');
-    await Transaction.create({
-      workerId: worker._id,
-      type: 'worker_subscription',
-      amount: plan.price,
-      status: 'completed',
-      paymentMethod: 'razorpay',
-      description: `Subscription: ${plan.title} (${plan.durationDays} days)`,
-      referenceId: razorpay_payment_id,
-      metadata: {
-        orderId: razorpay_order_id,
+    const now = new Date();
+    const paidAmount = confirmed.mock ? plan.price : confirmed.amount;
+
+    // Subscription activation and its ledger row commit together. The referenceId
+    // lookup makes a replayed request a no-op — without it, re-posting the same
+    // payment extended the subscription by another full term, for free.
+    const outcome = await withTransaction(async (session) => {
+      const already = await Transaction.findOne({
+        referenceId: razorpay_payment_id,
+        type: 'worker_subscription'
+      }).session(session);
+      if (already) abort({ alreadyApplied: true });
+
+      // Read inside the transaction so a retry sees fresh state
+      const worker = await Worker.findById(workerId).session(session);
+      if (!worker) abort({ notFound: true });
+
+      // Calculate new expiry date
+      // If subscription still active → extend from current expiry
+      // If expired or none → start from now
+      const currentExpiry = worker.subscription?.expiryDate
+        ? new Date(worker.subscription.expiryDate)
+        : null;
+
+      const baseDate = (currentExpiry && currentExpiry > now) ? currentExpiry : now;
+      const expiryDate = new Date(baseDate);
+      expiryDate.setDate(expiryDate.getDate() + plan.durationDays);
+
+      // Activate subscription
+      worker.subscription = {
+        isActive: true,
         planId: plan._id,
-        expiryDate: expiryDate
-      }
+        planName: plan.title,
+        startDate: now,
+        expiryDate,
+        durationDays: plan.durationDays,
+        lastPaymentId: razorpay_payment_id,
+        lastOrderId: razorpay_order_id
+      };
+
+      await worker.save({ session });
+
+      // --- RECORD TRANSACTION ---
+      await Transaction.create([{
+        workerId: worker._id,
+        type: 'worker_subscription',
+        amount: paidAmount,
+        status: 'completed',
+        paymentMethod: 'razorpay',
+        description: `Subscription: ${plan.title} (${plan.durationDays} days)`,
+        referenceId: razorpay_payment_id,
+        metadata: {
+          orderId: razorpay_order_id,
+          planId: plan._id,
+          expiryDate: expiryDate
+        }
+      }], { session });
+
+      return { expiryDate };
     });
 
-    // --- UPDATE PLATFORM EARNINGS ---
-    const { recordWorkerSubscription } = require('../../services/earningTrackerService');
-    await recordWorkerSubscription(now, plan.price);
+    if (outcome.notFound) {
+      return res.status(404).json({ success: false, message: 'Worker not found' });
+    }
+    if (outcome.alreadyApplied) {
+      return res.status(400).json({ success: false, message: 'This payment has already been applied' });
+    }
 
-    console.log(`[SubscriptionPayment] ✅ Worker ${workerId} subscribed to ${plan.title} until ${expiryDate}. Revenue recorded: ₹${plan.price}`);
+    const { expiryDate } = outcome;
+
+    // --- UPDATE PLATFORM EARNINGS (post-commit: analytics must not fail the sale) ---
+    const { recordWorkerSubscription } = require('../../services/earningTrackerService');
+    recordWorkerSubscription(now, paidAmount)
+      .catch(err => console.error('[SubscriptionPayment] Earnings tracker failed:', err));
+
+    console.log(`[SubscriptionPayment] ✅ Worker ${workerId} subscribed to ${plan.title} until ${expiryDate}. Revenue recorded: ₹${paidAmount}`);
 
     res.status(200).json({
       success: true,

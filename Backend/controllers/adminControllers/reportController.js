@@ -7,6 +7,7 @@ const User = require('../../models/User');
 const Settings = require('../../models/Settings');
 const PlatformEarning = require('../../models/PlatformEarning');
 const { BOOKING_STATUS, PAYMENT_STATUS } = require('../../utils/constants');
+const { getCommissionRates } = require('../../utils/commission');
 
 /**
  * Get Financial Dashboard Overview
@@ -177,6 +178,10 @@ const getPaymentTransactions = async (req, res) => {
     const billMap = {};
     bills.forEach(b => { billMap[b.bookingId.toString()] = b; });
 
+    // Bills are the source of truth; these rates only cover bookings billed before
+    // a VendorBill existed, so they must match the configured split, not a literal.
+    const { vendorShare, platformShare } = await getCommissionRates();
+
     const reportData = bookings.map(b => {
       const bill = billMap[b._id.toString()];
       return {
@@ -186,8 +191,8 @@ const getPaymentTransactions = async (req, res) => {
         customer: b.userId?.name || 'Guest',
         providerName: b[providerIdField]?.name || b[providerIdField]?.businessName || 'Unassigned',
         amount: bill?.grandTotal || b.finalAmount || 0,
-        platformFee: bill?.companyRevenue || (b.finalAmount ? b.finalAmount * 0.2 : 0),
-        vendorEarnings: bill?.vendorTotalEarning || (b.finalAmount ? b.finalAmount * 0.8 : 0),
+        platformFee: bill?.companyRevenue || (b.finalAmount ? b.finalAmount * platformShare : 0),
+        vendorEarnings: bill?.vendorTotalEarning || (b.finalAmount ? b.finalAmount * vendorShare : 0),
         tax: bill?.totalGST || 0,
         paymentMethod: b.paymentMethod || 'N/A',
         paymentStatus: b.paymentStatus || 'N/A',
