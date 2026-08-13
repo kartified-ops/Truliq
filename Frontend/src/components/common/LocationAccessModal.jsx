@@ -5,6 +5,8 @@ import { themeColors } from '../../theme';
 import { toast } from 'react-hot-toast';
 import flutterBridge from '../../utils/flutterBridge';
 
+import { isGpsOffError } from '../../utils/locationHelper';
+
 const LocationAccessModal = ({
   isOpen,
   onClose,
@@ -31,7 +33,7 @@ const LocationAccessModal = ({
     if (locationDisabled) {
       return {
         title: "LOCATION IS OFF",
-        subtitle: "Please turn on your GPS to continue using Truliq features.",
+        subtitle: "Please turn on your device GPS/Location services to continue using Truliq features.",
         icon: FiSettings
       };
     }
@@ -50,6 +52,7 @@ const LocationAccessModal = ({
     try {
       const location = await flutterBridge.getCurrentLocation();
       setRequesting(false);
+      localStorage.setItem('location_granted', 'true');
       toast.success("Location access granted!");
       if (onSuccess) onSuccess(location);
       if (onClose) onClose();
@@ -57,18 +60,12 @@ const LocationAccessModal = ({
       setRequesting(false);
       let errorMsg = "Failed to get location";
 
-      // HTML5 Geolocation API error codes
-      // 1: PERMISSION_DENIED
-      // 2: POSITION_UNAVAILABLE (often means GPS is off)
-      // 3: TIMEOUT
       if (error.code === 1) {
-        errorMsg = "Location permission denied. Please allow it.";
+        errorMsg = "Location permission denied. Please allow it in settings.";
         setLocationDisabled(true);
-      } else if (error.code === 2) {
-        errorMsg = "Location information is unavailable. Is your GPS on?";
+      } else if (error.code === 2 || error.code === 3 || isGpsOffError(error)) {
+        errorMsg = "Device location (GPS) is turned off. Please turn on GPS.";
         setLocationDisabled(true);
-      } else if (error.code === 3) {
-        errorMsg = "Request timed out. Please try again.";
       }
       toast.error(errorMsg);
     }

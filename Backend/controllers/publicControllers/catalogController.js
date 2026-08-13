@@ -576,11 +576,239 @@ const getPublicHomeData = async (req, res) => {
   }
 };
 
+/**
+ * Universal Search across all Categories, Sub-categories (Brands), and Individual Services
+ * GET /api/public/search?q=query&search=query&cityId=cityId
+ */
+const searchPublicServices = async (req, res) => {
+  try {
+    const rawQuery = (req.query.q || req.query.search || '').toString();
+    const query = rawQuery.trim().replace(/\s+/g, ' ');
+    const { cityId } = req.query;
+
+    if (!query) {
+      return res.status(200).json({
+        success: true,
+        services: [],
+        suggestions: []
+      });
+    }
+
+    const lowerQ = query.toLowerCase();
+
+    // City filter helper
+    const cityFilter = cityId ? {
+      $or: [
+        { cityIds: cityId },
+        { cityIds: { $size: 0 } },
+        { cityIds: { $exists: false } }
+      ]
+    } : {};
+
+    // 1. Fetch Categories, Brands (Sub-categories), and Services in parallel
+    const [categories, brands, services] = await Promise.all([
+      Category.find({ status: 'active', ...cityFilter }).select('title slug homeIconUrl').lean(),
+      Brand.find({ status: 'active', ...cityFilter }).select('title slug iconUrl logo imageUrl categoryIds categoryId sections basePrice discountPrice pricingUnit').lean(),
+      Service.find({ status: 'active' }).populate('brandId', 'title iconUrl categoryIds categoryId').lean()
+    ]);
+
+    // Create Quick Lookup Maps for Category & Brand IDs
+    const categoryMap = new Map();
+    categories.forEach(c => {
+      categoryMap.set(c._id.toString(), c);
+    });
+
+    const brandMap = new Map();
+    brands.forEach(b => {
+      brandMap.set(b._id.toString(), b);
+    });
+
+    // Helper to resolve parent Category for a Brand
+    const getCategoryForBrand = (brand) => {
+      if (!brand) return null;
+      const catId = (brand.categoryIds && brand.categoryIds.length > 0)
+        ? brand.categoryIds[0].toString()
+        : (brand.categoryId ? brand.categoryId.toString() : null);
+      return catId ? categoryMap.get(catId) : null;
+    };
+
+    const candidateResults = [];
+
+    // Helper to calculate matching score based on priority requirements:
+    // 1. Exact service-name match (score 100)
+    // 2. Service name starts with query (score 85)
+    // 3. Service name contains query (score 70)
+    // 4. Sub-category (Brand) name match (score 55/50/40)
+    // 5. Parent Category name match (score 35/30/20)
+    const calculateScore = (serviceTitle, subCategoryTitle, categoryTitle) => {
+      const sTitle = (serviceTitle || '').toLowerCase().trim();
+      const subTitle = (subCategoryTitle || '').toLowerCase().trim();
+      const catTitle = (categoryTitle || '').toLowerCase().trim();
+
+      if (sTitle === lowerQ) return 100;
+      if (sTitle.startsWith(lowerQ)) return 85;
+      if (sTitle.includes(lowerQ)) return 70;
+
+      if (subTitle === lowerQ) return 55;
+      if (subTitle.startsWith(lowerQ)) return 50;
+      if (subTitle.includes(lowerQ)) return 40;
+
+      if (catTitle === lowerQ) return 35;
+      if (catTitle.startsWith(lowerQ)) return 30;
+      if (catTitle.includes(lowerQ)) return 20;
+
+      return 0;
+    };
+
+    // A) Search Services from UserService collection
+    services.forEach(svc => {
+      const brand = svc.brandId && typeof svc.brandId === 'object' ? svc.brandId : (svc.brandId ? brandMap.get(svc.brandId.toString()) : null);
+      const parentCat = svc.categoryId ? categoryMap.get(svc.categoryId.toString()) : getCategoryForBrand(brand);
+
+      const sTitle = svc.title || '';
+      const subTitle = brand?.title || '';
+      const catTitle = parentCat?.title || '';
+
+      const score = calculateScore(sTitle, subTitle, catTitle);
+
+      if (score > 0) {
+        candidateResults.push({
+          id: svc._id.toString(),
+          title: svc.title,
+          slug: svc.slug || '',
+          price: svc.discountPrice || svc.basePrice || 0,
+          basePrice: svc.basePrice || 0,
+          discountPrice: svc.discountPrice || null,
+          pricingUnit: svc.pricingUnit || '',
+          description: svc.description || '',
+          icon: svc.iconUrl || brand?.iconUrl || '',
+          categoryId: parentCat ? parentCat._id.toString() : null,
+          category: catTitle,
+          categoryTitle: catTitle,
+          subCategoryId: brand ? brand._id.toString() : null,
+          subCategoryName: subTitle,
+          brandId: brand ? brand._id.toString() : null,
+          brandName: subTitle,
+          brandIcon: brand?.iconUrl || '',
+          score
+        });
+      }
+    });
+
+    // B) Search Services embedded inside Brands (sections/cards or standalone Brand services)
+    brands.forEach(brand => {
+      const parentCat = getCategoryForBrand(brand);
+      const subTitle = brand.title || '';
+      const catTitle = parentCat?.title || '';
+
+      if (Array.isArray(brand.sections) && brand.sections.length > 0) {
+        brand.sections.forEach(section => {
+          if (Array.isArray(section.cards) && section.cards.length > 0) {
+            section.cards.forEach(card => {
+              const cardTitle = card.title || '';
+              const score = calculateScore(cardTitle, subTitle, catTitle);
+
+              if (score > 0) {
+                const cardId = card.id || card._id?.toString() || `${brand._id}-${cardTitle}`;
+                candidateResults.push({
+                  id: cardId,
+                  title: cardTitle,
+                  slug: brand.slug,
+                  price: Number(card.price) || brand.basePrice || 0,
+                  basePrice: Number(card.price) || brand.basePrice || 0,
+                  discountPrice: card.originalPrice ? Number(card.price) : null,
+                  pricingUnit: card.duration || brand.pricingUnit || '',
+                  description: card.subtitle || card.description || '',
+                  icon: card.imageUrl || brand.iconUrl || brand.logo || '',
+                  categoryId: parentCat ? parentCat._id.toString() : (brand.categoryIds?.[0]?.toString() || null),
+                  category: catTitle,
+                  categoryTitle: catTitle,
+                  subCategoryId: brand._id.toString(),
+                  subCategoryName: subTitle,
+                  brandId: brand._id.toString(),
+                  brandName: subTitle,
+                  brandIcon: brand.iconUrl || brand.logo || '',
+                  score
+                });
+              }
+            });
+          }
+        });
+      } else {
+        // Brand itself as a service
+        const score = calculateScore(subTitle, subTitle, catTitle);
+        if (score > 0) {
+          candidateResults.push({
+            id: brand._id.toString(),
+            title: brand.title,
+            slug: brand.slug,
+            price: brand.basePrice || 0,
+            basePrice: brand.basePrice || 0,
+            discountPrice: brand.discountPrice || null,
+            pricingUnit: brand.pricingUnit || '',
+            description: brand.description || '',
+            icon: brand.iconUrl || brand.logo || brand.imageUrl || '',
+            categoryId: parentCat ? parentCat._id.toString() : (brand.categoryIds?.[0]?.toString() || null),
+            category: catTitle,
+            categoryTitle: catTitle,
+            subCategoryId: brand._id.toString(),
+            subCategoryName: subTitle,
+            brandId: brand._id.toString(),
+            brandName: subTitle,
+            brandIcon: brand.iconUrl || brand.logo || '',
+            score
+          });
+        }
+      }
+    });
+
+    // C) Deduplicate results by ID
+    const resultMap = new Map();
+    candidateResults.forEach(item => {
+      const existing = resultMap.get(item.id);
+      if (!existing || item.score > existing.score) {
+        resultMap.set(item.id, item);
+      }
+    });
+
+    // D) Sort results by Score DESC, then title length ASC
+    const sortedResults = Array.from(resultMap.values()).sort((a, b) => {
+      if (b.score !== a.score) {
+        return b.score - a.score;
+      }
+      return a.title.length - b.title.length;
+    });
+
+    // E) Build Dynamic Fallback Suggestions if zero matches
+    let suggestions = [];
+    if (sortedResults.length === 0) {
+      const popularNames = [];
+      services.slice(0, 3).forEach(s => s.title && popularNames.push(s.title));
+      brands.slice(0, 3).forEach(b => b.title && popularNames.push(b.title));
+      categories.slice(0, 3).forEach(c => c.title && popularNames.push(c.title));
+      suggestions = Array.from(new Set(popularNames)).slice(0, 4);
+    }
+
+    res.status(200).json({
+      success: true,
+      services: sortedResults,
+      suggestions
+    });
+  } catch (error) {
+    console.error('Universal service search error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to search services'
+    });
+  }
+};
+
 module.exports = {
   getPublicCategories,
   getPublicBrands,
   getPublicBrandBySlug,
   getPublicServices,
   getPublicHomeContent,
-  getPublicHomeData
+  getPublicHomeData,
+  searchPublicServices
 };

@@ -31,6 +31,9 @@ import DebugConsole from '../../components/common/DebugConsole';
 
 
 
+import flutterBridge from '../../../../utils/flutterBridge';
+import { getGeolocationPermissionState, isGpsOffError, getCachedAddress } from '../../../../utils/locationHelper';
+
 const toAssetUrl = (url) => {
   if (!url) return '';
   const clean = url.replace('/api/upload', '/upload');
@@ -48,6 +51,7 @@ const Home = () => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isLocationSupported, setIsLocationSupported] = useState(true);
   const [detectedCityName, setDetectedCityName] = useState(localStorage.getItem('currentCity') || null);
+  const [isGpsOff, setIsGpsOff] = useState(false);
 
 
   const { cartCount, addToCart } = useCart();
@@ -162,75 +166,88 @@ const Home = () => {
     setIsAddressModalOpen(false);
   };
 
-  // Auto-detect location on mount
+  // Auto-detect location on mount safely without prompting if already saved
   useEffect(() => {
     const autoDetectLocation = async () => {
-      if (navigator.geolocation) {
-        if (address === 'Select Location') {
-          navigator.geolocation.getCurrentPosition(
-            async (position) => {
-              try {
-                const { latitude, longitude } = position.coords;
-                const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-                const response = await fetch(
-                  `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${apiKey}`
-                );
-                const data = await response.json();
+      const savedAddress = getCachedAddress();
+      if (savedAddress) {
+        // Automatically reuse saved location! Never ask or prompt on startup if saved.
+        return;
+      }
 
-                if (data.status === 'OK' && data.results.length > 0) {
-                  const result = data.results[0];
-                  const getComponent = (type) =>
-                    result.address_components.find(c => c.types.includes(type))?.long_name || '';
+      // Check permission state before fetching
+      const permState = await getGeolocationPermissionState();
 
-                  const area = getComponent('sublocality_level_1') || getComponent('neighborhood') || getComponent('locality');
-                  const city = getComponent('locality') || getComponent('administrative_area_level_2');
-                  const state = getComponent('administrative_area_level_1');
+      // If permission is prompt or denied on web browser, do not force popup dialog automatically on startup
+      if (!flutterBridge.isFlutter && permState !== 'granted') {
+        return;
+      }
 
-                  const formattedAddress = `${area}, ${city}, ${state}`;
-                  setAddress(formattedAddress);
-                  localStorage.setItem('currentAddress', formattedAddress);
-
-                  if (city) {
-                    setDetectedCityName(city);
-                    localStorage.setItem('currentCity', city);
-
-                    // Immediate update of selected city if supported
-                    if (cities && cities.length > 0) {
-                      const matchedCity = cities.find(c =>
-                        c.name.toLowerCase() === city.toLowerCase() ||
-                        c.name.toLowerCase().includes(city.toLowerCase()) ||
-                        city.toLowerCase().includes(c.name.toLowerCase())
-                      );
-                      if (matchedCity) {
-                        selectCity(matchedCity);
-                      } else {
-                        selectCity(null);
-                      }
-                    }
-                  }
-                }
-              } catch (error) {
-                // Silent fail
-              }
-            },
-            (error) => {
-              console.log("GPS Error:", error);
-            },
-            {
-              enableHighAccuracy: true,
-              timeout: 5000,
-              maximumAge: 0
-            }
+      try {
+        const position = await flutterBridge.getCurrentLocation();
+        if (position) {
+          const latitude = position.latitude;
+          const longitude = position.longitude;
+          const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+          const response = await fetch(
+            `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${apiKey}`
           );
+          const data = await response.json();
+
+          if (data.status === 'OK' && data.results.length > 0) {
+            const result = data.results[0];
+            const getComponent = (type) =>
+              result.address_components.find(c => c.types.includes(type))?.long_name || '';
+
+            const area = getComponent('sublocality_level_1') || getComponent('neighborhood') || getComponent('locality');
+            const city = getComponent('locality') || getComponent('administrative_area_level_2');
+            const state = getComponent('administrative_area_level_1');
+
+            const formattedAddress = `${area}, ${city}, ${state}`;
+            setAddress(formattedAddress);
+            localStorage.setItem('currentAddress', formattedAddress);
+
+            if (city) {
+              setDetectedCityName(city);
+              localStorage.setItem('currentCity', city);
+
+              if (cities && cities.length > 0) {
+                const matchedCity = cities.find(c =>
+                  c.name.toLowerCase() === city.toLowerCase() ||
+                  c.name.toLowerCase().includes(city.toLowerCase()) ||
+                  city.toLowerCase().includes(c.name.toLowerCase())
+                );
+                if (matchedCity) {
+                  selectCity(matchedCity);
+                } else {
+                  selectCity(null);
+                }
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.log("Auto-detect GPS Error:", error);
+        if (isGpsOffError(error)) {
+          setIsGpsOff(true);
         }
       }
     };
 
     autoDetectLocation();
 
+    const handleGpsStatus = (e) => {
+      if (e.detail) setIsGpsOff(!!e.detail.isGpsOff);
+    };
+    window.addEventListener('deviceGpsStatusChanged', handleGpsStatus);
+
     // Register FCM token for user silently in background
     registerFCMToken('user', false).catch(err => {/* Silent fail */ });
-  }, []);
+
+    return () => {
+      window.removeEventListener('deviceGpsStatusChanged', handleGpsStatus);
+    };
+  }, [cities]);
 
   // Check if we have cached data (i.e., returning via back navigation or subsequent visit)
   const cachedData = useRef(null);
@@ -513,6 +530,7 @@ const Home = () => {
           <Header
             location={address}
             onLocationClick={handleLocationClick}
+            isGpsOff={isGpsOff}
           />
           <div className="px-5 pb-3 pt-0 max-w-lg lg:max-w-2xl mx-auto w-full">
             <SearchBar onInputClick={() => setIsSearchOpen(true)} />

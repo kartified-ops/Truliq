@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
+import flutterBridge from '../../../../../../utils/flutterBridge';
+import { getGeolocationPermissionState, getCachedAddress } from '../../../../../../utils/locationHelper';
 
 const libraries = ['places', 'geometry'];
 
@@ -24,7 +26,7 @@ const GoogleMapPicker = ({ onLocationSelect, initialPosition = null }) => {
     libraries
   });
 
-  // Update marker when initialPosition changes
+  // Update marker when initialPosition changes (from external selection)
   useEffect(() => {
     if (initialPosition) {
       setMarker(initialPosition);
@@ -35,26 +37,30 @@ const GoogleMapPicker = ({ onLocationSelect, initialPosition = null }) => {
     }
   }, [initialPosition, map]);
 
-  // Get user's current location on mount
+  // Get user's current location on mount safely
   useEffect(() => {
-    if (!initialPosition && navigator.geolocation && isLoaded) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const newPos = {
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude
-          };
-          setMarker(newPos);
-          if (map) {
-            map.panTo(newPos);
+    const fetchLocation = async () => {
+      if (!initialPosition && isLoaded) {
+        const permState = await getGeolocationPermissionState();
+        if (permState === 'granted' || flutterBridge.isFlutter) {
+          try {
+            const pos = await flutterBridge.getCurrentLocation();
+            const newPos = {
+              lat: pos.latitude,
+              lng: pos.longitude
+            };
+            setMarker(newPos);
+            if (map) {
+              map.panTo(newPos);
+            }
+            reverseGeocode(newPos);
+          } catch (error) {
+            console.error('Error getting location:', error);
           }
-          reverseGeocode(newPos);
-        },
-        (error) => {
-          console.error('Error getting location:', error);
         }
-      );
-    }
+      }
+    };
+    fetchLocation();
   }, [isLoaded, map]);
 
   // Reverse geocode to get address from coordinates

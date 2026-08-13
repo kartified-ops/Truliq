@@ -12,6 +12,9 @@ import { useSocket } from '../../../../context/SocketContext';
 import LogoLoader from '../../../../components/common/LogoLoader';
 
 
+import flutterBridge from '../../../../utils/flutterBridge';
+import { isGpsOffError } from '../../../../utils/locationHelper';
+
 const Dashboard = () => {
   const navigate = useNavigate();
 
@@ -28,17 +31,19 @@ const Dashboard = () => {
     const statusMap = {
       'PENDING': 'Pending',
       'ACCEPTED': 'Accepted',
-      'REJECTED': 'Rejected',
+      'ARRIVED': 'Arrived',
+      'IN_PROGRESS': 'In Progress',
       'COMPLETED': 'Completed',
-      'ASSIGNED': 'Assigned',
-      'VISITED': 'Visited',
-      'WORK_DONE': 'Work Done',
+      'CANCELLED': 'Cancelled',
+      'EXPIRED': 'Expired'
     };
     return statusMap[status] || status;
   };
 
-  // Cache check
+  // State initialization
   const cachedData = React.useRef(null);
+  const isMountedRef = React.useRef(true);
+
   try {
     const cached = sessionStorage.getItem('workerDashboardCache');
     if (cached) {
@@ -46,25 +51,29 @@ const Dashboard = () => {
     }
   } catch (e) { /* ignore parse errors */ }
 
-  const [stats, setStats] = useState(cachedData.current?.stats || {
-    pendingJobs: 0,
-    acceptedJobs: 0,
-    completedJobs: 0,
-    totalEarnings: 0,
-    thisMonthEarnings: 0,
-    rating: 0,
-  });
-  const [workerProfile, setWorkerProfile] = useState(cachedData.current?.workerProfile || {
-    name: 'Worker Name',
-    phone: '+91 9876543210',
-    photo: null,
-    categories: [],
-    address: null,
-  });
-  const [subscriptionStatus, setSubscriptionStatus] = useState(cachedData.current?.subscriptionStatus || null);
-  const [recentJobs, setRecentJobs] = useState(cachedData.current?.recentJobs || []);
-
   const [loading, setLoading] = useState(!cachedData.current);
+  const [profile, setProfile] = useState(cachedData.current?.profile || null);
+  const [stats, setStats] = useState(cachedData.current?.stats || {
+    todayJobs: 0,
+    completedToday: 0,
+    totalEarnings: 0,
+    rating: 0
+  });
+  const [recentJobs, setRecentJobs] = useState(cachedData.current?.recentJobs || []);
+  const [activeJob, setActiveJob] = useState(cachedData.current?.activeJob || null);
+  const [isOnline, setIsOnline] = useState(cachedData.current?.isOnline || false);
+  const [togglingOnline, setTogglingOnline] = useState(false);
+  const [locationWatchId, setLocationWatchId] = useState(null);
+
+  // Get current GPS position via flutterBridge
+  const getCurrentPosition = async () => {
+    try {
+      const pos = await flutterBridge.getCurrentLocation();
+      return { lat: pos.latitude, lng: pos.longitude };
+    } catch (err) {
+      throw err;
+    }
+  };
 
   // Set background gradient
   useLayoutEffect(() => {
@@ -87,24 +96,6 @@ const Dashboard = () => {
   const [error, setError] = useState(null);
   const socket = useSocket();
   const [socketStatus, setSocketStatus] = useState('Checking...');
-  const [isOnline, setIsOnline] = useState(cachedData.current?.isOnline || false);
-  const [togglingOnline, setTogglingOnline] = useState(false);
-  const [locationWatchId, setLocationWatchId] = useState(null);
-
-  // Get current GPS position as a promise
-  const getCurrentPosition = () => {
-    return new Promise((resolve, reject) => {
-      if (!navigator.geolocation) {
-        reject(new Error('Geolocation not supported'));
-        return;
-      }
-      navigator.geolocation.getCurrentPosition(
-        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        (err) => reject(err),
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
-      );
-    });
-  };
 
   // Toggle online/offline with GPS
   const handleToggleOnline = async () => {
@@ -122,7 +113,11 @@ const Dashboard = () => {
         } catch (geoErr) {
           console.error('GPS error:', geoErr);
           const { toast } = await import('react-hot-toast');
-          toast.error('Location permission required to go online. Please enable GPS.');
+          if (isGpsOffError(geoErr)) {
+            toast.error('Device location (GPS) is turned off. Please turn on GPS to go online.');
+          } else {
+            toast.error('Location permission required to go online. Please enable GPS.');
+          }
           setTogglingOnline(false);
           return;
         }

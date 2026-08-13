@@ -338,6 +338,17 @@ export const publicCatalogService = {
     return response.data;
   },
 
+  // Universal Multi-level Service Search (Category -> Sub-category -> Service)
+  searchServices: async (q, cityId) => {
+    if (!q || !q.trim()) return { success: true, services: [], suggestions: [] };
+    const queryParams = new URLSearchParams();
+    queryParams.append('q', q.trim());
+    if (cityId) queryParams.append('cityId', cityId);
+
+    const response = await api.get(`/public/search?${queryParams.toString()}`);
+    return response.data;
+  },
+
   // Invalidate all public caches (useful after admin updates)
   invalidateCache: () => {
     apiCache.invalidatePrefix('public:');

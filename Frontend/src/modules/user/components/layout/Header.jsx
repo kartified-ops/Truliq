@@ -12,7 +12,7 @@ import CitySelectorModal from '../common/CitySelectorModal';
 import { useCity } from '../../../../context/CityContext';
 import { HiChevronDown } from 'react-icons/hi';
 
-const Header = ({ location, onLocationClick }) => {
+const Header = ({ location, onLocationClick, isGpsOff = false }) => {
   const logoRef = useRef(null);
   const { currentCity } = useCity();
   const [isCityModalOpen, setIsCityModalOpen] = React.useState(false);
@@ -72,9 +72,6 @@ const Header = ({ location, onLocationClick }) => {
 
             {/* Right: City & Location */}
             <div className="flex flex-col items-end gap-1 flex-1 min-w-0 ml-4">
-
-
-
               {/* Location Selector */}
               <div className="flex flex-col items-end cursor-pointer" onClick={onLocationClick}>
                 <div className="flex items-center gap-1 mb-0.5">
@@ -87,15 +84,15 @@ const Header = ({ location, onLocationClick }) => {
                     </linearGradient>
                   </svg>
                   <HiLocationMarker
-                    className="w-4 h-4 shrink-0"
-                    style={{ fill: 'url(#Truliq-location-gradient)' }}
+                    className={`w-4 h-4 shrink-0 ${isGpsOff ? 'text-orange-500 animate-pulse' : ''}`}
+                    style={isGpsOff ? { fill: '#f97316' } : { fill: 'url(#Truliq-location-gradient)' }}
                   />
                   <span className="text-sm font-bold truncate max-w-[160px]" style={{
-                    background: themeColors.gradient,
+                    background: isGpsOff ? '#f97316' : themeColors.gradient,
                     WebkitBackgroundClip: 'text',
                     WebkitTextFillColor: 'transparent',
                   }}>
-                    {(() => {
+                    {isGpsOff ? 'GPS is Off' : (() => {
                       if (!location || location === '...') return 'Select Location';
                       const parts = location.split(/[,|-]/).map(p => p.trim()).filter(p => p);
                       if (parts.length === 0) return 'Select Location';
@@ -111,10 +108,16 @@ const Header = ({ location, onLocationClick }) => {
                     })()}
                   </span>
                 </div>
-                <LocationSelector
-                  location={location}
-                  onLocationClick={onLocationClick}
-                />
+                {isGpsOff ? (
+                  <span className="text-[10px] font-bold text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-200">
+                    Tap to Turn On GPS
+                  </span>
+                ) : (
+                  <LocationSelector
+                    location={location}
+                    onLocationClick={onLocationClick}
+                  />
+                )}
               </div>
             </div>
           </div>
