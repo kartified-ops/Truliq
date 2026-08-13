@@ -52,11 +52,22 @@ const Dashboard = () => {
   } catch (e) { /* ignore parse errors */ }
 
   const [loading, setLoading] = useState(!cachedData.current);
-  const [profile, setProfile] = useState(cachedData.current?.profile || null);
+  const [workerProfile, setWorkerProfile] = useState(cachedData.current?.workerProfile || {
+    name: '',
+    phone: '',
+    photo: null,
+    categories: [],
+    address: null,
+  });
+  const [subscriptionStatus, setSubscriptionStatus] = useState(cachedData.current?.subscriptionStatus || null);
   const [stats, setStats] = useState(cachedData.current?.stats || {
     todayJobs: 0,
     completedToday: 0,
     totalEarnings: 0,
+    thisMonthEarnings: 0,
+    pendingJobs: 0,
+    acceptedJobs: 0,
+    completedJobs: 0,
     rating: 0
   });
   const [recentJobs, setRecentJobs] = useState(cachedData.current?.recentJobs || []);
