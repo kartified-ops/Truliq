@@ -280,25 +280,41 @@ const Subscription = () => {
                     ))}
                   </div>
 
-                  <button
-                    onClick={() => handleSubscribe(plan)}
-                    disabled={isActivating}
-                    className="w-full py-3.5 rounded-xl font-bold text-sm transition-all active:scale-95 disabled:opacity-60"
-                    style={{
-                      background: isPopular
-                        ? 'linear-gradient(135deg, #6c63ff, #a855f7)'
-                        : 'rgba(255,255,255,0.1)',
-                      color: 'white',
-                      border: isPopular ? 'none' : '1px solid rgba(255,255,255,0.2)'
-                    }}
-                  >
-                    {isActivating ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        Activating...
-                      </span>
-                    ) : status?.isActive ? `Extend with ${plan.title}` : `Subscribe – ₹${plan.price}`}
-                  </button>
+                  {(() => {
+                    const isExtensionDisabled = status?.isActive && plan.allowExtension === false;
+                    let buttonText = `Subscribe – ₹${plan.price}`;
+                    if (isActivating) {
+                      buttonText = 'Activating...';
+                    } else if (isExtensionDisabled) {
+                      buttonText = 'Extension Not Allowed for Active Plan';
+                    } else if (status?.isActive) {
+                      buttonText = `Extend with ${plan.title}`;
+                    }
+
+                    return (
+                      <button
+                        onClick={() => handleSubscribe(plan)}
+                        disabled={isActivating || isExtensionDisabled}
+                        className="w-full py-3.5 rounded-xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                        style={{
+                          background: isExtensionDisabled
+                            ? 'rgba(255,255,255,0.05)'
+                            : isPopular
+                            ? 'linear-gradient(135deg, #6c63ff, #a855f7)'
+                            : 'rgba(255,255,255,0.1)',
+                          color: isExtensionDisabled ? 'rgba(255,255,255,0.4)' : 'white',
+                          border: isPopular && !isExtensionDisabled ? 'none' : '1px solid rgba(255,255,255,0.2)'
+                        }}
+                      >
+                        {isActivating ? (
+                          <span className="flex items-center justify-center gap-2">
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            Activating...
+                          </span>
+                        ) : buttonText}
+                      </button>
+                    );
+                  })()}
                 </div>
               </div>
             );

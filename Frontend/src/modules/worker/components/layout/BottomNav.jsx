@@ -3,9 +3,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { FiHome, FiBriefcase, FiUser, FiDollarSign } from 'react-icons/fi';
 import { HiHome, HiBriefcase, HiUser } from 'react-icons/hi';
 import { FiBell } from 'react-icons/fi';
-import { gsap } from 'gsap';
 import { workerTheme as themeColors } from '../../../../theme';
 import api from '../../../../services/api';
+import workerService from '../../../../services/workerService';
 
 const BottomNav = memo(() => {
   const navigate = useNavigate();
@@ -17,9 +17,18 @@ const BottomNav = memo(() => {
 
   // Load counts
   useEffect(() => {
-    const updatePendingCount = () => {
+    const updatePendingCount = async () => {
       try {
-        // Count pending assigned jobs (waiting for accept/reject)
+        const statsRes = await workerService.getDashboardStats();
+        if (statsRes && statsRes.success && statsRes.data) {
+          setPendingJobsCount(statsRes.data.pendingJobs || 0);
+          return;
+        }
+      } catch (e) {
+        // Fallback to localStorage on network issue
+      }
+
+      try {
         const assignedJobs = JSON.parse(localStorage.getItem('workerAssignedJobs') || '[]');
         const pendingJobs = assignedJobs.filter(job =>
           job.workerStatus === 'PENDING'

@@ -26,6 +26,10 @@ const workerSubscriptionPlanSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+  allowExtension: {
+    type: Boolean,
+    default: true
   }
 }, {
   timestamps: true

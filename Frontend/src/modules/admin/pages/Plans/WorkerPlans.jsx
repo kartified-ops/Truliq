@@ -13,7 +13,8 @@ const WorkerPlans = () => {
     description: '',
     price: '',
     durationDays: 30,
-    isActive: true
+    isActive: true,
+    allowExtension: true
   });
 
   useEffect(() => {
@@ -74,7 +75,8 @@ const WorkerPlans = () => {
       description: plan.description || '',
       price: plan.price,
       durationDays: plan.durationDays,
-      isActive: plan.isActive
+      isActive: plan.isActive,
+      allowExtension: plan.allowExtension !== undefined ? plan.allowExtension : true
     });
     setIsModalOpen(true);
   };
@@ -98,7 +100,8 @@ const WorkerPlans = () => {
       description: '',
       price: '',
       durationDays: 30,
-      isActive: true
+      isActive: true,
+      allowExtension: true
     });
     setIsModalOpen(true);
   };
@@ -131,9 +134,14 @@ const WorkerPlans = () => {
                   <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
                     <FiTag className="w-6 h-6" />
                   </div>
-                  <span className={`px-2 py-1 text-xs font-bold rounded-full ${plan.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                    {plan.isActive ? 'ACTIVE' : 'INACTIVE'}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-1.5 justify-end">
+                    <span className={`px-2 py-1 text-xs font-bold rounded-full ${plan.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                      {plan.isActive ? 'ACTIVE' : 'INACTIVE'}
+                    </span>
+                    <span className={`px-2 py-1 text-[11px] font-bold rounded-full ${plan.allowExtension !== false ? 'bg-blue-50 text-blue-700 border border-blue-200/60' : 'bg-amber-50 text-amber-700 border border-amber-200/60'}`}>
+                      {plan.allowExtension !== false ? 'EXTENSION ALLOWED' : 'EXTENSION DISABLED'}
+                    </span>
+                  </div>
                 </div>
                 
                 <h3 className="text-xl font-bold text-gray-800 mb-1">{plan.title}</h3>
@@ -188,16 +196,16 @@ const WorkerPlans = () => {
 
       {/* Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center bg-indigo-600 text-white">
-              <h2 className="text-xl font-bold">{currentPlan ? 'Edit Worker Plan' : 'Create New Worker Plan'}</h2>
-              <button onClick={() => setIsModalOpen(false)} className="hover:rotate-90 transition-transform">
-                <FiX className="w-6 h-6" />
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4">
+          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-md max-h-[85vh] sm:max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="px-5 py-4 sm:px-8 sm:py-5 border-b border-gray-100 flex justify-between items-center bg-indigo-600 text-white shrink-0">
+              <h2 className="text-lg sm:text-xl font-bold">{currentPlan ? 'Edit Worker Plan' : 'Create New Worker Plan'}</h2>
+              <button onClick={() => setIsModalOpen(false)} className="hover:rotate-90 transition-transform p-1">
+                <FiX className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-8 space-y-5">
+            <form onSubmit={handleSubmit} className="p-4 sm:p-8 space-y-4 sm:space-y-5 overflow-y-auto flex-1">
               <div className="space-y-1.5">
                 <label className="text-sm font-bold text-gray-700">Plan Title</label>
                 <input
@@ -205,13 +213,13 @@ const WorkerPlans = () => {
                   name="title"
                   value={formData.title}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                  className="w-full px-3.5 py-2.5 sm:px-4 sm:py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm sm:text-base"
                   placeholder="e.g. Monthly Gold"
                   required
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-1.5">
                   <label className="text-sm font-bold text-gray-700">Price (₹)</label>
                   <input
@@ -219,7 +227,7 @@ const WorkerPlans = () => {
                     name="price"
                     value={formData.price}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold"
+                    className="w-full px-3.5 py-2.5 sm:px-4 sm:py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-sm sm:text-base"
                     placeholder="499"
                     required
                   />
@@ -231,7 +239,7 @@ const WorkerPlans = () => {
                     name="durationDays"
                     value={formData.durationDays}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold"
+                    className="w-full px-3.5 py-2.5 sm:px-4 sm:py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-sm sm:text-base"
                     placeholder="30"
                     required
                   />
@@ -244,26 +252,43 @@ const WorkerPlans = () => {
                   name="description"
                   value={formData.description}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all min-h-[100px]"
+                  className="w-full px-3.5 py-2.5 sm:px-4 sm:py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all min-h-[70px] sm:min-h-[90px] text-sm sm:text-base"
                   placeholder="What benefits does this plan offer?"
                 />
               </div>
 
-              <div className="flex items-center gap-3 py-2">
-                <input
-                  type="checkbox"
-                  id="isActive"
-                  name="isActive"
-                  checked={formData.isActive}
-                  onChange={handleInputChange}
-                  className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500"
-                />
-                <label htmlFor="isActive" className="text-sm font-bold text-gray-700">Active (Visible to Workers)</label>
+              <div className="space-y-3 py-2 border-t border-gray-100 mt-2">
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="isActive"
+                    name="isActive"
+                    checked={formData.isActive}
+                    onChange={handleInputChange}
+                    className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500 cursor-pointer"
+                  />
+                  <label htmlFor="isActive" className="text-sm font-bold text-gray-700 cursor-pointer">Active (Visible to Workers)</label>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    id="allowExtension"
+                    name="allowExtension"
+                    checked={formData.allowExtension}
+                    onChange={handleInputChange}
+                    className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500 cursor-pointer mt-0.5"
+                  />
+                  <div>
+                    <label htmlFor="allowExtension" className="text-sm font-bold text-gray-700 cursor-pointer block">Allow Active Workers to Extend</label>
+                    <p className="text-xs text-gray-500 leading-normal">If disabled (unchecked), workers who already have an active subscription cannot extend their subscription using this plan.</p>
+                  </div>
+                </div>
               </div>
 
               <button
                 type="submit"
-                className="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all active:scale-95"
+                className="w-full py-3.5 sm:py-4 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all active:scale-95 text-sm sm:text-base"
               >
                 {currentPlan ? 'Update Plan' : 'Create Plan'}
               </button>

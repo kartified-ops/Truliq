@@ -25,10 +25,18 @@ exports.createSubscriptionOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Plan is currently inactive' });
     }
 
-    const worker = await Worker.findById(workerId).select('name phone');
+    const worker = await Worker.findById(workerId).select('name phone subscription');
     if (!worker) {
       console.warn(`[SubscriptionPayment] Worker ${workerId} not found`);
       return res.status(404).json({ success: false, message: 'Worker not found' });
+    }
+
+    const isSubActive = !!(worker.subscription?.isActive && worker.subscription?.expiryDate && new Date(worker.subscription.expiryDate) > new Date());
+    if (isSubActive && plan.allowExtension === false) {
+      return res.status(400).json({
+        success: false,
+        message: 'This plan cannot be used to extend an active subscription'
+      });
     }
 
     console.log(`[SubscriptionPayment] Fetching Razorpay order for amount: ${plan.price}`);
@@ -138,6 +146,11 @@ exports.verifySubscriptionPayment = async (req, res) => {
       const worker = await Worker.findById(workerId).session(session);
       if (!worker) abort({ notFound: true });
 
+      const isSubActive = !!(worker.subscription?.isActive && worker.subscription?.expiryDate && new Date(worker.subscription.expiryDate) > now);
+      if (isSubActive && plan.allowExtension === false) {
+        abort({ extensionNotAllowed: true });
+      }
+
       // Calculate new expiry date
       // If subscription still active → extend from current expiry
       // If expired or none → start from now
@@ -157,6 +170,8 @@ exports.verifySubscriptionPayment = async (req, res) => {
         startDate: now,
         expiryDate,
         durationDays: plan.durationDays,
+        amountPaid: paidAmount,
+        paymentDate: now,
         lastPaymentId: razorpay_payment_id,
         lastOrderId: razorpay_order_id
       };
@@ -184,6 +199,9 @@ exports.verifySubscriptionPayment = async (req, res) => {
 
     if (outcome.notFound) {
       return res.status(404).json({ success: false, message: 'Worker not found' });
+    }
+    if (outcome.extensionNotAllowed) {
+      return res.status(400).json({ success: false, message: 'This plan cannot be used to extend an active subscription' });
     }
     if (outcome.alreadyApplied) {
       return res.status(400).json({ success: false, message: 'This payment has already been applied' });

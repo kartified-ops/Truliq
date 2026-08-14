@@ -205,6 +205,10 @@ const workerSchema = new mongoose.Schema({
       ref: 'WorkerSubscriptionPlan',
       default: null
     },
+    planName: {
+      type: String,
+      default: null
+    },
     startDate: {
       type: Date,
       default: null
@@ -213,7 +217,27 @@ const workerSchema = new mongoose.Schema({
       type: Date,
       default: null
     },
+    durationDays: {
+      type: Number,
+      default: null
+    },
+    amountPaid: {
+      type: Number,
+      default: null
+    },
+    paymentDate: {
+      type: Date,
+      default: null
+    },
     transactionId: {
+      type: String,
+      default: null
+    },
+    lastPaymentId: {
+      type: String,
+      default: null
+    },
+    lastOrderId: {
       type: String,
       default: null
     }

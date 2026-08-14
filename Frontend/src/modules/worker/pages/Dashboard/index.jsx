@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiBriefcase, FiCheckCircle, FiClock, FiTrendingUp, FiChevronRight, FiUser, FiBell, FiMapPin, FiArrowRight } from 'react-icons/fi';
+import { FiBriefcase, FiCheckCircle, FiClock, FiTrendingUp, FiChevronRight, FiUser, FiBell, FiMapPin, FiArrowRight, FiShield, FiCalendar, FiCreditCard, FiAlertTriangle } from 'react-icons/fi';
 import { FaWallet } from 'react-icons/fa';
 import { workerTheme as themeColors, vendorTheme } from '../../../../theme';
 import Header from '../../components/layout/Header';
@@ -38,6 +38,155 @@ const Dashboard = () => {
       'EXPIRED': 'Expired'
     };
     return statusMap[status] || status;
+  };
+
+  // Helper to compute subscription details dynamically
+  const getSubscriptionDetails = (subStatus) => {
+    if (!subStatus) {
+      return {
+        isActive: false,
+        statusType: 'none',
+        planName: null,
+        durationLabel: 'N/A',
+        totalDays: 30,
+        remainingDays: 0,
+        progressPercent: 0,
+        progressText: '0 Days Left',
+        startDateFormatted: 'N/A',
+        endDateFormatted: 'N/A',
+        paymentDateFormatted: 'N/A',
+        amountPaid: 0,
+        canReceiveJobs: false,
+        jobStatusText: 'You need an active subscription to receive and accept job requests.'
+      };
+    }
+
+    const isActive = !!subStatus.isActive;
+    const now = new Date();
+    const expiryDateObj = subStatus.expiryDate ? new Date(subStatus.expiryDate) : null;
+    const startDateObj = subStatus.startDate ? new Date(subStatus.startDate) : null;
+    const paymentDateObj = subStatus.paymentDate ? new Date(subStatus.paymentDate) : startDateObj;
+
+    // Remaining Days
+    let remainingDays = 0;
+    if (expiryDateObj && isActive) {
+      const diffMs = expiryDateObj.getTime() - now.getTime();
+      remainingDays = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+    }
+
+    // Total Subscription Days: calculate from actual start & expiry date span first, or fallback to durationDays
+    let totalDays = 0;
+    if (startDateObj && expiryDateObj && expiryDateObj > startDateObj) {
+      const diffMs = expiryDateObj.getTime() - startDateObj.getTime();
+      totalDays = Math.max(1, Math.round(diffMs / (1000 * 60 * 60 * 24)));
+    } else if (subStatus.durationDays && subStatus.durationDays > 0) {
+      totalDays = subStatus.durationDays;
+    }
+
+    // Ensure totalDays is never less than remainingDays for active subscription
+    if (isActive && remainingDays > totalDays) {
+      totalDays = remainingDays;
+    }
+
+    if (!totalDays || totalDays <= 0) {
+      totalDays = 30; // Fallback standard month
+    }
+
+    // Dynamic Duration Label (e.g. 1 Month, 2 Months, 1 Year, 15 Days)
+    let durationLabel = `${totalDays} Day${totalDays === 1 ? '' : 's'}`;
+    if (totalDays >= 350 && totalDays <= 380) {
+      durationLabel = '1 Year';
+    } else if (totalDays > 380) {
+      const years = Math.round(totalDays / 365);
+      durationLabel = `${years} Year${years > 1 ? 's' : ''}`;
+    } else if (totalDays >= 28 && totalDays <= 32) {
+      durationLabel = '1 Month';
+    } else if (totalDays > 32 && totalDays < 350) {
+      const months = Math.round(totalDays / 30);
+      if (months >= 1) {
+        durationLabel = `${months} Month${months > 1 ? 's' : ''}`;
+      }
+    }
+
+    // Determine normalized plan display name:
+    // - Admin-granted free access / ₹0 plan / trial plan -> "Free Plan"
+    // - Worker purchased subscription -> actual purchased plan name
+    // - No active plan -> "No Active Plan"
+    let displayPlanName = 'No Active Plan';
+    let isFreePlan = false;
+
+    if (isActive) {
+      const amount = subStatus.amountPaid;
+      const rawName = (subStatus.rawPlanName || subStatus.planName || '').toLowerCase();
+      const isPaid = amount !== undefined && amount !== null && amount > 0;
+
+      if (!isPaid || rawName.includes('free') || rawName.includes('trial') || subStatus.isFreePlan) {
+        displayPlanName = 'Free Plan';
+        isFreePlan = true;
+      } else {
+        displayPlanName = subStatus.planName || 'Paid Plan';
+        isFreePlan = false;
+      }
+    }
+
+    // Progress percentage (ratio of remaining days / total subscription days)
+    const progressPercent = isActive 
+      ? Math.min(100, Math.max(0, Math.round((remainingDays / totalDays) * 100))) 
+      : 0;
+
+    const progressText = `${remainingDays} of ${totalDays} Day${totalDays === 1 ? '' : 's'} Left`;
+
+    // Status type
+    let statusType = 'none'; // 'active', 'expiring', 'expired', 'none'
+    if (isActive) {
+      statusType = remainingDays <= 3 ? 'expiring' : 'active';
+    } else if (expiryDateObj && expiryDateObj.getFullYear() > 2000) {
+      statusType = 'expired';
+    } else {
+      statusType = 'none';
+    }
+
+    // Job Access text
+    let canReceiveJobs = false;
+    let jobStatusText = '';
+
+    if (statusType === 'active') {
+      canReceiveJobs = true;
+      jobStatusText = 'You can receive and accept job requests.';
+    } else if (statusType === 'expiring') {
+      canReceiveJobs = true;
+      jobStatusText = `Your subscription expires in ${remainingDays} day${remainingDays === 1 ? '' : 's'}.`;
+    } else if (statusType === 'expired') {
+      canReceiveJobs = false;
+      jobStatusText = 'Subscribe to continue receiving and accepting job requests.';
+    } else {
+      canReceiveJobs = false;
+      jobStatusText = 'You need an active subscription to receive and accept job requests.';
+    }
+
+    // Date formatting helper
+    const formatDate = (d) => {
+      if (!d || isNaN(d.getTime())) return null;
+      return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    };
+
+    return {
+      isActive,
+      statusType,
+      planName: displayPlanName,
+      isFreePlan,
+      durationLabel,
+      totalDays,
+      remainingDays,
+      progressPercent,
+      progressText,
+      startDateFormatted: formatDate(startDateObj) || 'N/A',
+      endDateFormatted: formatDate(expiryDateObj) || 'N/A',
+      paymentDateFormatted: formatDate(paymentDateObj),
+      amountPaid: subStatus.amountPaid !== undefined && subStatus.amountPaid !== null ? subStatus.amountPaid : 0,
+      canReceiveJobs,
+      jobStatusText
+    };
   };
 
   // State initialization
@@ -325,7 +474,7 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen pb-20" style={{ background: themeColors.backgroundGradient }}>
-      <Header title="Dashboard" showBack={false} notificationCount={stats.pendingJobs} />
+      <Header title="Dashboard" showBack={false} />
 
       <main className="pt-0">
         {/* Profile Card Section */}
@@ -397,71 +546,168 @@ const Dashboard = () => {
             </div>
           </div>
         </div>
+        {/* Current Subscription Section */}
+        {(() => {
+          const subData = getSubscriptionDetails(subscriptionStatus);
+          return (
+            <div className="px-4 pt-2 pb-0.5">
+              <div 
+                onClick={() => navigate('/worker/subscription')}
+                className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-slate-200/80 relative overflow-hidden transition-all cursor-pointer active:scale-98 hover:border-amber-300"
+              >
+                {/* Header / Title & Status Badge */}
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center font-bold border border-amber-200/60 shrink-0">
+                      <FiShield className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 leading-none mb-0.5">Current Subscription</h3>
+                      <p className="text-sm font-bold text-slate-800 leading-tight truncate">
+                        {subData.planName || (subData.isActive ? 'Active Subscription' : 'No Active Plan')}
+                      </p>
+                    </div>
+                  </div>
 
-        {/* Subscription Status Alert */}
-        {subscriptionStatus && (
-          <div className="px-4 pt-2 -mb-2">
-            {!subscriptionStatus.isActive ? (() => {
-              const hasExpiredPlan = subscriptionStatus.expiryDate && new Date(subscriptionStatus.expiryDate).getFullYear() > 2000;
-              return (
-                <div
-                  onClick={() => navigate('/worker/subscription')}
-                  className={`${hasExpiredPlan ? 'bg-red-50 border-red-500 hover:bg-red-100' : 'bg-blue-50 border-blue-500 hover:bg-blue-100'} border-l-4 p-4 rounded-r shadow-sm cursor-pointer transition-colors`}
-                >
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      {hasExpiredPlan ? (
-                        <FiClock className="h-5 w-5 text-red-500" />
-                      ) : (
-                        <FiBriefcase className="h-5 w-5 text-blue-500" />
-                      )}
-                    </div>
-                    <div className="ml-3">
-                      <p className={`text-sm font-bold ${hasExpiredPlan ? 'text-red-700' : 'text-blue-700'}`}>
-                        {hasExpiredPlan ? 'Plan Expired!' : 'Buy Plan to start getting booking'}
-                      </p>
-                      <p className={`text-xs mt-0.5 ${hasExpiredPlan ? 'text-red-600' : 'text-blue-600'}`}>
-                        {hasExpiredPlan
-                          ? `Your subscription ended on ${new Date(subscriptionStatus.expiryDate).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })}.`
-                          : 'Get a subscription plan to receive unlimited bookings.'}
-                      </p>
-                    </div>
-                    <div className="ml-auto">
-                      <FiArrowRight className={`h-4 w-4 ${hasExpiredPlan ? 'text-red-500' : 'text-blue-500'}`} />
-                    </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {/* Status Badge */}
+                    {subData.statusType === 'active' && (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        Active
+                      </span>
+                    )}
+                    {subData.statusType === 'expiring' && (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200/80">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                        Expires Soon
+                      </span>
+                    )}
+                    {subData.statusType === 'expired' && (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-red-50 text-red-700 border border-red-200/80">
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                        Expired
+                      </span>
+                    )}
+                    {subData.statusType === 'none' && (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                        No Active Subscription
+                      </span>
+                    )}
+                    <FiChevronRight className="w-4 h-4 text-slate-400" />
                   </div>
                 </div>
-              );
-            })() : (() => {
-              const diff = new Date(subscriptionStatus.expiryDate) - new Date();
-              const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-              if (days <= 3) {
-                return (
-                  <div
-                    onClick={() => navigate('/worker/subscription')}
-                    className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r shadow-sm cursor-pointer hover:bg-amber-100 transition-colors"
-                  >
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0">
-                        <FiClock className="h-5 w-5 text-amber-500" />
+
+                {/* Job Status Banner / Communication */}
+                <div className={`p-2 rounded-lg mb-2 text-xs font-medium flex items-center justify-between gap-2 ${
+                  subData.canReceiveJobs 
+                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200/60' 
+                    : 'bg-amber-50 text-amber-900 border border-amber-200/60'
+                }`}>
+                  <div className="flex items-center gap-1.5">
+                    {subData.canReceiveJobs ? (
+                      <FiCheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    ) : (
+                      <FiAlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    )}
+                    <span className="text-[11px]">{subData.jobStatusText}</span>
+                  </div>
+                  {!subData.canReceiveJobs && (
+                    <button
+                      onClick={() => navigate('/worker/subscription')}
+                      className="px-2 py-0.5 bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold rounded shrink-0 active:scale-95 transition-all shadow-xs"
+                    >
+                      Subscribe Now
+                    </button>
+                  )}
+                </div>
+
+                {/* Subscription Details (Show if active, expiring, or has past plan history) */}
+                {(subData.isActive || subData.startDateFormatted !== 'N/A' || subData.endDateFormatted !== 'N/A') && (
+                  <>
+                    {/* Key Metrics Grid */}
+                    <div className="grid grid-cols-2 gap-2 mb-2 text-xs">
+                      {/* Duration */}
+                      <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
+                        <span className="text-slate-400 text-[9px] uppercase font-bold tracking-wider block leading-none mb-0.5">Duration</span>
+                        <span className="font-bold text-slate-800 text-xs block leading-tight">{subData.durationLabel}</span>
                       </div>
-                      <div className="ml-3">
-                        <p className="text-sm font-bold text-amber-700">Plan Expiring Soon!</p>
-                        <p className="text-xs text-amber-600">
-                          Expires on {new Date(subscriptionStatus.expiryDate).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })}.
-                        </p>
-                      </div>
-                      <div className="ml-auto">
-                        <FiArrowRight className="h-4 w-4 text-amber-500" />
+
+                      {/* Remaining Days */}
+                      <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
+                        <span className="text-slate-400 text-[9px] uppercase font-bold tracking-wider block leading-none mb-0.5 flex items-center gap-1">
+                          <FiClock className="w-2.5 h-2.5 text-amber-500" /> Remaining
+                        </span>
+                        <span className="font-bold text-amber-600 text-xs block leading-tight">
+                          {subData.isActive ? `${subData.remainingDays} Days Left` : '0 Days Left'}
+                        </span>
                       </div>
                     </div>
+
+                    {/* Progress Bar */}
+                    <div className="mb-2">
+                      <div className="flex justify-between items-center text-[10px] mb-1 font-semibold text-slate-600">
+                        <span>Subscription Progress</span>
+                        <span className="text-amber-600 font-bold">{subData.progressText}</span>
+                      </div>
+                      <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden border border-slate-200/60">
+                        <div
+                          className="bg-gradient-to-r from-amber-400 to-amber-500 h-1.5 rounded-full transition-all duration-500"
+                          style={{ width: `${subData.progressPercent}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Payment Summary Footer */}
+                    <div className="pt-1.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                      <div className="flex items-center gap-1">
+                        <FiCreditCard className="w-3 h-3 text-slate-400" />
+                        <span>Amount Paid: <strong className="text-slate-700">₹{subData.amountPaid}</strong></span>
+                      </div>
+                      {subData.paymentDateFormatted && (
+                        <span className="text-[10px] text-slate-400">Paid: {subData.paymentDateFormatted}</span>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {/* If No Active Subscription and no history */}
+                {!subData.isActive && subData.startDateFormatted === 'N/A' && subData.endDateFormatted === 'N/A' && (
+                  <div className="mt-1">
+                    <button
+                      onClick={() => navigate('/worker/subscription')}
+                      className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold rounded-xl shadow-xs text-xs flex items-center justify-center gap-2 active:scale-98 transition-all"
+                    >
+                      <FiShield className="w-3.5 h-3.5" />
+                      <span>Subscribe Now to Receive Job Requests</span>
+                      <FiArrowRight className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                );
-              }
-              return null;
-            })()}
-          </div>
-        )}
+                )}
+
+                {/* Renew / Upgrade CTA for Free Plan, Expired or Expiring Soon */}
+                {(subData.statusType === 'expired' || subData.statusType === 'expiring' || (subData.isActive && subData.isFreePlan)) && (
+                  <div className="mt-2 pt-1.5 border-t border-slate-100">
+                    <button
+                      onClick={() => navigate('/worker/subscription')}
+                      className="w-full py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 active:scale-98 transition-all shadow-xs"
+                    >
+                      <span>
+                        {subData.isFreePlan 
+                          ? 'Upgrade Plan' 
+                          : subData.statusType === 'expired' 
+                          ? 'Renew Subscription Now' 
+                          : 'Extend / Renew Subscription'}
+                      </span>
+                      <FiArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Incomplete Profile Prompt */}
         {((!workerProfile.categories || workerProfile.categories.length === 0) ||
