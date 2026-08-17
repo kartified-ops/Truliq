@@ -54,7 +54,8 @@ exports.updateSettings = async (req, res, next) => {
       // Legal
       termsAndConditions,
       privacyPolicy,
-      supportPageContent
+      supportPageContent,
+      workerFreeTrial
     } = req.body;
 
     let settings = await Settings.findOne({ type: 'global' });
@@ -127,6 +128,22 @@ exports.updateSettings = async (req, res, next) => {
       if (termsAndConditions !== undefined) settings.termsAndConditions = termsAndConditions;
       if (privacyPolicy !== undefined) settings.privacyPolicy = privacyPolicy;
       if (supportPageContent !== undefined) settings.supportPageContent = supportPageContent;
+      if (workerFreeTrial !== undefined) {
+        if (!settings.workerFreeTrial) {
+          settings.workerFreeTrial = {};
+        }
+        if (typeof workerFreeTrial.enabled === 'boolean') {
+          settings.workerFreeTrial.enabled = workerFreeTrial.enabled;
+        }
+        if (workerFreeTrial.duration !== undefined) {
+          settings.workerFreeTrial.duration = workerFreeTrial.duration;
+        }
+        if (workerFreeTrial.durationUnit !== undefined) {
+          settings.workerFreeTrial.durationUnit = workerFreeTrial.durationUnit;
+        }
+        settings.workerFreeTrial.updatedAt = new Date();
+        if (req.user?.id) settings.workerFreeTrial.updatedBy = req.user.id;
+      }
 
       await settings.save();
     }

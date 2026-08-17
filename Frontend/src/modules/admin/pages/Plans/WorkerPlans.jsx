@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../../../services/api';
-import { FiPlus, FiEdit2, FiTrash2, FiCheck, FiX, FiInfo, FiClock, FiTag } from 'react-icons/fi';
+import { FiPlus, FiEdit2, FiTrash2, FiCheck, FiX, FiInfo, FiClock, FiTag, FiGift, FiSave } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 
 const WorkerPlans = () => {
@@ -16,10 +16,67 @@ const WorkerPlans = () => {
     isActive: true,
     allowExtension: true
   });
+  const [trialSettings, setTrialSettings] = useState({
+    enabled: true,
+    duration: 1,
+    durationUnit: 'MONTH'
+  });
+  const [trialLoading, setTrialLoading] = useState(true);
+  const [trialSaving, setTrialSaving] = useState(false);
 
   useEffect(() => {
     fetchPlans();
+    fetchTrialSettings();
   }, []);
+
+  const fetchTrialSettings = async () => {
+    setTrialLoading(true);
+    try {
+      const res = await api.get('/admin/worker-plans/free-trial');
+      if (res.data.success && res.data.data) {
+        setTrialSettings({
+          enabled: res.data.data.enabled !== false,
+          duration: res.data.data.duration ?? 1,
+          durationUnit: res.data.data.durationUnit || 'MONTH'
+        });
+      }
+    } catch (error) {
+      console.error('Fetch FREE trial settings failed', error);
+      toast.error(error.response?.data?.message || 'Failed to load FREE trial settings');
+    } finally {
+      setTrialLoading(false);
+    }
+  };
+
+  const handleSaveTrialSettings = async (e) => {
+    e.preventDefault();
+    const duration = Number(trialSettings.duration);
+    if (!Number.isInteger(duration) || duration < 1) {
+      toast.error('Duration must be a positive whole number');
+      return;
+    }
+    setTrialSaving(true);
+    try {
+      const res = await api.put('/admin/worker-plans/free-trial', {
+        enabled: trialSettings.enabled,
+        duration,
+        durationUnit: trialSettings.durationUnit
+      });
+      if (res.data.success) {
+        setTrialSettings({
+          enabled: res.data.data.enabled,
+          duration: res.data.data.duration,
+          durationUnit: res.data.data.durationUnit
+        });
+        toast.success(res.data.message || 'FREE trial settings updated successfully.');
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error(error.response?.data?.message || 'Failed to update FREE trial settings');
+    } finally {
+      setTrialSaving(false);
+    }
+  };
 
   const fetchPlans = async () => {
     setLoading(true);
@@ -119,6 +176,88 @@ const WorkerPlans = () => {
         >
           <FiPlus /> Add New Plan
         </button>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-indigo-50 to-white">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-indigo-600 text-white rounded-xl">
+              <FiGift className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-gray-800">FREE Trial Settings</h2>
+              <p className="text-sm text-gray-500">First-time workers receive this duration. Existing trials are never changed.</p>
+            </div>
+          </div>
+          {!trialLoading && (
+            <span className={`px-3 py-1 text-xs font-bold rounded-full ${trialSettings.enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+              {trialSettings.enabled ? 'ON' : 'OFF'}
+            </span>
+          )}
+        </div>
+
+        {trialLoading ? (
+          <div className="flex justify-center py-10">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+          </div>
+        ) : (
+          <form onSubmit={handleSaveTrialSettings} className="p-6 space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-bold text-gray-700">FREE Trial Status</label>
+                <button
+                  type="button"
+                  onClick={() => setTrialSettings((prev) => ({ ...prev, enabled: !prev.enabled }))}
+                  className={`w-full px-4 py-3 rounded-xl font-bold text-sm border transition-all ${
+                    trialSettings.enabled
+                      ? 'bg-green-50 text-green-700 border-green-200'
+                      : 'bg-gray-50 text-gray-600 border-gray-200'
+                  }`}
+                >
+                  {trialSettings.enabled ? 'Enabled' : 'Disabled'}
+                </button>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-bold text-gray-700">FREE Trial Duration</label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={trialSettings.duration}
+                  onChange={(e) => setTrialSettings((prev) => ({ ...prev, duration: e.target.value }))}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-bold text-gray-700">Duration Unit</label>
+                <select
+                  value={trialSettings.durationUnit}
+                  onChange={(e) => setTrialSettings((prev) => ({ ...prev, durationUnit: e.target.value }))}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
+                >
+                  <option value="DAY">Day</option>
+                  <option value="MONTH">Month</option>
+                </select>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-500">
+              Changing this duration only applies to workers who register after you save. Active FREE trials keep the end date they were originally granted.
+            </p>
+
+            <button
+              type="submit"
+              disabled={trialSaving}
+              className="inline-flex items-center gap-2 px-5 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all active:scale-95 disabled:opacity-60"
+            >
+              <FiSave className="w-4 h-4" />
+              {trialSaving ? 'Saving...' : 'Save Changes'}
+            </button>
+          </form>
+        )}
       </div>
 
       {loading ? (

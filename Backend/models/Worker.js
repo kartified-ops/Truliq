@@ -195,6 +195,10 @@ const workerSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  trialUsed: {
+    type: Boolean,
+    default: false
+  },
   subscription: {
     isActive: {
       type: Boolean,
@@ -207,6 +211,29 @@ const workerSchema = new mongoose.Schema({
     },
     planName: {
       type: String,
+      default: null
+    },
+    planType: {
+      type: String,
+      enum: ['TRIAL', 'PAID'],
+      default: null
+    },
+    status: {
+      type: String,
+      enum: ['ACTIVE', 'EXPIRED'],
+      default: null
+    },
+    trialUsed: {
+      type: Boolean,
+      default: false
+    },
+    trialDuration: {
+      type: Number,
+      default: null
+    },
+    trialDurationUnit: {
+      type: String,
+      enum: ['DAY', 'MONTH'],
       default: null
     },
     startDate: {

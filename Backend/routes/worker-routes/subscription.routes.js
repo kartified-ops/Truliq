@@ -5,6 +5,63 @@ const Worker = require('../../models/Worker');
 const { authenticate } = require('../../middleware/authMiddleware');
 const { isWorker } = require('../../middleware/roleMiddleware');
 const { createSubscriptionOrder, verifySubscriptionPayment } = require('../../controllers/paymentControllers/subscriptionPaymentController');
+const {
+  isSubscriptionCurrentlyActive,
+  expireSubscriptionIfNeeded,
+  getSubscriptionStatusValue,
+  applyPaidSubscription,
+  PLAN_TYPES,
+  SUBSCRIPTION_STATUS
+} = require('../../utils/workerSubscriptionUtil');
+
+const formatStatusPayload = (worker, now = new Date()) => {
+  const sub = worker.subscription || {};
+  const plan = sub.planId && typeof sub.planId === 'object' ? sub.planId : null;
+  const status = getSubscriptionStatusValue(sub, now);
+  const isActive = isSubscriptionCurrentlyActive(sub, now);
+  const planType = sub.planType || (isActive && (sub.amountPaid === 0 || (sub.planName || '').toLowerCase().includes('trial')) ? PLAN_TYPES.TRIAL : (isActive ? PLAN_TYPES.PAID : null));
+  const isTrial = planType === PLAN_TYPES.TRIAL;
+  const trialUsed = !!(worker.trialUsed || sub.trialUsed);
+
+  let amountPaid = sub.amountPaid;
+  if (amountPaid === undefined || amountPaid === null) {
+    amountPaid = isTrial ? 0 : null;
+  }
+
+  const planName = isActive
+    ? (isTrial ? 'FREE TRIAL' : (sub.planName || (plan ? plan.title : 'Paid Plan')))
+    : (status === SUBSCRIPTION_STATUS.EXPIRED
+      ? (isTrial || (sub.planName || '').toLowerCase().includes('trial') ? 'FREE TRIAL' : (sub.planName || 'Subscription'))
+      : 'No Active Plan');
+
+  let expiredMessage = null;
+  if (status === SUBSCRIPTION_STATUS.EXPIRED) {
+    expiredMessage = (isTrial || trialUsed && !sub.amountPaid)
+      ? 'Your free subscription has expired. Please upgrade to a paid plan to continue.'
+      : 'Your subscription has expired. Please upgrade your plan.';
+  }
+
+  return {
+    isActive,
+    status,
+    planType: planType || null,
+    planName,
+    rawPlanName: sub.planName || (plan ? plan.title : null),
+    isFreePlan: isTrial && isActive,
+    isTrial: isTrial && isActive,
+    trialUsed,
+    trialDuration: sub.trialDuration || null,
+    trialDurationUnit: sub.trialDurationUnit || null,
+    startDate: sub.startDate || null,
+    expiryDate: sub.expiryDate || null,
+    endDate: sub.expiryDate || null,
+    durationDays: sub.durationDays || (plan ? plan.durationDays : null),
+    amountPaid: amountPaid !== undefined && amountPaid !== null ? amountPaid : 0,
+    paymentDate: sub.paymentDate || (isTrial ? null : sub.startDate) || null,
+    expiredMessage,
+    walletBalance: worker.wallet?.balance || 0
+  };
+};
 
 // POST /api/workers/subscription/create-order → Create Razorpay order
 router.post('/create-order', authenticate, isWorker, createSubscriptionOrder);
@@ -27,35 +84,27 @@ router.get('/plans', authenticate, isWorker, async (req, res) => {
 
 /**
  * GET /api/workers/subscription/status
- * Get current worker's subscription status
- */
-/**
- * GET /api/workers/subscription/status
- * Get current worker's subscription status
+ * Get current worker's subscription status.
+ * Stored expiryDate is authoritative — expired trials are persisted as EXPIRED.
  */
 router.get('/status', authenticate, isWorker, async (req, res) => {
   try {
     const worker = await Worker.findById(req.user.id)
-      .select('subscription wallet')
-      .populate('subscription.planId')
-      .lean();
+      .select('subscription wallet trialUsed')
+      .populate('subscription.planId');
 
     if (!worker) {
       return res.status(404).json({ success: false, message: 'Worker not found' });
     }
 
-    const sub = worker.subscription || {};
-    const plan = sub.planId && typeof sub.planId === 'object' ? sub.planId : null;
+    const now = new Date();
+    if (expireSubscriptionIfNeeded(worker, now)) {
+      await worker.save();
+    }
 
-    const isActive = !!(sub.isActive && sub.expiryDate && new Date(sub.expiryDate) > new Date());
+    const payload = formatStatusPayload(worker.toObject ? worker.toObject() : worker, now);
 
-    let amountPaid = sub.amountPaid;
-    let paymentDate = sub.paymentDate || sub.startDate;
-    let planName = sub.planName || (plan ? plan.title : null);
-    let durationDays = sub.durationDays || (plan ? plan.durationDays : null);
-
-    // If amountPaid is missing, try looking up from latest worker_subscription transaction or plan
-    if ((amountPaid === undefined || amountPaid === null) && (isActive || sub.expiryDate)) {
+    if ((payload.amountPaid === undefined || payload.amountPaid === null) && (payload.isActive || payload.expiryDate)) {
       try {
         const Transaction = require('../../models/Transaction');
         const latestTx = await Transaction.findOne({
@@ -64,50 +113,17 @@ router.get('/status', authenticate, isWorker, async (req, res) => {
         }).sort({ createdAt: -1 }).lean();
 
         if (latestTx) {
-          amountPaid = latestTx.amount;
-          paymentDate = paymentDate || latestTx.createdAt;
-        } else if (plan) {
-          amountPaid = plan.price;
+          payload.amountPaid = latestTx.amount;
+          payload.paymentDate = payload.paymentDate || latestTx.createdAt;
         }
       } catch (e) {
-        if (plan) amountPaid = plan.price;
-      }
-    }
-
-    // Determine normalized plan display name:
-    // - Admin-granted free access / ₹0 plan / trial plan -> "Free Plan"
-    // - Worker purchased subscription -> actual purchased plan name
-    // - No active plan -> "No Active Plan"
-    let displayPlanName = 'No Active Plan';
-    let isFreePlan = false;
-
-    if (isActive) {
-      const rawName = (planName || '').toLowerCase();
-      const isPaid = amountPaid !== undefined && amountPaid !== null && amountPaid > 0;
-      
-      if (!isPaid || rawName.includes('free') || rawName.includes('trial')) {
-        displayPlanName = 'Free Plan';
-        isFreePlan = true;
-      } else {
-        displayPlanName = planName || (plan ? plan.title : 'Paid Plan');
-        isFreePlan = false;
+        // keep existing amountPaid
       }
     }
 
     res.status(200).json({
       success: true,
-      data: {
-        isActive,
-        expiryDate: sub.expiryDate || null,
-        startDate: sub.startDate || null,
-        planName: displayPlanName,
-        rawPlanName: planName,
-        isFreePlan,
-        durationDays,
-        amountPaid: amountPaid !== undefined && amountPaid !== null ? amountPaid : 0,
-        paymentDate: paymentDate || null,
-        walletBalance: worker.wallet?.balance || 0
-      }
+      data: payload
     });
   } catch (error) {
     console.error('[Subscription Routes] Status error:', error);
@@ -117,7 +133,8 @@ router.get('/status', authenticate, isWorker, async (req, res) => {
 
 /**
  * POST /api/workers/subscription/activate
- * Admin can manually activate a plan for a worker (or after Razorpay webhook)
+ * Activate a paid plan for a worker (legacy / admin-assisted path).
+ * Zero-price plans cannot be used to mint a second FREE trial.
  */
 router.post('/activate', authenticate, isWorker, async (req, res) => {
   try {
@@ -127,44 +144,56 @@ router.post('/activate', authenticate, isWorker, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Plan not found or inactive' });
     }
 
+    if (!plan.price || plan.price <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Free plans cannot be activated manually. FREE trial is granted automatically on first registration.'
+      });
+    }
+
     const worker = await Worker.findById(req.user.id);
     if (!worker) {
       return res.status(404).json({ success: false, message: 'Worker not found' });
     }
 
     const now = new Date();
-    const isSubActive = !!(worker.subscription?.isActive && worker.subscription?.expiryDate && new Date(worker.subscription.expiryDate) > now);
+    expireSubscriptionIfNeeded(worker, now);
+    const isSubActive = isSubscriptionCurrentlyActive(worker.subscription, now);
     if (isSubActive && plan.allowExtension === false) {
       return res.status(400).json({ success: false, message: 'This plan cannot be used to extend an active subscription' });
     }
-    // If subscription still active, extend from current expiry; else from now
-    const baseDate = (worker.subscription?.isActive && worker.subscription?.expiryDate &&
-      new Date(worker.subscription.expiryDate) > now)
+    const baseDate = isSubActive && worker.subscription?.expiryDate
       ? new Date(worker.subscription.expiryDate)
       : now;
 
     const expiryDate = new Date(baseDate);
     expiryDate.setDate(expiryDate.getDate() + plan.durationDays);
 
-    worker.subscription = {
-      isActive: true,
-      planId: plan._id,
-      planName: plan.title,
-      startDate: now,
+    applyPaidSubscription(worker, {
+      plan,
       expiryDate,
-      durationDays: plan.durationDays,
+      now,
       amountPaid: plan.price,
-      paymentDate: now
-    };
+      paymentId: null,
+      orderId: null
+    });
 
     await worker.save();
+
+    const { markPhoneAsPaid } = require('../../services/workerFreeTrialService');
+    markPhoneAsPaid(worker.phone, worker._id).catch((err) => {
+      console.error('[Subscription] markPhoneAsPaid failed:', err);
+    });
 
     res.status(200).json({
       success: true,
       message: `Subscription activated! Valid until ${expiryDate.toLocaleDateString('en-IN')}`,
       data: {
         planName: plan.title,
+        planType: PLAN_TYPES.PAID,
+        status: SUBSCRIPTION_STATUS.ACTIVE,
         expiryDate,
+        endDate: expiryDate,
         durationDays: plan.durationDays,
         amountPaid: plan.price,
         paymentDate: now

@@ -92,9 +92,12 @@ const Dashboard = () => {
       totalDays = 30; // Fallback standard month
     }
 
-    // Dynamic Duration Label (e.g. 1 Month, 2 Months, 1 Year, 15 Days)
+    // Dynamic Duration Label — prefer the duration snapshotted onto the subscription
     let durationLabel = `${totalDays} Day${totalDays === 1 ? '' : 's'}`;
-    if (totalDays >= 350 && totalDays <= 380) {
+    if (subStatus.trialDuration && subStatus.trialDurationUnit && (subStatus.planType === 'TRIAL' || subStatus.isTrial)) {
+      const unitLabel = subStatus.trialDurationUnit === 'MONTH' ? 'Month' : 'Day';
+      durationLabel = `${subStatus.trialDuration} ${unitLabel}${subStatus.trialDuration > 1 ? 's' : ''}`;
+    } else if (totalDays >= 350 && totalDays <= 380) {
       durationLabel = '1 Year';
     } else if (totalDays > 380) {
       const years = Math.round(totalDays / 365);
@@ -108,34 +111,6 @@ const Dashboard = () => {
       }
     }
 
-    // Determine normalized plan display name:
-    // - Admin-granted free access / ₹0 plan / trial plan -> "Free Plan"
-    // - Worker purchased subscription -> actual purchased plan name
-    // - No active plan -> "No Active Plan"
-    let displayPlanName = 'No Active Plan';
-    let isFreePlan = false;
-
-    if (isActive) {
-      const amount = subStatus.amountPaid;
-      const rawName = (subStatus.rawPlanName || subStatus.planName || '').toLowerCase();
-      const isPaid = amount !== undefined && amount !== null && amount > 0;
-
-      if (!isPaid || rawName.includes('free') || rawName.includes('trial') || subStatus.isFreePlan) {
-        displayPlanName = 'Free Plan';
-        isFreePlan = true;
-      } else {
-        displayPlanName = subStatus.planName || 'Paid Plan';
-        isFreePlan = false;
-      }
-    }
-
-    // Progress percentage (ratio of remaining days / total subscription days)
-    const progressPercent = isActive 
-      ? Math.min(100, Math.max(0, Math.round((remainingDays / totalDays) * 100))) 
-      : 0;
-
-    const progressText = `${remainingDays} of ${totalDays} Day${totalDays === 1 ? '' : 's'} Left`;
-
     // Status type
     let statusType = 'none'; // 'active', 'expiring', 'expired', 'none'
     if (isActive) {
@@ -146,19 +121,51 @@ const Dashboard = () => {
       statusType = 'none';
     }
 
+    // Determine normalized plan display name from backend planType
+    let displayPlanName = 'No Active Plan';
+    let isFreePlan = false;
+    const planType = subStatus.planType;
+
+    if (isActive) {
+      if (planType === 'TRIAL' || subStatus.isTrial || subStatus.isFreePlan) {
+        displayPlanName = 'FREE TRIAL';
+        isFreePlan = true;
+      } else {
+        displayPlanName = subStatus.planName || 'Paid Plan';
+        isFreePlan = false;
+      }
+    } else if (statusType === 'expired') {
+      if (planType === 'PAID') {
+        displayPlanName = subStatus.planName || 'Paid Plan';
+      } else if (planType === 'TRIAL' || subStatus.trialUsed) {
+        displayPlanName = 'FREE TRIAL';
+      }
+    }
+
+    // Progress percentage (ratio of remaining days / total subscription days)
+    const progressPercent = isActive 
+      ? Math.min(100, Math.max(0, Math.round((remainingDays / totalDays) * 100))) 
+      : 0;
+
+    const progressText = `${remainingDays} of ${totalDays} Day${totalDays === 1 ? '' : 's'} Left`;
+
     // Job Access text
     let canReceiveJobs = false;
     let jobStatusText = '';
 
     if (statusType === 'active') {
       canReceiveJobs = true;
-      jobStatusText = 'You can receive and accept job requests.';
+      jobStatusText = isFreePlan
+        ? `FREE TRIAL active until ${expiryDateObj ? expiryDateObj.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}.`
+        : 'You can receive and accept job requests.';
     } else if (statusType === 'expiring') {
       canReceiveJobs = true;
       jobStatusText = `Your subscription expires in ${remainingDays} day${remainingDays === 1 ? '' : 's'}.`;
     } else if (statusType === 'expired') {
       canReceiveJobs = false;
-      jobStatusText = 'Subscribe to continue receiving and accepting job requests.';
+      jobStatusText = (planType === 'TRIAL' || (subStatus.trialUsed && planType !== 'PAID'))
+        ? 'Your free subscription has expired. Please upgrade to a paid plan to continue.'
+        : 'Subscribe to continue receiving and accepting job requests.';
     } else {
       canReceiveJobs = false;
       jobStatusText = 'You need an active subscription to receive and accept job requests.';
@@ -694,10 +701,10 @@ const Dashboard = () => {
                       className="w-full py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 active:scale-98 transition-all shadow-xs"
                     >
                       <span>
-                        {subData.isFreePlan 
-                          ? 'Upgrade Plan' 
-                          : subData.statusType === 'expired' 
-                          ? 'Renew Subscription Now' 
+                        {subData.statusType === 'expired'
+                          ? (subData.planName === 'FREE TRIAL' ? 'Upgrade Now' : 'Renew Subscription Now')
+                          : subData.isFreePlan
+                          ? 'Upgrade Plan'
                           : 'Extend / Renew Subscription'}
                       </span>
                       <FiArrowRight className="w-3.5 h-3.5" />

@@ -11,27 +11,33 @@ const {
 } = require('../../controllers/workerControllers/workerAuthController');
 const { authenticate } = require('../../middleware/authMiddleware');
 const { isWorker } = require('../../middleware/roleMiddleware');
+const { normalizePhone } = require('../../utils/phoneUtil');
+
+const phoneRule = body('phone')
+  .customSanitizer((value) => normalizePhone(value))
+  .notEmpty().withMessage('Phone number is required')
+  .matches(/^[6-9]\d{9}$/).withMessage('Phone number must be a valid 10-digit mobile number');
 
 // Validation rules
 const sendOTPValidation = [
-  body('phone').trim().notEmpty().withMessage('Phone number is required').isLength({ min: 10, max: 10 }).withMessage('Phone number must be 10 digits'),
+  phoneRule,
   body('email').optional({ nullable: true, checkFalsy: true }).isEmail().withMessage('Please provide a valid email')
 ];
 
 const verifyLoginValidation = [
-  body('phone').trim().notEmpty().withMessage('Phone number is required').isLength({ min: 10, max: 10 }).withMessage('Phone number must be 10 digits'),
+  phoneRule,
   body('otp').isLength({ min: 6, max: 6 }).withMessage('OTP must be 6 digits')
 ];
 
 const registerValidation = [
   body('name').trim().notEmpty().withMessage('Name is required'),
-  body('phone').trim().notEmpty().withMessage('Phone number is required').isLength({ min: 10, max: 10 }).withMessage('Phone number must be 10 digits'),
+  phoneRule,
   body('email').isEmail().withMessage('Please provide a valid email')
   // otp/token optional (handled by controller)
 ];
 
 const loginValidation = [
-  body('phone').trim().notEmpty().withMessage('Phone number is required').isLength({ min: 10, max: 10 }).withMessage('Phone number must be 10 digits'),
+  phoneRule,
   body('otp').isLength({ min: 6, max: 6 }).withMessage('OTP must be 6 digits'),
   body('token').trim().notEmpty().withMessage('Verification token is required')
 ];

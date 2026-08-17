@@ -85,6 +85,9 @@ const WorkerSignup = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    if (name === 'phoneNumber' && verificationToken && value !== location.state?.phone) {
+      setVerificationToken('');
+    }
     setFormData(prev => ({
       ...prev,
       [name]: value

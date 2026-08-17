@@ -3,6 +3,8 @@ const Worker = require('../../models/Worker');
 const WorkerSubscriptionPlan = require('../../models/WorkerSubscriptionPlan');
 const { withTransaction, abort } = require('../../utils/withTransaction');
 const { confirmGatewayPayment } = require('../../utils/confirmGatewayPayment');
+const { isSubscriptionCurrentlyActive, applyPaidSubscription, PLAN_TYPES } = require('../../utils/workerSubscriptionUtil');
+const { markPhoneAsPaid } = require('../../services/workerFreeTrialService');
 
 /**
  * POST /api/workers/subscription/create-order
@@ -31,7 +33,7 @@ exports.createSubscriptionOrder = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Worker not found' });
     }
 
-    const isSubActive = !!(worker.subscription?.isActive && worker.subscription?.expiryDate && new Date(worker.subscription.expiryDate) > new Date());
+    const isSubActive = isSubscriptionCurrentlyActive(worker.subscription);
     if (isSubActive && plan.allowExtension === false) {
       return res.status(400).json({
         success: false,
@@ -146,7 +148,7 @@ exports.verifySubscriptionPayment = async (req, res) => {
       const worker = await Worker.findById(workerId).session(session);
       if (!worker) abort({ notFound: true });
 
-      const isSubActive = !!(worker.subscription?.isActive && worker.subscription?.expiryDate && new Date(worker.subscription.expiryDate) > now);
+      const isSubActive = isSubscriptionCurrentlyActive(worker.subscription, now);
       if (isSubActive && plan.allowExtension === false) {
         abort({ extensionNotAllowed: true });
       }
@@ -162,21 +164,19 @@ exports.verifySubscriptionPayment = async (req, res) => {
       const expiryDate = new Date(baseDate);
       expiryDate.setDate(expiryDate.getDate() + plan.durationDays);
 
-      // Activate subscription
-      worker.subscription = {
-        isActive: true,
-        planId: plan._id,
-        planName: plan.title,
-        startDate: now,
+      applyPaidSubscription(worker, {
+        plan,
         expiryDate,
-        durationDays: plan.durationDays,
+        now,
         amountPaid: paidAmount,
-        paymentDate: now,
-        lastPaymentId: razorpay_payment_id,
-        lastOrderId: razorpay_order_id
-      };
+        paymentId: razorpay_payment_id,
+        orderId: razorpay_order_id,
+        transactionId: razorpay_payment_id
+      });
 
       await worker.save({ session });
+
+      await markPhoneAsPaid(worker.phone, worker._id, session);
 
       // --- RECORD TRANSACTION ---
       await Transaction.create([{
@@ -221,6 +221,7 @@ exports.verifySubscriptionPayment = async (req, res) => {
       message: `🎉 Subscription activated! Valid until ${expiryDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}`,
       data: {
         planName: plan.title,
+        planType: PLAN_TYPES.PAID,
         expiryDate,
         durationDays: plan.durationDays,
         paymentId: razorpay_payment_id

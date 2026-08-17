@@ -9,7 +9,7 @@ import Logo from '../../../components/common/Logo';
 const AdminLogin = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    email: 'admin@admin.com',
+    email: '',
     password: ''
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -94,7 +94,7 @@ const AdminLogin = () => {
                   name="email"
                   value={formData.email}
                   onChange={handleInputChange}
-                  placeholder="admin@admin.com"
+                  placeholder="Enter admin email"
                   className="w-full pl-12 pr-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:border-transparent text-gray-900"
                   style={{
                     focusRingColor: themeColors.button
@@ -190,21 +190,6 @@ const AdminLogin = () => {
               {isLoading ? 'Logging in...' : 'Login'}
             </button>
           </form>
-
-          {/* Demo Credentials */}
-          <div
-            className="mt-8 p-4 rounded-xl"
-            style={{
-              background: 'linear-gradient(135deg, rgba(0, 166, 166, 0.1) 0%, rgba(0, 138, 138, 0.05) 100%)',
-              border: '1px solid rgba(0, 166, 166, 0.2)'
-            }}
-          >
-            <h3 className="text-sm font-semibold mb-2" style={{ color: themeColors.button }}>Demo Credentials:</h3>
-            <div className="text-sm text-gray-700 space-y-1">
-              <p>Email: admin@admin.com</p>
-              <p>Password: admin123</p>
-            </div>
-          </div>
         </div>
       </div>
     </div>

@@ -178,6 +178,33 @@ const settingsSchema = new mongoose.Schema({
     enum: ['vendor', 'worker'],
     default: 'worker'
   },
+  // Worker FREE trial — single active configuration. Duration changes
+  // apply only to newly created trials, never to existing subscriptions.
+  workerFreeTrial: {
+    enabled: {
+      type: Boolean,
+      default: true
+    },
+    duration: {
+      type: Number,
+      default: 1,
+      min: 1
+    },
+    durationUnit: {
+      type: String,
+      enum: ['DAY', 'MONTH'],
+      default: 'MONTH'
+    },
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Admin',
+      default: null
+    },
+    updatedAt: {
+      type: Date,
+      default: null
+    }
+  },
   termsAndConditions: {
     type: String,
     default: `1. Acceptance of Terms

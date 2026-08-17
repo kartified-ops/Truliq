@@ -3,6 +3,7 @@ const router = express.Router();
 const { body } = require('express-validator');
 const { authenticate } = require('../../middleware/authMiddleware');
 const { isWorker } = require('../../middleware/roleMiddleware');
+const { requireActiveSubscription } = require('../../middleware/subscriptionMiddleware');
 const {
   getAssignedJobs,
   getPendingRequests,
@@ -38,10 +39,10 @@ const addNotesValidation = [
 ];
 
 // Routes
-router.get('/jobs/pending-requests', authenticate, isWorker, getPendingRequests);
+router.get('/jobs/pending-requests', authenticate, isWorker, requireActiveSubscription, getPendingRequests);
 router.get('/jobs', authenticate, isWorker, getAssignedJobs);
 router.get('/jobs/:id', authenticate, isWorker, getJobById);
-router.put('/jobs/:id/respond', authenticate, isWorker, respondValidation, respondToJob);
+router.put('/jobs/:id/respond', authenticate, isWorker, respondValidation, requireActiveSubscription, respondToJob);
 router.put('/jobs/:id/status', authenticate, isWorker, updateStatusValidation, updateJobStatus);
 router.post('/jobs/:id/start', authenticate, isWorker, startJob);
 router.post('/jobs/:id/reached', authenticate, isWorker, workerReachedLocation);

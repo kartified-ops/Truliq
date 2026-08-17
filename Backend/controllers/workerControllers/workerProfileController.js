@@ -1,6 +1,7 @@
 const Worker = require('../../models/Worker');
 const { validationResult } = require('express-validator');
 const cloudinaryService = require('../../services/cloudinaryService');
+const { expireSubscriptionIfNeeded, isSubscriptionCurrentlyActive } = require('../../utils/workerSubscriptionUtil');
 
 /**
  * Get worker profile
@@ -192,6 +193,30 @@ const toggleOnline = async (req, res) => {
   try {
     const workerId = req.user.id;
     const { isOnline, lat, lng } = req.body;
+
+    if (isOnline) {
+      const workerDoc = await Worker.findById(workerId).select('subscription');
+      if (!workerDoc) {
+        return res.status(404).json({ success: false, message: 'Worker not found' });
+      }
+      const now = new Date();
+      if (expireSubscriptionIfNeeded(workerDoc, now)) {
+        await workerDoc.save();
+      }
+      if (!isSubscriptionCurrentlyActive(workerDoc.subscription, now)) {
+        const hadSubscription = !!workerDoc.subscription?.expiryDate;
+        const isTrial = workerDoc.subscription?.planType === 'TRIAL';
+        return res.status(403).json({
+          success: false,
+          code: hadSubscription ? 'SUBSCRIPTION_EXPIRED' : 'SUBSCRIPTION_REQUIRED',
+          message: isTrial
+            ? 'Your free subscription has expired. Please upgrade to a paid plan to continue.'
+            : (hadSubscription
+              ? 'Your subscription has expired. Please upgrade your plan.'
+              : 'You need an active subscription to go online. Please upgrade your plan.')
+        });
+      }
+    }
 
     const updateData = {
       status: isOnline ? 'ONLINE' : 'OFFLINE', // Manual duty status

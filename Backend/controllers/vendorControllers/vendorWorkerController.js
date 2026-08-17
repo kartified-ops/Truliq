@@ -3,6 +3,8 @@ const Booking = require('../../models/Booking');
 const { validationResult } = require('express-validator');
 const cloudinaryService = require('../../services/cloudinaryService');
 const { WORKER_STATUS, BOOKING_STATUS } = require('../../utils/constants');
+const { normalizePhone } = require('../../utils/phoneUtil');
+const { grantFreeTrialIfEligible } = require('../../services/workerFreeTrialService');
 
 /**
  * Get vendor's workers
@@ -68,11 +70,18 @@ const addWorker = async (req, res) => {
     const {
       name,
       email,
-      phone,
       aadhar,
       serviceCategories,
       address
     } = req.body;
+    const phone = normalizePhone(req.body.phone);
+
+    if (!phone) {
+      return res.status(400).json({
+        success: false,
+        message: 'A valid phone number is required'
+      });
+    }
 
     // Upload Aadhar document to Cloudinary if it's a base64 string
     let aadharUrl = aadhar && aadhar.document ? aadhar.document : null;
@@ -130,6 +139,12 @@ const addWorker = async (req, res) => {
       status: WORKER_STATUS.ACTIVE
     });
 
+    try {
+      await grantFreeTrialIfEligible(worker);
+    } catch (trialError) {
+      console.error('[VendorWorker] FREE trial grant failed:', trialError);
+    }
+
     res.status(201).json({
       success: true,
       message: 'Worker added successfully',
@@ -150,7 +165,7 @@ const addWorker = async (req, res) => {
 const linkWorker = async (req, res) => {
   try {
     const vendorId = req.user.id;
-    const { phone } = req.body;
+    const phone = normalizePhone(req.body.phone);
 
     if (!phone) {
       return res.status(400).json({

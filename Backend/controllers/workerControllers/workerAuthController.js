@@ -2,6 +2,8 @@ const Worker = require('../../models/Worker');
 const { generateOTP, hashOTP, storeOTP, verifyOTP, checkRateLimit } = require('../../utils/redisOtp.util');
 const { generateTokenPair, verifyRefreshToken, generateVerificationToken, verifyVerificationToken } = require('../../utils/tokenService');
 const { sendOTP: sendSMSOTP } = require('../../services/smsService');
+const { grantFreeTrialIfEligible } = require('../../services/workerFreeTrialService');
+const { normalizePhone } = require('../../utils/phoneUtil');
 const cloudinaryService = require('../../services/cloudinaryService');
 const { USER_ROLES, WORKER_STATUS } = require('../../utils/constants');
 const { validationResult } = require('express-validator');
@@ -54,9 +56,28 @@ const sendOTP = async (req, res) => {
     }
 
     const { phone, email } = req.body;
+    const normalizedPhone = normalizePhone(phone);
+
+    // If email is provided (registration flow), pre-check if phone or email already exists
+    if (email) {
+      const existingPhoneWorker = await Worker.findOne({ phone: normalizedPhone });
+      if (existingPhoneWorker) {
+        return res.status(400).json({
+          success: false,
+          message: 'A worker account with this phone number already exists. Please login.'
+        });
+      }
+      const existingEmailWorker = await Worker.findOne({ email: email.trim().toLowerCase() });
+      if (existingEmailWorker) {
+        return res.status(400).json({
+          success: false,
+          message: 'A worker account with this email address already exists. Please use another email.'
+        });
+      }
+    }
 
     // 1. Rate limit check
-    const allowed = await checkRateLimit(phone);
+    const allowed = await checkRateLimit(normalizedPhone);
     if (!allowed) {
       return res.status(429).json({
         success: false,
@@ -69,18 +90,18 @@ const sendOTP = async (req, res) => {
     const otpHash = hashOTP(otp);
 
     // 3. Store OTP (Redis primary, MongoDB fallback)
-    await storeOTP(phone, otpHash);
+    await storeOTP(normalizedPhone, otpHash);
 
     // 4. Send OTP via SMS
-    const smsResult = await sendSMSOTP(phone, otp);
+    const smsResult = await sendSMSOTP(normalizedPhone, otp);
 
     // Log OTP
     if (process.env.NODE_ENV === 'development' || process.env.USE_DEFAULT_OTP === 'true') {
-      console.log(`[DEV] Worker OTP for ${phone}: ${otp}`);
+      console.log(`[DEV] Worker OTP for ${normalizedPhone}: ${otp}`);
     }
 
     if (!smsResult.success) {
-      console.warn(`[OTP] SMS failed for worker ${phone}, but OTP stored`);
+      console.warn(`[OTP] SMS failed for worker ${normalizedPhone}, but OTP stored`);
     }
 
     res.status(200).json({
@@ -103,9 +124,10 @@ const sendOTP = async (req, res) => {
 const verifyLogin = async (req, res) => {
   try {
     const { phone, otp } = req.body;
+    const normalizedPhone = normalizePhone(phone);
 
     // 1. Verify OTP
-    const verification = await verifyOTP(phone, otp);
+    const verification = await verifyOTP(normalizedPhone, otp);
     if (!verification.success) {
       return res.status(400).json({
         success: false,
@@ -114,7 +136,7 @@ const verifyLogin = async (req, res) => {
     }
 
     // 2. Check if worker exists
-    const worker = await Worker.findOne({ phone });
+    const worker = await Worker.findOne({ phone: normalizedPhone });
 
     if (worker) {
       // EXISTING WORKER
@@ -151,7 +173,7 @@ const verifyLogin = async (req, res) => {
 
     } else {
       // NEW WORKER
-      const verificationToken = generateVerificationToken(phone);
+      const verificationToken = generateVerificationToken(normalizedPhone);
 
       return res.status(200).json({
         success: true,
@@ -186,12 +208,12 @@ const register = async (req, res) => {
 
     // verificationToken handling
     const { name, email, verificationToken, aadharNumber, aadharDocument, aadharBackDocument } = req.body;
-    let phone = req.body.phone;
+    let phone = normalizePhone(req.body.phone);
 
     if (verificationToken) {
       const verifiedPhone = verifyVerificationToken(verificationToken);
       if (!verifiedPhone) return res.status(400).json({ success: false, message: 'Invalid verification session.' });
-      phone = verifiedPhone;
+      phone = normalizePhone(verifiedPhone);
     } else {
       // Fallback OTP
       if (!req.body.otp) return res.status(400).json({ success: false, message: 'Verification required.' });
@@ -199,17 +221,40 @@ const register = async (req, res) => {
       if (!ver.success) return res.status(400).json({ success: false, message: ver.message });
     }
 
-    // Check existing
-    const queryConditions = [{ phone }];
-    if (email) {
-      queryConditions.push({ email });
+    if (!phone) {
+      return res.status(400).json({ success: false, message: 'A valid phone number is required.' });
     }
-    const existingWorker = await Worker.findOne({ $or: queryConditions });
-    if (existingWorker) {
+
+    // Check existing worker by phone
+    const existingPhoneWorker = await Worker.findOne({ phone });
+    if (existingPhoneWorker) {
       return res.status(400).json({
         success: false,
-        message: 'Worker already exists. Please login.'
+        message: 'A worker account with this phone number already exists. Please login.'
       });
+    }
+
+    // Check existing worker by email
+    if (email) {
+      const existingEmailWorker = await Worker.findOne({ email: email.trim().toLowerCase() });
+      if (existingEmailWorker) {
+        return res.status(400).json({
+          success: false,
+          message: 'A worker account with this email address already exists. Please use another email or login.'
+        });
+      }
+    }
+
+    // Check existing worker by Aadhar number
+    const aadharNum = req.body.aadhar || aadharNumber;
+    if (aadharNum) {
+      const existingAadharWorker = await Worker.findOne({ 'aadhar.number': aadharNum });
+      if (existingAadharWorker) {
+        return res.status(400).json({
+          success: false,
+          message: 'A worker account with this Aadhar number already exists. Please check your Aadhar number.'
+        });
+      }
     }
 
     // Upload Aadhar
@@ -238,6 +283,15 @@ const register = async (req, res) => {
       status: WORKER_STATUS.OFFLINE
     });
 
+    // Backend-only FREE trial grant using the current Admin configuration.
+    // Duration is snapshotted onto this subscription and never rewritten later.
+    let trialGrant = { granted: false };
+    try {
+      trialGrant = await grantFreeTrialIfEligible(worker);
+    } catch (trialError) {
+      console.error('[WorkerAuth] FREE trial grant failed:', trialError);
+    }
+
     // Generate JWT tokens with initial session
     const loginSessionId = Date.now().toString();
     await Worker.findByIdAndUpdate(worker._id, { loginSessionId });
@@ -249,9 +303,13 @@ const register = async (req, res) => {
       loginSessionId
     });
 
+    const subscription = trialGrant.granted ? trialGrant.subscription : null;
+
     res.status(201).json({
       success: true,
-      message: 'Registration successful',
+      message: trialGrant.granted
+        ? 'Registration successful. FREE trial activated.'
+        : 'Registration successful',
       worker: {
         id: worker._id,
         name: worker.name,
@@ -259,10 +317,52 @@ const register = async (req, res) => {
         phone: worker.phone,
         status: worker.status
       },
+      subscription: subscription ? {
+        planType: subscription.planType,
+        planName: subscription.planName,
+        status: subscription.status,
+        isActive: subscription.isActive,
+        startDate: subscription.startDate,
+        expiryDate: subscription.expiryDate,
+        endDate: subscription.expiryDate,
+        trialDuration: subscription.trialDuration,
+        trialDurationUnit: subscription.trialDurationUnit,
+        trialUsed: true
+      } : {
+        planType: null,
+        status: null,
+        isActive: false,
+        trialUsed: false
+      },
       ...tokens
     });
   } catch (error) {
     console.error('Worker registration error:', error);
+    if (error && error.code === 11000) {
+      const keyPattern = error.keyPattern || {};
+      if (keyPattern.email) {
+        return res.status(400).json({
+          success: false,
+          message: 'A worker account with this email address already exists. Please use another email.'
+        });
+      }
+      if (keyPattern.phone) {
+        return res.status(400).json({
+          success: false,
+          message: 'A worker account with this phone number already exists. Please login.'
+        });
+      }
+      if (keyPattern['aadhar.number'] || keyPattern.aadhar) {
+        return res.status(400).json({
+          success: false,
+          message: 'A worker account with this Aadhar number already exists.'
+        });
+      }
+      return res.status(400).json({
+        success: false,
+        message: 'Worker with these details already exists. Please login.'
+      });
+    }
     res.status(500).json({
       success: false,
       message: 'Registration failed. Please try again.'
@@ -285,9 +385,10 @@ const login = async (req, res) => {
     }
 
     const { phone, otp } = req.body;
+    const normalizedPhone = normalizePhone(phone);
 
     // Verify OTP
-    const verification = await verifyOTP(phone, otp);
+    const verification = await verifyOTP(normalizedPhone, otp);
     if (!verification.success) {
       return res.status(400).json({
         success: false,
@@ -296,7 +397,7 @@ const login = async (req, res) => {
     }
 
     // Find worker
-    const worker = await Worker.findOne({ phone });
+    const worker = await Worker.findOne({ phone: normalizedPhone });
     if (!worker) {
       return res.status(404).json({
         success: false,

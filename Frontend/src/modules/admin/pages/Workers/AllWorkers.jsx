@@ -310,11 +310,17 @@ const AllWorkers = () => {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        {worker.subscription?.isActive ? (
+                        {worker.subscription?.isActive && worker.subscription?.expiryDate && new Date(worker.subscription.expiryDate) > new Date() ? (
                           <div className="flex flex-col">
-                            <span className="text-[10px] font-bold text-purple-700">{worker.subscription.planName}</span>
+                            <span className="text-[10px] font-bold text-purple-700">
+                              {worker.subscription.planType === 'TRIAL' ? 'FREE TRIAL' : worker.subscription.planName}
+                            </span>
                             <span className="text-[9px] text-gray-500">Exp: {new Date(worker.subscription.expiryDate).toLocaleDateString()}</span>
                           </div>
+                        ) : worker.subscription?.expiryDate ? (
+                          <span className="text-[9px] font-bold text-red-500 uppercase tracking-wider bg-red-50 px-2 py-0.5 rounded-full border border-red-100">
+                            Expired
+                          </span>
                         ) : (
                           <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider bg-gray-50 px-2 py-0.5 rounded-full border border-gray-100">
                             No Plan
@@ -443,11 +449,13 @@ const AllWorkers = () => {
                 <FiDollarSign className="w-4 h-4" />
                 Subscription Info
               </h4>
-              {selectedWorker.subscription?.isActive ? (
+              {selectedWorker.subscription?.isActive && selectedWorker.subscription?.expiryDate && new Date(selectedWorker.subscription.expiryDate) > new Date() ? (
                 <div className="grid grid-cols-2 gap-y-3 gap-x-6">
                   <div>
                     <label className="block text-[10px] uppercase font-bold text-purple-600 mb-0.5">Active Plan</label>
-                    <div className="text-sm font-bold text-gray-900">{selectedWorker.subscription.planName}</div>
+                    <div className="text-sm font-bold text-gray-900">
+                      {selectedWorker.subscription.planType === 'TRIAL' ? 'FREE TRIAL' : selectedWorker.subscription.planName}
+                    </div>
                   </div>
                   <div>
                     <label className="block text-[10px] uppercase font-bold text-purple-600 mb-0.5">Expiry Date</label>
@@ -463,11 +471,17 @@ const AllWorkers = () => {
                   </div>
                   <div>
                     <label className="block text-[10px] uppercase font-bold text-purple-600 mb-0.5">Duration</label>
-                    <div className="text-sm text-gray-700">{selectedWorker.subscription.durationDays} Days</div>
+                    <div className="text-sm text-gray-700">
+                      {selectedWorker.subscription.planType === 'TRIAL' && selectedWorker.subscription.trialDuration
+                        ? `${selectedWorker.subscription.trialDuration} ${selectedWorker.subscription.trialDurationUnit === 'MONTH' ? 'Month' : 'Day'}${selectedWorker.subscription.trialDuration > 1 ? 's' : ''}`
+                        : `${selectedWorker.subscription.durationDays} Days`}
+                    </div>
                   </div>
                 </div>
               ) : (
-                <div className="text-sm text-purple-700 italic">No active subscription found for this worker.</div>
+                <div className="text-sm text-purple-700 italic">
+                  {selectedWorker.subscription?.expiryDate ? 'Subscription expired. Worker must upgrade to a paid plan.' : 'No active subscription found for this worker.'}
+                </div>
               )}
             </div>
 

@@ -59,6 +59,7 @@ const AdminHeader = ({ onMenuClick }) => {
       { path: '/admin/notifications', title: 'Notifications', description: 'Stay updated with platform activities' },
       { path: '/admin/settings', title: 'Settings', description: 'Configure platform preferences' },
       { path: '/admin/plans', title: 'Subscription Plans', description: 'Manage service subscription plans' },
+      { path: '/admin/worker-plans', title: 'Worker Plans', description: 'Manage worker subscription plans and FREE trial settings' },
       { path: '/admin/services', title: 'Services', description: 'Manage platform service categories' },
       { path: '/admin/services', title: 'Services', description: 'Manage platform service categories' },
       { path: '/admin/settlements/pending', title: 'Pending Settlements', description: 'Review and approve vendor cash settlements' },

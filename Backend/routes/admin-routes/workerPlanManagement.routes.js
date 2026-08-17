@@ -5,7 +5,9 @@ const {
   getPlan, 
   createPlan, 
   updatePlan, 
-  deletePlan 
+  deletePlan,
+  getFreeTrialSettings,
+  updateFreeTrialSettings
 } = require('../../controllers/adminControllers/workerPlanController');
 const { authenticate } = require('../../middleware/authMiddleware');
 const { isAdmin } = require('../../middleware/roleMiddleware');
@@ -13,6 +15,9 @@ const { isAdmin } = require('../../middleware/roleMiddleware');
 // All routes here are protected and admin only
 router.use(authenticate);
 router.use(isAdmin);
+
+router.get('/free-trial', getFreeTrialSettings);
+router.put('/free-trial', updateFreeTrialSettings);
 
 router.route('/')
   .get(getAllPlans)

@@ -4,7 +4,6 @@ import { FiBell, FiCheck, FiArrowLeft, FiTrash2, FiX } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 import { themeColors } from '../../../../theme';
 import BottomNav from '../../components/layout/BottomNav';
-import FCMTesterCard from '../../../../components/common/FCMTesterCard';
 import {
   getNotifications,
   markAsRead,
@@ -174,11 +173,7 @@ const Notifications = () => {
           </div>
         </div>
       </div>
-
       <main className="px-4 py-6">
-        {/* FCM Push Notification Tester */}
-        <FCMTesterCard userType="user" />
-
         {/* Filter Buttons */}
         <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
           {[

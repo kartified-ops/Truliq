@@ -176,17 +176,28 @@ const Subscription = () => {
 
       {/* Active Status Card */}
       {status?.isActive ? (
-        <div className="mx-4 mb-6 rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(135deg, #11998e, #38ef7d)' }}>
+        <div className="mx-4 mb-6 rounded-2xl overflow-hidden" style={{
+          background: status.isTrial || status.planType === 'TRIAL'
+            ? 'linear-gradient(135deg, #6366f1, #8b5cf6)'
+            : 'linear-gradient(135deg, #11998e, #38ef7d)'
+        }}>
           <div className="p-5">
             <div className="flex items-center gap-2 mb-1">
               <FiShield className="text-white w-5 h-5" />
-              <span className="text-white font-bold text-sm uppercase tracking-wider">Active Plan</span>
+              <span className="text-white font-bold text-sm uppercase tracking-wider">
+                {status.planType === 'TRIAL' || status.isTrial ? 'FREE TRIAL' : 'Active Plan'}
+              </span>
             </div>
-            <p className="text-white text-2xl font-black mb-1">{status.planName}</p>
+            <p className="text-white text-2xl font-black mb-1">
+              {status.planType === 'TRIAL' || status.isTrial ? 'FREE TRIAL' : status.planName}
+            </p>
             <div className="flex items-center gap-2 text-white/80 text-sm">
               <FiClock className="w-4 h-4" />
               <span>
-                {daysRemaining(status.expiryDate)} days left · Expires {new Date(status.expiryDate).toLocaleString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}
+                {status.planType === 'TRIAL' || status.isTrial
+                  ? `Active until: ${formatDate(status.expiryDate || status.endDate)}`
+                  : `Valid until: ${formatDate(status.expiryDate || status.endDate)}`}
+                {` · ${daysRemaining(status.expiryDate || status.endDate)} days left`}
               </span>
             </div>
 
@@ -194,7 +205,11 @@ const Subscription = () => {
             <div className="mt-4 bg-white/20 rounded-full h-2">
               <div
                 className="bg-white rounded-full h-2 transition-all"
-                style={{ width: `${Math.min(100, (daysRemaining(status.expiryDate) / 30) * 100)}%` }}
+                style={{
+                  width: `${Math.min(100, status.durationDays
+                    ? (daysRemaining(status.expiryDate || status.endDate) / status.durationDays) * 100
+                    : (daysRemaining(status.expiryDate || status.endDate) / 30) * 100)}%`
+                }}
               />
             </div>
           </div>
@@ -204,10 +219,22 @@ const Subscription = () => {
           <div className="flex items-center gap-2">
             <span className="text-2xl">⚠️</span>
             <div>
-              <p className="text-amber-400 font-bold text-sm">No Active Subscription</p>
-              <p className="text-white/60 text-xs">You won't receive job alerts until you subscribe</p>
+              <p className="text-amber-400 font-bold text-sm">
+                {status?.status === 'EXPIRED' || status?.trialUsed || status?.planType === 'TRIAL'
+                  ? 'Subscription Expired'
+                  : 'No Active Subscription'}
+              </p>
+              <p className="text-white/60 text-xs">
+                {status?.expiredMessage
+                  || ((status?.planType === 'TRIAL' || (status?.trialUsed && !(status?.amountPaid > 0)))
+                    ? 'Your free subscription has expired. Please upgrade to a paid plan to continue.'
+                    : "You won't receive job alerts until you subscribe")}
+              </p>
             </div>
           </div>
+          {(status?.status === 'EXPIRED' || status?.trialUsed) && (
+            <p className="mt-3 text-white font-bold text-sm">Upgrade Now</p>
+          )}
         </div>
       )}
 
