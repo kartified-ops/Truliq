@@ -192,9 +192,52 @@ const settingsSchema = new mongoose.Schema({
     },
     durationUnit: {
       type: String,
-      enum: ['DAY', 'MONTH'],
+      enum: ['DAY', 'WEEK', 'MONTH'],
       default: 'MONTH'
     },
+    campaignStartDate: {
+      type: Date,
+      default: null
+    },
+    reminderDays: {
+      type: Number,
+      default: 3,
+      min: 0
+    },
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Admin',
+      default: null
+    },
+    updatedAt: {
+      type: Date,
+      default: null
+    }
+  },
+  // Worker app dashboard banners (shown on /worker/dashboard)
+  workerDashboard: {
+    isBannersVisible: {
+      type: Boolean,
+      default: true
+    },
+    banners: [{
+      imageUrl: {
+        type: String,
+        required: true
+      },
+      text: {
+        type: String,
+        default: ''
+      },
+      isActive: {
+        type: Boolean,
+        default: true
+      },
+      order: {
+        type: Number,
+        default: 0
+      }
+    }],
     updatedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Admin',

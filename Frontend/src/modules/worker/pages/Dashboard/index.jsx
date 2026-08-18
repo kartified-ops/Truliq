@@ -128,7 +128,7 @@ const Dashboard = () => {
 
     if (isActive) {
       if (planType === 'TRIAL' || subStatus.isTrial || subStatus.isFreePlan) {
-        displayPlanName = 'FREE TRIAL';
+        displayPlanName = 'FREE SUBSCRIPTION';
         isFreePlan = true;
       } else {
         displayPlanName = subStatus.planName || 'Paid Plan';
@@ -138,7 +138,7 @@ const Dashboard = () => {
       if (planType === 'PAID') {
         displayPlanName = subStatus.planName || 'Paid Plan';
       } else if (planType === 'TRIAL' || subStatus.trialUsed) {
-        displayPlanName = 'FREE TRIAL';
+        displayPlanName = 'FREE SUBSCRIPTION';
       }
     }
 
@@ -156,7 +156,7 @@ const Dashboard = () => {
     if (statusType === 'active') {
       canReceiveJobs = true;
       jobStatusText = isFreePlan
-        ? `FREE TRIAL active until ${expiryDateObj ? expiryDateObj.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}.`
+        ? `FREE SUBSCRIPTION active until ${expiryDateObj ? expiryDateObj.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}.`
         : 'You can receive and accept job requests.';
     } else if (statusType === 'expiring') {
       canReceiveJobs = true;
@@ -227,6 +227,10 @@ const Dashboard = () => {
     rating: 0
   });
   const [recentJobs, setRecentJobs] = useState(cachedData.current?.recentJobs || []);
+  const [dashboardBanners, setDashboardBanners] = useState(cachedData.current?.dashboardBanners || []);
+  const [isBannersVisible, setIsBannersVisible] = useState(
+    cachedData.current?.isBannersVisible !== undefined ? cachedData.current.isBannersVisible : true
+  );
   const [activeJob, setActiveJob] = useState(cachedData.current?.activeJob || null);
   const [isOnline, setIsOnline] = useState(cachedData.current?.isOnline || false);
   const [togglingOnline, setTogglingOnline] = useState(false);
@@ -352,16 +356,19 @@ const Dashboard = () => {
       if (!isBackground && !cachedData.current) setLoading(true);
 
       // Fetch Profile, Stats and Recent Jobs in parallel (Stats also includes recent jobs but let's be robust)
-      const [profileRes, statsRes, subRes] = await Promise.all([
+      const [profileRes, statsRes, subRes, bannersRes] = await Promise.all([
         workerService.getProfile(),
         workerService.getDashboardStats(),
-        workerService.getSubscriptionStatus()
+        workerService.getSubscriptionStatus(),
+        workerService.getDashboardBanners().catch(() => ({ success: false }))
       ]);
 
       let newWorkerProfile = { ...workerProfile };
       let newStats = { ...stats };
       let newSubscriptionStatus = subscriptionStatus;
       let newRecentJobs = [...recentJobs];
+      let newDashboardBanners = [...dashboardBanners];
+      let newIsBannersVisible = isBannersVisible;
 
       if (profileRes.success) {
         const profile = profileRes.worker;
@@ -411,12 +418,21 @@ const Dashboard = () => {
         setSubscriptionStatus(newSubscriptionStatus);
       }
 
+      if (bannersRes && bannersRes.success) {
+        newDashboardBanners = Array.isArray(bannersRes.data?.banners) ? bannersRes.data.banners : [];
+        newIsBannersVisible = bannersRes.data?.isVisible !== false;
+        setDashboardBanners(newDashboardBanners);
+        setIsBannersVisible(newIsBannersVisible);
+      }
+
       // Save to cache
       try {
         sessionStorage.setItem('workerDashboardCache', JSON.stringify({
           workerProfile: newWorkerProfile,
           stats: newStats,
           subscriptionStatus: newSubscriptionStatus,
+          dashboardBanners: newDashboardBanners,
+          isBannersVisible: newIsBannersVisible,
           recentJobs: newRecentJobs,
           isOnline: profileRes.success ? profileRes.worker.isOnline : isOnline
         }));
@@ -484,6 +500,34 @@ const Dashboard = () => {
       <Header title="Dashboard" showBack={false} />
 
       <main className="pt-0">
+        {/* Admin-managed dashboard banners */}
+        {isBannersVisible && dashboardBanners.length > 0 && (
+          <div className="px-4 pt-4 pb-2">
+            <div className="flex gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory">
+              {dashboardBanners.map((banner) => (
+                <div
+                  key={banner.id || banner.imageUrl}
+                  className="relative w-full shrink-0 sm:w-[360px] h-32 sm:h-28 rounded-2xl overflow-hidden shadow-sm border border-slate-200/70 snap-start bg-slate-100"
+                >
+                  <OptimizedImage
+                    src={banner.imageUrl}
+                    alt={banner.text || 'Dashboard banner'}
+                    className="w-full h-full object-cover"
+                    width={720}
+                    height={240}
+                    style={{ width: '100%', height: '100%' }}
+                  />
+                  {banner.text ? (
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent p-3">
+                      <p className="text-white text-sm font-semibold line-clamp-2">{banner.text}</p>
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Profile Card Section */}
         <div className="px-4 pt-4 pb-2">
           <div
@@ -702,7 +746,7 @@ const Dashboard = () => {
                     >
                       <span>
                         {subData.statusType === 'expired'
-                          ? (subData.planName === 'FREE TRIAL' ? 'Upgrade Now' : 'Renew Subscription Now')
+                          ? (subData.planName === 'FREE TRIAL' || subData.planName === 'FREE SUBSCRIPTION' ? 'Upgrade Now' : 'Renew Subscription Now')
                           : subData.isFreePlan
                           ? 'Upgrade Plan'
                           : 'Extend / Renew Subscription'}

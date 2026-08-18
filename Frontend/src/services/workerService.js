@@ -26,6 +26,11 @@ const workerService = {
     return response.data;
   },
 
+  getDashboardBanners: async () => {
+    const response = await api.get('/workers/banners');
+    return response.data;
+  },
+
   // Jobs
   getPendingRequests: async () => {
     const response = await api.get('/workers/jobs/pending-requests');

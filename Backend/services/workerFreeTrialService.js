@@ -1,4 +1,5 @@
 const Settings = require('../models/Settings');
+const Worker = require('../models/Worker');
 const WorkerTrialHistory = require('../models/WorkerTrialHistory');
 const { normalizePhone } = require('../utils/phoneUtil');
 const {
@@ -10,9 +11,14 @@ const {
   isValidDurationUnit,
   normalizeDurationUnit
 } = require('../utils/trialDuration');
-const { PLAN_TYPES, SUBSCRIPTION_STATUS } = require('../utils/workerSubscriptionUtil');
+const {
+  PLAN_TYPES,
+  SUBSCRIPTION_STATUS,
+  isSubscriptionCurrentlyActive,
+  expireSubscriptionIfNeeded
+} = require('../utils/workerSubscriptionUtil');
 
-const TRIAL_PLAN_NAME = 'FREE TRIAL';
+const TRIAL_PLAN_NAME = 'FREE SUBSCRIPTION';
 
 const getDefaultFreeTrialConfig = () => ({
   enabled: true,
@@ -36,12 +42,14 @@ const getFreeTrialConfig = async () => {
     enabled: cfg.enabled !== false,
     duration: Number.isInteger(duration) && duration >= 1 ? duration : DEFAULT_TRIAL_DURATION,
     durationUnit,
+    campaignStartDate: cfg.campaignStartDate ? new Date(cfg.campaignStartDate).toISOString() : null,
+    reminderDays: Number.isInteger(Number(cfg.reminderDays)) ? Number(cfg.reminderDays) : 3,
     updatedBy: cfg.updatedBy || null,
     updatedAt: cfg.updatedAt || null
   };
 };
 
-const saveFreeTrialConfig = async ({ enabled, duration, durationUnit, adminId }) => {
+const saveFreeTrialConfig = async ({ enabled, duration, durationUnit, campaignStartDate, reminderDays, adminId }) => {
   const parsedDuration = Number(duration);
   const unit = normalizeDurationUnit(durationUnit);
 
@@ -56,7 +64,7 @@ const saveFreeTrialConfig = async ({ enabled, duration, durationUnit, adminId })
     throw err;
   }
   if (!isValidDurationUnit(unit)) {
-    const err = new Error('Duration unit must be DAY or MONTH');
+    const err = new Error('Duration unit must be DAY, WEEK, or MONTH');
     err.status = 400;
     throw err;
   }
@@ -66,6 +74,8 @@ const saveFreeTrialConfig = async ({ enabled, duration, durationUnit, adminId })
     'workerFreeTrial.enabled': enabled,
     'workerFreeTrial.duration': parsedDuration,
     'workerFreeTrial.durationUnit': unit,
+    'workerFreeTrial.campaignStartDate': campaignStartDate ? new Date(campaignStartDate) : null,
+    'workerFreeTrial.reminderDays': Number.isInteger(Number(reminderDays)) ? Number(reminderDays) : 3,
     'workerFreeTrial.updatedAt': now
   };
   if (adminId) update['workerFreeTrial.updatedBy'] = adminId;
@@ -81,24 +91,35 @@ const saveFreeTrialConfig = async ({ enabled, duration, durationUnit, adminId })
     enabled: cfg.enabled !== false,
     duration: cfg.duration,
     durationUnit: cfg.durationUnit,
+    campaignStartDate: cfg.campaignStartDate ? new Date(cfg.campaignStartDate).toISOString() : null,
+    reminderDays: cfg.reminderDays ?? 3,
     updatedBy: cfg.updatedBy || null,
     updatedAt: cfg.updatedAt || null
   };
 };
 
+const workerAlreadyConsumedTrial = (worker) => !!(
+  worker?.trialUsed ||
+  worker?.subscription?.trialUsed ||
+  worker?.subscription?.planType === PLAN_TYPES.TRIAL
+);
+
 /**
- * Pure eligibility decision used by registration AND tests.
- * history is the permanent per-phone record (survives account deletion).
+ * Pure eligibility decision used by registration, backfill, login, AND tests.
+ *
+ * Existing workers who never received a FREE trial become eligible as soon as
+ * Admin enables the feature. Workers who already consumed a trial never get another.
+ * An active paid plan is not overwritten.
  */
-const evaluateTrialEligibility = ({ config, history }) => {
+const evaluateTrialEligibility = ({ config, history, worker }) => {
   if (!config || config.enabled !== true) {
     return { eligible: false, reason: 'DISABLED' };
   }
-  if (history?.trialUsed) {
+  if (history?.trialUsed || workerAlreadyConsumedTrial(worker)) {
     return { eligible: false, reason: 'ALREADY_USED' };
   }
-  if (history?.everPaid) {
-    return { eligible: false, reason: 'PAID_USER' };
+  if (worker && isSubscriptionCurrentlyActive(worker.subscription)) {
+    return { eligible: false, reason: 'HAS_ACTIVE_PLAN' };
   }
   return { eligible: true, reason: null };
 };
@@ -134,8 +155,11 @@ const buildTrialSubscription = ({ now, endDate, duration, durationUnit }) => ({
  * Atomically consume the one-time FREE trial for this mobile number and
  * attach a TRIAL subscription snapshot (duration frozen at grant time).
  *
- * Unique index on WorkerTrialHistory.phone + filter on trialUsed/everPaid
- * prevents two concurrent registrations from both receiving a trial.
+ * Also used for already-registered workers who never received a trial:
+ * when Admin enables FREE trial, they become eligible.
+ *
+ * Unique index on WorkerTrialHistory.phone + trialUsed filter prevents
+ * two concurrent grants for the same mobile number.
  */
 const grantFreeTrialIfEligible = async (worker, options = {}) => {
   const session = options.session;
@@ -144,12 +168,19 @@ const grantFreeTrialIfEligible = async (worker, options = {}) => {
     return { granted: false, reason: 'INVALID_PHONE', subscription: null };
   }
 
-  const config = await getFreeTrialConfig();
-  if (!config.enabled) {
-    return { granted: false, reason: 'DISABLED', subscription: null, config };
+  const config = options.config || await getFreeTrialConfig();
+  const now = options.now ? new Date(options.now) : new Date();
+  expireSubscriptionIfNeeded(worker, now);
+
+  const history = options.history !== undefined
+    ? options.history
+    : await getTrialHistoryByPhone(phone, session);
+
+  const decision = evaluateTrialEligibility({ config, history, worker });
+  if (!decision.eligible) {
+    return { granted: false, reason: decision.reason, subscription: null, config };
   }
 
-  const now = options.now ? new Date(options.now) : new Date();
   const endDate = calculateEndDate(now, config.duration, config.durationUnit);
   const trialFields = {
     trialUsed: true,
@@ -161,13 +192,11 @@ const grantFreeTrialIfEligible = async (worker, options = {}) => {
     workerId: worker._id
   };
 
-  let claimed = false;
   try {
-    const query = WorkerTrialHistory.findOneAndUpdate(
+    await WorkerTrialHistory.findOneAndUpdate(
       {
         phone,
-        trialUsed: { $ne: true },
-        everPaid: { $ne: true }
+        trialUsed: { $ne: true }
       },
       {
         $set: trialFields,
@@ -179,21 +208,14 @@ const grantFreeTrialIfEligible = async (worker, options = {}) => {
       {
         upsert: true,
         new: true,
-        includeResultMetadata: true,
         ...(session ? { session } : {})
       }
     );
-    await query;
-    claimed = true;
   } catch (err) {
     if (err && err.code === 11000) {
       return { granted: false, reason: 'ALREADY_USED', subscription: null, config };
     }
     throw err;
-  }
-
-  if (!claimed) {
-    return { granted: false, reason: 'ALREADY_USED', subscription: null, config };
   }
 
   const subscription = buildTrialSubscription({
@@ -211,8 +233,41 @@ const grantFreeTrialIfEligible = async (worker, options = {}) => {
 };
 
 /**
+ * When Admin enables FREE trial, grant it to every existing worker who
+ * has never consumed a trial and does not currently have an active plan.
+ */
+const grantFreeTrialToEligibleExistingWorkers = async () => {
+  const config = await getFreeTrialConfig();
+  if (!config.enabled) {
+    return { granted: 0, skipped: 0 };
+  }
+
+  const now = new Date();
+  const workers = await Worker.find({
+    trialUsed: { $ne: true },
+    'subscription.trialUsed': { $ne: true },
+    'subscription.planType': { $ne: PLAN_TYPES.TRIAL }
+  }).select('phone trialUsed subscription');
+
+  let granted = 0;
+  let skipped = 0;
+
+  for (const worker of workers) {
+    try {
+      const result = await grantFreeTrialIfEligible(worker, { config, now });
+      if (result.granted) granted += 1;
+      else skipped += 1;
+    } catch (err) {
+      skipped += 1;
+      console.error(`[FreeTrial] Backfill failed for worker ${worker._id}:`, err.message);
+    }
+  }
+
+  return { granted, skipped };
+};
+
+/**
  * Mark this mobile number as having purchased a paid plan.
- * Prevents a later re-registration from receiving a FREE trial.
  */
 const markPhoneAsPaid = async (phone, workerId, session) => {
   const normalized = normalizePhone(phone);
@@ -247,6 +302,8 @@ module.exports = {
   evaluateTrialEligibility,
   getTrialHistoryByPhone,
   grantFreeTrialIfEligible,
+  grantFreeTrialToEligibleExistingWorkers,
   markPhoneAsPaid,
-  buildTrialSubscription
+  buildTrialSubscription,
+  workerAlreadyConsumedTrial
 };

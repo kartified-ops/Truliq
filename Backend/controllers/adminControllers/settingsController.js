@@ -146,6 +146,15 @@ exports.updateSettings = async (req, res, next) => {
       }
 
       await settings.save();
+
+      if (workerFreeTrial !== undefined && settings.workerFreeTrial?.enabled) {
+        try {
+          const { grantFreeTrialToEligibleExistingWorkers } = require('../../services/workerFreeTrialService');
+          await grantFreeTrialToEligibleExistingWorkers();
+        } catch (backfillError) {
+          console.error('[Settings] FREE trial backfill error:', backfillError);
+        }
+      }
     }
 
     // Propagate vendorCashLimit to all existing vendors AND workers if it was changed

@@ -131,6 +131,19 @@
     "children": []
   },
   {
+    "title": "Notifications",
+    "route": "/admin/notifications",
+    "allowedRoles": [
+      "super_admin",
+      "admin"
+    ],
+    "children": [
+      "Send Push Notification",
+      "History",
+      "Admin Inbox"
+    ]
+  },
+  {
     "title": "Plans",
     "route": "/admin/plans",
     "allowedRoles": [

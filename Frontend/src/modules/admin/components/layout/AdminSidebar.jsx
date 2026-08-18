@@ -91,9 +91,12 @@ const getChildRoute = (parentRoute, childName) => {
       "Payment Report": "/admin/payments/reports",
     },
     "/admin/notifications": {
-      "Push Notifications": "/admin/notifications/push",
-      "Custom Messages": "/admin/notifications/messages",
-      "Notification Settings": "/admin/notifications/settings",
+      "Send Push Notification": "/admin/notifications/send",
+      "History": "/admin/notifications/history",
+      "Admin Inbox": "/admin/notifications/inbox",
+      "Push Notifications": "/admin/notifications/send",
+      "Custom Messages": "/admin/notifications/send",
+      "Notification Settings": "/admin/notifications/history"
     },
     "/admin/settings": {
       "General Settings": "/admin/settings/general",

@@ -72,7 +72,11 @@ const notificationSchema = new mongoose.Schema({
       'scrap_accepted',
       'scrap_completed',
       'vendor_withdrawal_request',
-      'general'
+      'general',
+      'admin_notification',
+      'admin_promotion',
+      'admin_reminder',
+      'admin_system'
     ],
     index: true
   },
@@ -111,6 +115,50 @@ const notificationSchema = new mongoose.Schema({
   data: {
     type: mongoose.Schema.Types.Mixed,
     default: {}
+  },
+  // Admin push campaign / broadcast metadata
+  isBroadcast: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
+  broadcastGroupId: {
+    type: String,
+    default: null
+  },
+  audienceType: {
+    type: String,
+    enum: ['all', 'users', 'workers', 'vendors', 'specific_user', 'specific_worker', 'specific_vendor', null],
+    default: null,
+    index: true
+  },
+  recipientIds: {
+    type: [String],
+    default: []
+  },
+  action: {
+    type: String,
+    default: null
+  },
+  targetId: {
+    type: String,
+    default: null
+  },
+  totalRecipients: {
+    type: Number,
+    default: 0
+  },
+  successfulCount: {
+    type: Number,
+    default: 0
+  },
+  failedCount: {
+    type: Number,
+    default: 0
+  },
+  sentAt: {
+    type: Date,
+    default: null
   }
 }, {
   timestamps: true
@@ -121,6 +169,8 @@ notificationSchema.index({ userId: 1, isRead: 1, createdAt: -1 });
 notificationSchema.index({ vendorId: 1, isRead: 1, createdAt: -1 });
 notificationSchema.index({ workerId: 1, isRead: 1, createdAt: -1 });
 notificationSchema.index({ adminId: 1, isRead: 1, createdAt: -1 });
+notificationSchema.index({ adminId: 1, isBroadcast: 1, sentAt: -1 });
+notificationSchema.index({ broadcastGroupId: 1 });
 
 module.exports = mongoose.model('Notification', notificationSchema);
 

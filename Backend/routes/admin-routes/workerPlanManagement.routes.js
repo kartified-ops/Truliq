@@ -7,7 +7,9 @@ const {
   updatePlan, 
   deletePlan,
   getFreeTrialSettings,
-  updateFreeTrialSettings
+  updateFreeTrialSettings,
+  getWorkerDashboardBanners,
+  updateWorkerDashboardBanners
 } = require('../../controllers/adminControllers/workerPlanController');
 const { authenticate } = require('../../middleware/authMiddleware');
 const { isAdmin } = require('../../middleware/roleMiddleware');
@@ -18,6 +20,8 @@ router.use(isAdmin);
 
 router.get('/free-trial', getFreeTrialSettings);
 router.put('/free-trial', updateFreeTrialSettings);
+router.get('/dashboard-banners', getWorkerDashboardBanners);
+router.put('/dashboard-banners', updateWorkerDashboardBanners);
 
 router.route('/')
   .get(getAllPlans)

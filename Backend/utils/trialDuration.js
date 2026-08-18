@@ -1,5 +1,6 @@
 const DURATION_UNITS = Object.freeze({
   DAY: 'DAY',
+  WEEK: 'WEEK',
   MONTH: 'MONTH'
 });
 
@@ -8,7 +9,8 @@ const DEFAULT_TRIAL_DURATION_UNIT = DURATION_UNITS.MONTH;
 
 /**
  * Calendar-accurate end date from a start date + duration/unit.
- * 17 Aug + 1 MONTH → 17 Sep (not a hardcoded 30 days).
+ * 17 Aug + 1 MONTH → 17 Sep.
+ * 17 Aug + 2 WEEK → 31 Aug.
  */
 const calculateEndDate = (startDate, duration, unit) => {
   const start = new Date(startDate);
@@ -26,6 +28,8 @@ const calculateEndDate = (startDate, duration, unit) => {
 
   if (normalizedUnit === DURATION_UNITS.MONTH) {
     end.setMonth(end.getMonth() + amount);
+  } else if (normalizedUnit === DURATION_UNITS.WEEK) {
+    end.setDate(end.getDate() + (amount * 7));
   } else if (normalizedUnit === DURATION_UNITS.DAY) {
     end.setDate(end.getDate() + amount);
   } else {
@@ -44,7 +48,7 @@ const daysBetween = (startDate, endDate) => {
 
 const isValidDurationUnit = (unit) => {
   const normalized = String(unit || '').toUpperCase();
-  return normalized === DURATION_UNITS.DAY || normalized === DURATION_UNITS.MONTH;
+  return normalized === DURATION_UNITS.DAY || normalized === DURATION_UNITS.WEEK || normalized === DURATION_UNITS.MONTH;
 };
 
 const normalizeDurationUnit = (unit) => String(unit || '').toUpperCase();

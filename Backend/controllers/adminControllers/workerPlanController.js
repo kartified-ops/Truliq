@@ -1,8 +1,13 @@
 const WorkerSubscriptionPlan = require('../../models/WorkerSubscriptionPlan');
 const {
   getFreeTrialConfig,
-  saveFreeTrialConfig
+  saveFreeTrialConfig,
+  grantFreeTrialToEligibleExistingWorkers
 } = require('../../services/workerFreeTrialService');
+const {
+  getWorkerDashboardBannerSettings,
+  saveWorkerDashboardBannerSettings
+} = require('../../services/workerDashboardBannerService');
 
 /**
  * Get all worker subscription plans
@@ -44,7 +49,15 @@ exports.getPlan = async (req, res) => {
  */
 exports.createPlan = async (req, res) => {
   try {
-    const plan = await WorkerSubscriptionPlan.create(req.body);
+    const body = { ...req.body };
+    if (body.duration && body.durationUnit) {
+      const d = Number(body.duration);
+      const unit = String(body.durationUnit).toUpperCase();
+      if (unit === 'WEEK') body.durationDays = d * 7;
+      else if (unit === 'MONTH') body.durationDays = d * 30;
+      else if (unit === 'DAY') body.durationDays = d;
+    }
+    const plan = await WorkerSubscriptionPlan.create(body);
     res.status(201).json({
       success: true,
       data: plan
@@ -62,7 +75,15 @@ exports.createPlan = async (req, res) => {
  */
 exports.updatePlan = async (req, res) => {
   try {
-    const plan = await WorkerSubscriptionPlan.findByIdAndUpdate(req.params.id, req.body, {
+    const body = { ...req.body };
+    if (body.duration && body.durationUnit) {
+      const d = Number(body.duration);
+      const unit = String(body.durationUnit).toUpperCase();
+      if (unit === 'WEEK') body.durationDays = d * 7;
+      else if (unit === 'MONTH') body.durationDays = d * 30;
+      else if (unit === 'DAY') body.durationDays = d;
+    }
+    const plan = await WorkerSubscriptionPlan.findByIdAndUpdate(req.params.id, body, {
       new: true,
       runValidators: true
     });
@@ -95,6 +116,8 @@ exports.getFreeTrialSettings = async (req, res) => {
         enabled: config.enabled,
         duration: config.duration,
         durationUnit: config.durationUnit,
+        campaignStartDate: config.campaignStartDate,
+        reminderDays: config.reminderDays,
         updatedBy: config.updatedBy,
         updatedAt: config.updatedAt
       }
@@ -115,7 +138,7 @@ exports.getFreeTrialSettings = async (req, res) => {
  */
 exports.updateFreeTrialSettings = async (req, res) => {
   try {
-    const { enabled, duration, durationUnit } = req.body;
+    const { enabled, duration, durationUnit, campaignStartDate, reminderDays } = req.body;
 
     if (enabled === undefined || duration === undefined || !durationUnit) {
       return res.status(400).json({
@@ -128,13 +151,28 @@ exports.updateFreeTrialSettings = async (req, res) => {
       enabled: enabled === true || enabled === 'true',
       duration,
       durationUnit,
+      campaignStartDate,
+      reminderDays,
       adminId: req.user?.id
     });
+
+    // When FREE trial is turned ON, existing workers who never received one get it now.
+    let backfill = { granted: 0, skipped: 0 };
+    if (config.enabled) {
+      try {
+        backfill = await grantFreeTrialToEligibleExistingWorkers();
+      } catch (backfillError) {
+        console.error('[Admin] FREE trial backfill error:', backfillError);
+      }
+    }
 
     res.status(200).json({
       success: true,
       message: 'FREE trial settings updated successfully.',
-      data: config
+      data: {
+        ...config,
+        backfill
+      }
     });
   } catch (error) {
     console.error('[Admin] Update FREE trial settings error:', error);
@@ -142,6 +180,59 @@ exports.updateFreeTrialSettings = async (req, res) => {
     res.status(status).json({
       success: false,
       message: error.message || 'Failed to update FREE trial settings'
+    });
+  }
+};
+
+/**
+ * GET worker dashboard banner settings
+ */
+exports.getWorkerDashboardBanners = async (req, res) => {
+  try {
+    const config = await getWorkerDashboardBannerSettings();
+    res.status(200).json({
+      success: true,
+      data: config
+    });
+  } catch (error) {
+    console.error('[Admin] Get worker dashboard banners error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch worker dashboard banners'
+    });
+  }
+};
+
+/**
+ * PUT worker dashboard banner settings
+ */
+exports.updateWorkerDashboardBanners = async (req, res) => {
+  try {
+    const { isBannersVisible, banners } = req.body;
+
+    if (!Array.isArray(banners)) {
+      return res.status(400).json({
+        success: false,
+        message: 'banners must be an array'
+      });
+    }
+
+    const config = await saveWorkerDashboardBannerSettings({
+      isBannersVisible: isBannersVisible !== false,
+      banners,
+      adminId: req.user?.id
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Worker dashboard banners updated successfully.',
+      data: config
+    });
+  } catch (error) {
+    console.error('[Admin] Update worker dashboard banners error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to update worker dashboard banners'
     });
   }
 };

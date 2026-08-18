@@ -144,6 +144,14 @@ const verifyLogin = async (req, res) => {
         return res.status(403).json({ success: false, message: 'Account deactivated.' });
       }
 
+      // If Admin enabled FREE trial after this worker registered, grant it now
+      // (only if they have never consumed a trial).
+      try {
+        await grantFreeTrialIfEligible(worker);
+      } catch (trialError) {
+        console.error('[WorkerAuth] FREE trial grant on login failed:', trialError);
+      }
+
       // SINGLE DEVICE PER PLATFORM: Update Session ID & Handle FCM token
       const loginSessionId = Date.now().toString();
       await Worker.findByIdAndUpdate(worker._id, { loginSessionId });
@@ -408,6 +416,13 @@ const login = async (req, res) => {
     if (!worker.isActive) {
       return res.status(403).json({ success: false, message: 'Account deactivated.' });
     }
+
+    try {
+      await grantFreeTrialIfEligible(worker);
+    } catch (trialError) {
+      console.error('[WorkerAuth] FREE trial grant on login failed:', trialError);
+    }
+
     // SINGLE DEVICE PER PLATFORM: Update Session ID & Handle FCM token
     const loginSessionId = Date.now().toString();
     await Worker.findByIdAndUpdate(worker._id, { loginSessionId });

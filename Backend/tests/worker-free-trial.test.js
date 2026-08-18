@@ -102,27 +102,77 @@ const main = async () => {
   await check('Case 7 — admin re-enables trial, unused number → eligible', async () => {
     const result = evaluateTrialEligibility({
       config: { enabled: true, duration: 1, durationUnit: 'MONTH' },
-      history: null
+      history: null,
+      worker: { trialUsed: false, subscription: {} }
     });
     assert.strictEqual(result.eligible, true);
+  });
+
+  await check('existing registered worker who never got a trial is eligible when Admin enables it', async () => {
+    const result = evaluateTrialEligibility({
+      config: { enabled: true, duration: 1, durationUnit: 'MONTH' },
+      history: null,
+      worker: {
+        trialUsed: false,
+        subscription: { isActive: false, planType: null, trialUsed: false }
+      }
+    });
+    assert.deepStrictEqual(result, { eligible: true, reason: null });
+  });
+
+  await check('existing worker does not get a trial while Admin has it disabled', async () => {
+    const result = evaluateTrialEligibility({
+      config: { enabled: false, duration: 1, durationUnit: 'MONTH' },
+      history: null,
+      worker: { trialUsed: false, subscription: {} }
+    });
+    assert.strictEqual(result.eligible, false);
+    assert.strictEqual(result.reason, 'DISABLED');
   });
 
   await check('Case 7/8/9 — re-enable does not restore a used mobile number', async () => {
     const result = evaluateTrialEligibility({
       config: { enabled: true, duration: 2, durationUnit: 'MONTH' },
-      history: { trialUsed: true }
+      history: { trialUsed: true },
+      worker: { trialUsed: true, subscription: { planType: 'TRIAL', trialUsed: true } }
     });
     assert.strictEqual(result.eligible, false);
     assert.strictEqual(result.reason, 'ALREADY_USED');
   });
 
-  await check('Case 10 — paid user never receives a FREE trial', async () => {
+  await check('active paid plan is not overwritten by a FREE trial', async () => {
     const result = evaluateTrialEligibility({
       config: { enabled: true, duration: 1, durationUnit: 'MONTH' },
-      history: { trialUsed: false, everPaid: true }
+      history: { trialUsed: false },
+      worker: {
+        trialUsed: false,
+        subscription: {
+          isActive: true,
+          status: 'ACTIVE',
+          planType: 'PAID',
+          expiryDate: new Date('2027-01-01T00:00:00.000Z')
+        }
+      }
     });
     assert.strictEqual(result.eligible, false);
-    assert.strictEqual(result.reason, 'PAID_USER');
+    assert.strictEqual(result.reason, 'HAS_ACTIVE_PLAN');
+  });
+
+  await check('paid user who never received a FREE trial is eligible after that plan expires', async () => {
+    const result = evaluateTrialEligibility({
+      config: { enabled: true, duration: 1, durationUnit: 'MONTH' },
+      history: { trialUsed: false, everPaid: true },
+      worker: {
+        trialUsed: false,
+        subscription: {
+          isActive: false,
+          status: 'EXPIRED',
+          planType: 'PAID',
+          expiryDate: new Date('2026-01-01T00:00:00.000Z')
+        }
+      }
+    });
+    assert.strictEqual(result.eligible, true);
   });
 
   await check('expiry uses stored endDate: currentDate >= endDate → EXPIRED', async () => {

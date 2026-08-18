@@ -20,6 +20,16 @@ const workerSubscriptionPlanSchema = new mongoose.Schema({
     required: [true, 'Please provide duration in days'],
     min: 1
   },
+  duration: {
+    type: Number,
+    default: 1,
+    min: 1
+  },
+  durationUnit: {
+    type: String,
+    enum: ['WEEK', 'MONTH', 'DAY'],
+    default: 'MONTH'
+  },
   features: [{
     type: String
   }],

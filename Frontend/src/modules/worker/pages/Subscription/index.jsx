@@ -185,11 +185,11 @@ const Subscription = () => {
             <div className="flex items-center gap-2 mb-1">
               <FiShield className="text-white w-5 h-5" />
               <span className="text-white font-bold text-sm uppercase tracking-wider">
-                {status.planType === 'TRIAL' || status.isTrial ? 'FREE TRIAL' : 'Active Plan'}
+                {status.planType === 'TRIAL' || status.isTrial ? 'FREE SUBSCRIPTION' : 'Active Plan'}
               </span>
             </div>
             <p className="text-white text-2xl font-black mb-1">
-              {status.planType === 'TRIAL' || status.isTrial ? 'FREE TRIAL' : status.planName}
+              {status.planType === 'TRIAL' || status.isTrial ? 'FREE SUBSCRIPTION' : status.planName}
             </p>
             <div className="flex items-center gap-2 text-white/80 text-sm">
               <FiClock className="w-4 h-4" />

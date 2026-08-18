@@ -5,6 +5,7 @@ const Worker = require('../../models/Worker');
 const { authenticate } = require('../../middleware/authMiddleware');
 const { isWorker } = require('../../middleware/roleMiddleware');
 const { createSubscriptionOrder, verifySubscriptionPayment } = require('../../controllers/paymentControllers/subscriptionPaymentController');
+const { grantFreeTrialIfEligible } = require('../../services/workerFreeTrialService');
 const {
   isSubscriptionCurrentlyActive,
   expireSubscriptionIfNeeded,
@@ -29,9 +30,9 @@ const formatStatusPayload = (worker, now = new Date()) => {
   }
 
   const planName = isActive
-    ? (isTrial ? 'FREE TRIAL' : (sub.planName || (plan ? plan.title : 'Paid Plan')))
+    ? (isTrial ? 'FREE SUBSCRIPTION' : (sub.planName || (plan ? plan.title : 'Paid Plan')))
     : (status === SUBSCRIPTION_STATUS.EXPIRED
-      ? (isTrial || (sub.planName || '').toLowerCase().includes('trial') ? 'FREE TRIAL' : (sub.planName || 'Subscription'))
+      ? (isTrial || (sub.planName || '').toLowerCase().includes('trial') ? 'FREE SUBSCRIPTION' : (sub.planName || 'Subscription'))
       : 'No Active Plan');
 
   let expiredMessage = null;
@@ -90,7 +91,7 @@ router.get('/plans', authenticate, isWorker, async (req, res) => {
 router.get('/status', authenticate, isWorker, async (req, res) => {
   try {
     const worker = await Worker.findById(req.user.id)
-      .select('subscription wallet trialUsed')
+      .select('subscription wallet trialUsed phone')
       .populate('subscription.planId');
 
     if (!worker) {
@@ -100,6 +101,15 @@ router.get('/status', authenticate, isWorker, async (req, res) => {
     const now = new Date();
     if (expireSubscriptionIfNeeded(worker, now)) {
       await worker.save();
+    }
+
+    // Existing workers who never received a FREE trial get it when Admin has it enabled.
+    if (!isSubscriptionCurrentlyActive(worker.subscription, now)) {
+      try {
+        await grantFreeTrialIfEligible(worker);
+      } catch (trialError) {
+        console.error('[Subscription] FREE trial grant on status failed:', trialError);
+      }
     }
 
     const payload = formatStatusPayload(worker.toObject ? worker.toObject() : worker, now);

@@ -1,6 +1,7 @@
 const Booking = require('../../models/Booking');
 const Worker = require('../../models/Worker');
 const { BOOKING_STATUS } = require('../../utils/constants');
+const { getWorkerDashboardBannersForWorker } = require('../../services/workerDashboardBannerService');
 
 /**
  * Get worker dashboard statistics
@@ -93,6 +94,31 @@ const getDashboardStats = async (req, res) => {
   }
 };
 
+/**
+ * Get admin-managed banners for worker dashboard.
+ * Reuses the existing HomeContent admin architecture.
+ */
+const getDashboardBanners = async (req, res) => {
+  try {
+    const payload = await getWorkerDashboardBannersForWorker();
+
+    res.status(200).json({
+      success: true,
+      data: {
+        isVisible: payload.isVisible,
+        banners: payload.banners
+      }
+    });
+  } catch (error) {
+    console.error('Get worker dashboard banners error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch dashboard banners'
+    });
+  }
+};
+
 module.exports = {
-  getDashboardStats
+  getDashboardStats,
+  getDashboardBanners
 };

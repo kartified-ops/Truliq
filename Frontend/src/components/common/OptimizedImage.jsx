@@ -82,8 +82,12 @@ const OptimizedImage = ({
     );
   }
 
+  // Extract object-fit class from className so it applies on the <img> tag (not the wrapper div)
+  const objectFitClass = className.match(/object-\S+/)?.[0] || 'object-cover';
+  const wrapperClass = className.replace(/object-\S+/g, '').trim();
+
   return (
-    <div className={`relative overflow-hidden ${className}`} style={{ width, height, ...style }}>
+    <div className={`relative overflow-hidden ${wrapperClass}`} style={{ width, height, ...style }}>
       {/* Placeholder/Skeleton */}
       {placeholder && !isLoaded && (
         <div
@@ -104,7 +108,7 @@ const OptimizedImage = ({
         decoding={priority ? 'sync' : 'async'}
         onLoad={handleLoad}
         onError={handleError}
-        className={`transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'} w-full h-full object-cover`}
+        className={`transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'} w-full h-full ${objectFitClass}`}
         style={{ display: 'block' }}
         {...props}
       />
