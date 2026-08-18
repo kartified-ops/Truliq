@@ -1,4 +1,5 @@
 const HomeContent = require('../../models/HomeContent');
+const mongoose = require('mongoose');
 const { validationResult } = require('express-validator');
 const { normalizeBannerAudience } = require('../../utils/bannerAudience');
 
@@ -70,39 +71,37 @@ const updateHomeContent = async (req, res) => {
       if (!Array.isArray(items)) return [];
       return items.map(item => {
         const newItem = { ...item };
-        // Remove frontend-only 'id' fields that are strings
-        // Added 'hsec-' for category sections
-        if (typeof newItem.id === 'string' && (
-          newItem.id.startsWith('hbnr-') ||
-          newItem.id.startsWith('hprm-') ||
-          newItem.id.startsWith('hcur-') ||
-          newItem.id.startsWith('hnot-') ||
-          newItem.id.startsWith('hbkd-') ||
-          newItem.id.startsWith('hsec-')
-        )) {
-          delete newItem.id;
+        
+        // Clean up _id / id so Mongoose subdocument matching succeeds
+        if (newItem._id && typeof newItem._id === 'string' && mongoose.Types.ObjectId.isValid(newItem._id)) {
+          newItem._id = new mongoose.Types.ObjectId(newItem._id);
+        } else if (newItem.id && typeof newItem.id === 'string' && mongoose.Types.ObjectId.isValid(newItem.id)) {
+          newItem._id = new mongoose.Types.ObjectId(newItem.id);
         }
+        delete newItem.id;
 
         // Handle targetCategoryId/seeAllTargetCategoryId
         if (newItem.targetCategoryId === '') newItem.targetCategoryId = null;
         if (newItem.seeAllTargetCategoryId === '') newItem.seeAllTargetCategoryId = null;
         if (newItem.targetServiceId === '') newItem.targetServiceId = null;
         if (newItem.seeAllTargetServiceId === '') newItem.seeAllTargetServiceId = null;
-        if (Object.prototype.hasOwnProperty.call(newItem, 'targetAudience')) {
-          newItem.targetAudience = normalizeBannerAudience(newItem.targetAudience);
-        }
+
+        // Normalize targetAudience
+        newItem.targetAudience = normalizeBannerAudience(newItem.targetAudience);
 
         // Handle nested cards in categorySections
         if (Array.isArray(newItem.cards)) {
           newItem.cards = newItem.cards.map(card => {
             const newCard = { ...card };
+            if (newCard._id && typeof newCard._id === 'string' && mongoose.Types.ObjectId.isValid(newCard._id)) {
+              newCard._id = new mongoose.Types.ObjectId(newCard._id);
+            } else if (newCard.id && typeof newCard.id === 'string' && mongoose.Types.ObjectId.isValid(newCard.id)) {
+              newCard._id = new mongoose.Types.ObjectId(newCard.id);
+            }
+            delete newCard.id;
+
             if (newCard.targetCategoryId === '') newCard.targetCategoryId = null;
             if (newCard.targetServiceId === '') newCard.targetServiceId = null;
-
-            // Remove frontend-only 'id' fields from cards ie. 'hcard-'
-            if (typeof newCard.id === 'string' && newCard.id.startsWith('hcard-')) {
-              delete newCard.id;
-            }
 
             return newCard;
           });
@@ -113,11 +112,26 @@ const updateHomeContent = async (req, res) => {
     };
 
     // Update fields with sanitization
-    if (req.body.banners !== undefined) homeContent.banners = sanitizeItems(req.body.banners);
-    if (req.body.promos !== undefined) homeContent.promos = sanitizeItems(req.body.promos);
-    if (req.body.curated !== undefined) homeContent.curated = sanitizeItems(req.body.curated);
-    if (req.body.noteworthy !== undefined) homeContent.noteworthy = sanitizeItems(req.body.noteworthy);
-    if (req.body.booked !== undefined) homeContent.booked = sanitizeItems(req.body.booked);
+    if (req.body.banners !== undefined) {
+      homeContent.banners = sanitizeItems(req.body.banners);
+      homeContent.markModified('banners');
+    }
+    if (req.body.promos !== undefined) {
+      homeContent.promos = sanitizeItems(req.body.promos);
+      homeContent.markModified('promos');
+    }
+    if (req.body.curated !== undefined) {
+      homeContent.curated = sanitizeItems(req.body.curated);
+      homeContent.markModified('curated');
+    }
+    if (req.body.noteworthy !== undefined) {
+      homeContent.noteworthy = sanitizeItems(req.body.noteworthy);
+      homeContent.markModified('noteworthy');
+    }
+    if (req.body.booked !== undefined) {
+      homeContent.booked = sanitizeItems(req.body.booked);
+      homeContent.markModified('booked');
+    }
     if (req.body.categorySections !== undefined) {
       homeContent.categorySections = sanitizeItems(req.body.categorySections);
       homeContent.markModified('categorySections');

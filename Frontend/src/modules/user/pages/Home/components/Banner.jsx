@@ -1,30 +1,31 @@
 import React from 'react';
-import homepageBanner from '../../../../../assets/images/pages/Home/Banner/homepage-banner.png';
 import { optimizeCloudinaryUrl } from '../../../../../utils/cloudinaryOptimize';
 
-const Banner = React.memo(({ imageUrl, onClick }) => {
+const Banner = React.memo(({ imageUrl, text, onClick }) => {
   if (!imageUrl) return null;
 
   // Optimize Cloudinary URLs for faster loading
-  const optimizedUrl = optimizeCloudinaryUrl(imageUrl, { quality: 'auto' });
+  const optimizedUrl = optimizeCloudinaryUrl(imageUrl, { quality: 'auto', width: 1920 });
 
   return (
-    <div className="mb-8 px-4 cursor-pointer group" onClick={onClick}>
+    <div className="mb-6 px-4 md:px-6 cursor-pointer group max-w-screen-xl mx-auto" onClick={onClick}>
       <div
-        className="relative overflow-hidden transition-all duration-500 group-hover:shadow-2xl group-hover:scale-[1.01]"
-        style={{
-          borderRadius: '20px',
-          boxShadow: '0 15px 35px -5px rgba(0, 0, 0, 0.1), 0 5px 15px -3px rgba(0, 0, 0, 0.05)'
-        }}
+        className="relative w-full h-44 sm:h-56 md:h-64 lg:h-72 xl:h-80 rounded-2xl md:rounded-3xl overflow-hidden shadow-md group-hover:shadow-2xl group-hover:scale-[1.008] transition-all duration-500 border border-slate-200/80 bg-slate-100"
       >
         <img
           src={optimizedUrl}
-          alt="Banner"
-          className="w-full h-full object-fill min-h-[150px]"
+          alt={text || "Banner"}
+          className="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-105"
           loading="lazy"
           decoding="async"
         />
-        {/* <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-20 transition-opacity duration-300" /> */}
+        {text ? (
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 md:p-6 flex items-end z-10">
+            <p className="text-white text-base md:text-xl font-bold drop-shadow-md line-clamp-2">{text}</p>
+          </div>
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+        )}
       </div>
     </div>
   );

@@ -234,6 +234,9 @@ export const homeContentService = {
     if (params.cityId) queryParams.append('cityId', params.cityId);
 
     const response = await api.put(`/admin/home-content${queryParams.toString() ? `?${queryParams.toString()}` : ''}`, data);
+    if (apiCache && typeof apiCache.clear === 'function') {
+      apiCache.clear();
+    }
     return response.data;
   }
 };

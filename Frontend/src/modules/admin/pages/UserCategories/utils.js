@@ -68,9 +68,11 @@ export const ensureIds = (catalog) => {
       ...(catalog?.home || {}),
       banners: Array.isArray(catalog?.home?.banners)
         ? catalog.home.banners.map((b) => ({
-          id: b.id || `hbnr-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          ...b,
+          id: b.id || b._id || `hbnr-${Date.now()}-${Math.random().toString(16).slice(2)}`,
           imageUrl: b.imageUrl || "",
           text: b.text || "",
+          targetAudience: b.targetAudience || "all",
           targetCategoryId: b.targetCategoryId || getTargetCategoryIdFromRoute(b.routePath),
           slug: b.slug || "",
           targetServiceId: b.targetServiceId || null,

@@ -669,6 +669,7 @@ const Home = () => {
                   <Suspense fallback={<div className="h-32 bg-gray-50 animate-pulse rounded-xl mx-4" />}>
                     <Banner
                       imageUrl={homeContent?.banners?.[0] ? toAssetUrl(homeContent.banners[0].imageUrl) : null}
+                      text={homeContent?.banners?.[0]?.text}
                       onClick={() => {
                         const b = homeContent?.banners?.[0];
                         if (b?.slug) {
@@ -726,6 +727,7 @@ const Home = () => {
                   <Suspense fallback={<div className="h-32 bg-gray-50 animate-pulse rounded-xl mx-4" />}>
                     <Banner
                       imageUrl={homeContent?.banners?.[1] ? toAssetUrl(homeContent.banners[1].imageUrl) : null}
+                      text={homeContent?.banners?.[1]?.text}
                       onClick={() => {
                         const b = homeContent?.banners?.[1];
                         if (b?.targetCategoryId) {

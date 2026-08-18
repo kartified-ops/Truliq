@@ -511,7 +511,10 @@ const getPublicHomeData = async (req, res) => {
       const userBanners = filterBannersByAudience(contentObj.banners || [], 'user');
       formattedContent = {
         banners: userBanners.map(item => ({
+          ...item,
+          id: item._id ? item._id.toString() : item.id,
           imageUrl: item.imageUrl,
+          text: item.text || '',
           targetCategoryId: item.targetCategoryId?.toString() || null,
           slug: item.slug,
           order: item.order

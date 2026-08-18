@@ -343,7 +343,31 @@ const HomePage = ({ catalog, setCatalog, selectedCity }) => {
         isCategorySectionsVisible: homeData.isCategorySectionsVisible,
         isCategoriesVisible: homeData.isCategoriesVisible
       };
-      await homeContentService.update(payload, { cityId: selectedCity });
+      const response = await homeContentService.update(payload, { cityId: selectedCity });
+      if (response?.success && response?.homeContent) {
+        const hc = response.homeContent;
+        const addIds = (items) => {
+          return (items || []).map((item, idx) => ({
+            ...item,
+            id: item.id || (item._id ? item._id.toString() : `item-${Date.now()}-${idx}`),
+            targetAudience: item.targetAudience || 'all',
+            targetCategoryId: item.targetCategoryId ? (typeof item.targetCategoryId === 'object' ? item.targetCategoryId.toString() : item.targetCategoryId) : item.targetCategoryId,
+            targetServiceId: item.targetServiceId ? (typeof item.targetServiceId === 'object' ? item.targetServiceId.toString() : item.targetServiceId) : item.targetServiceId,
+          }));
+        };
+        const next = ensureIds(catalog);
+        next.home = {
+          ...next.home,
+          banners: addIds(hc.banners || []),
+          promoCarousel: addIds(hc.promos || []),
+          curatedServices: addIds(hc.curated || []),
+          newAndNoteworthy: addIds(hc.noteworthy || []),
+          mostBooked: addIds(hc.booked || []),
+          categorySections: addIds(hc.categorySections || [])
+        };
+        setCatalog(next);
+        saveCatalog(next);
+      }
       toast.success('Home page updated successfully!');
     } catch (error) {
       console.error('Failed to sync home content:', error);
