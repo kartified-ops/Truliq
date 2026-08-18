@@ -1,5 +1,6 @@
 const HomeContent = require('../../models/HomeContent');
 const { validationResult } = require('express-validator');
+const { normalizeBannerAudience } = require('../../utils/bannerAudience');
 
 /**
  * Get Home Content
@@ -87,6 +88,9 @@ const updateHomeContent = async (req, res) => {
         if (newItem.seeAllTargetCategoryId === '') newItem.seeAllTargetCategoryId = null;
         if (newItem.targetServiceId === '') newItem.targetServiceId = null;
         if (newItem.seeAllTargetServiceId === '') newItem.seeAllTargetServiceId = null;
+        if (Object.prototype.hasOwnProperty.call(newItem, 'targetAudience')) {
+          newItem.targetAudience = normalizeBannerAudience(newItem.targetAudience);
+        }
 
         // Handle nested cards in categorySections
         if (Array.isArray(newItem.cards)) {

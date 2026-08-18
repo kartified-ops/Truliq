@@ -2,6 +2,7 @@ const Category = require('../../models/Category');
 const Brand = require('../../models/Brand');
 const Service = require('../../models/UserService');
 const HomeContent = require('../../models/HomeContent');
+const { filterBannersByAudience } = require('../../utils/bannerAudience');
 
 /**
  * Public Catalog Controllers
@@ -401,9 +402,10 @@ const getPublicHomeContent = async (req, res) => {
     // For now keeping as is, but assuming targetServiceId will point to Brand ID essentially.
 
     const contentObj = homeContent.toObject();
+    const userBanners = filterBannersByAudience(contentObj.banners || [], 'user');
 
     const formattedContent = {
-      banners: (contentObj.banners || []).map(item => ({
+      banners: userBanners.map(item => ({
         ...item,
         id: item._id ? item._id.toString() : item.id,
         targetCategoryId: item.targetCategoryId?.toString() || null,
@@ -506,8 +508,9 @@ const getPublicHomeData = async (req, res) => {
     let formattedContent = null;
     if (homeContent) {
       const contentObj = homeContent.toObject();
+      const userBanners = filterBannersByAudience(contentObj.banners || [], 'user');
       formattedContent = {
-        banners: (contentObj.banners || []).map(item => ({
+        banners: userBanners.map(item => ({
           imageUrl: item.imageUrl,
           targetCategoryId: item.targetCategoryId?.toString() || null,
           slug: item.slug,

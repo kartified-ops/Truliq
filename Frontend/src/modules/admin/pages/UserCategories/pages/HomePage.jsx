@@ -137,9 +137,28 @@ const RedirectionSelector = ({
   );
 };
 
+const audienceMeta = (value) => {
+  const key = String(value || 'all').toLowerCase();
+  const map = {
+    user: {
+      label: 'User Panel',
+      className: 'bg-blue-50 text-blue-700 border-blue-200'
+    },
+    worker: {
+      label: 'Worker Panel',
+      className: 'bg-amber-50 text-amber-700 border-amber-200'
+    },
+    all: {
+      label: 'Both Panels',
+      className: 'bg-purple-50 text-purple-700 border-purple-200'
+    }
+  };
+  return map[key] || map.all;
+};
+
 const HomePage = ({ catalog, setCatalog, selectedCity }) => {
   const [isBannerModalOpen, setIsBannerModalOpen] = useState(false);
-  const [bannerForm, setBannerForm] = useState({ imageUrl: "", text: "", targetCategoryId: "", slug: "", targetServiceId: "", scrollToSection: "" });
+  const [bannerForm, setBannerForm] = useState({ imageUrl: "", text: "", targetAudience: "all", targetCategoryId: "", slug: "", targetServiceId: "", scrollToSection: "" });
   const [editingBannerId, setEditingBannerId] = useState(null);
 
   const [isPromoModalOpen, setIsPromoModalOpen] = useState(false);
@@ -355,7 +374,7 @@ const HomePage = ({ catalog, setCatalog, selectedCity }) => {
   // Banner handlers
   const resetBannerForm = () => {
     setEditingBannerId(null);
-    setBannerForm({ imageUrl: "", text: "", targetCategoryId: "", slug: "", targetServiceId: "", scrollToSection: "" });
+    setBannerForm({ imageUrl: "", text: "", targetAudience: "all", targetCategoryId: "", slug: "", targetServiceId: "", scrollToSection: "" });
     setIsBannerModalOpen(false);
   };
 
@@ -546,7 +565,7 @@ const HomePage = ({ catalog, setCatalog, selectedCity }) => {
             <button
               type="button"
               onClick={() => {
-                setBannerForm({ imageUrl: "", text: "", targetCategoryId: "", scrollToSection: "" });
+                setBannerForm({ imageUrl: "", text: "", targetAudience: "all", targetCategoryId: "", scrollToSection: "" });
                 setIsBannerModalOpen(true);
               }}
               className="px-4 py-2 rounded-xl text-white transition-all flex items-center gap-2 text-sm font-semibold shadow-md hover:shadow-lg relative z-10"
@@ -574,6 +593,7 @@ const HomePage = ({ catalog, setCatalog, selectedCity }) => {
                     <th className="text-left py-2 px-3 text-sm font-bold text-gray-700 w-12">#</th>
                     <th className="text-left py-2 px-3 text-sm font-bold text-gray-700 w-24">Image</th>
                     <th className="text-left py-2 px-3 text-sm font-bold text-gray-700">Text</th>
+                    <th className="text-left py-2 px-3 text-sm font-bold text-gray-700 w-36">Display Panel</th>
                     {/* <th className="text-left py-2 px-3 text-sm font-bold text-gray-700">Redirect</th>
                     <th className="text-left py-2 px-3 text-sm font-bold text-gray-700">Scroll To</th> */}
                     <th className="text-center py-2 px-3 text-sm font-bold text-gray-700 w-32">Actions</th>
@@ -595,6 +615,16 @@ const HomePage = ({ catalog, setCatalog, selectedCity }) => {
                       <td className="py-2.5 px-3">
                         <div className="text-sm text-gray-900">{b.text || "—"}</div>
                       </td>
+                      <td className="py-2.5 px-3">
+                        {(() => {
+                          const meta = audienceMeta(b.targetAudience);
+                          return (
+                            <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold border ${meta.className}`}>
+                              {meta.label}
+                            </span>
+                          );
+                        })()}
+                      </td>
                       {/* <td className="py-2.5 px-3">
                         <div className="text-sm text-gray-600">
                           {b.slug
@@ -612,7 +642,7 @@ const HomePage = ({ catalog, setCatalog, selectedCity }) => {
                             type="button"
                             onClick={() => {
                               setEditingBannerId(b.id);
-                              setBannerForm({ ...b });
+                              setBannerForm({ ...b, targetAudience: b.targetAudience || 'all' });
                               setIsBannerModalOpen(true);
                             }}
                             className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
@@ -1357,6 +1387,19 @@ const HomePage = ({ catalog, setCatalog, selectedCity }) => {
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all bg-white"
               placeholder="Winter offers"
             />
+          </div>
+          <div>
+            <label className="block text-base font-bold text-gray-900 mb-2">Display Panel</label>
+            <select
+              value={bannerForm.targetAudience || 'all'}
+              onChange={(e) => setBannerForm((p) => ({ ...p, targetAudience: e.target.value }))}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all bg-white"
+            >
+              <option value="all">Both Panels (User + Worker)</option>
+              <option value="user">User Panel only</option>
+              <option value="worker">Worker Panel only</option>
+            </select>
+            <p className="text-xs text-gray-500 mt-1">Choose which app panel should display this banner.</p>
           </div>
           {/* <RedirectionSelector
             categories={categories}

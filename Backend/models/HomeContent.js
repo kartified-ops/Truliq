@@ -44,6 +44,11 @@ const homeContentSchema = new mongoose.Schema({
     order: {
       type: Number,
       default: 0
+    },
+    targetAudience: {
+      type: String,
+      enum: ['user', 'worker', 'all'],
+      default: 'all'
     }
   }],
 

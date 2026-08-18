@@ -1,10 +1,29 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FiCheck, FiX, FiEye, FiSearch, FiFilter, FiDownload, FiLoader, FiDollarSign, FiPower, FiTrash2 } from 'react-icons/fi';
+import { FiCheck, FiX, FiEye, FiSearch, FiFilter, FiDownload, FiLoader, FiDollarSign, FiPower, FiTrash2, FiMapPin } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 import CardShell from '../UserCategories/components/CardShell';
 import Modal from '../UserCategories/components/Modal';
 import adminWorkerService from '../../../../services/adminWorkerService';
+
+const formatWorkerLocation = (address) => {
+  if (!address) return 'Not set';
+
+  if (address.fullAddress && String(address.fullAddress).trim()) {
+    return String(address.fullAddress).trim();
+  }
+
+  const parts = [
+    address.addressLine1,
+    address.addressLine2,
+    address.landmark,
+    address.city,
+    address.state,
+    address.pincode
+  ].filter(Boolean);
+
+  return parts.length ? parts.join(', ') : 'Not set';
+};
 
 const AllWorkers = () => {
   const [workers, setWorkers] = useState([]);
@@ -34,6 +53,8 @@ const AllWorkers = () => {
           name: worker.name,
           email: worker.email,
           phone: worker.phone,
+          location: formatWorkerLocation(worker.address),
+          address: worker.address || {},
           serviceCategory: worker.serviceCategories?.length ? worker.serviceCategories.join(', ') : worker.serviceCategory || worker.service || 'N/A',
           approvalStatus: worker.approvalStatus,
           aadhar: worker.aadhar?.number,
@@ -69,6 +90,7 @@ const AllWorkers = () => {
         worker.name?.toLowerCase().includes(term) ||
         worker.email?.toLowerCase().includes(term) ||
         worker.phone?.includes(term) ||
+        worker.location?.toLowerCase().includes(term) ||
         worker.serviceCategory?.toLowerCase().includes(term)
       );
       return matchesStatus && matchesSearch;
@@ -261,6 +283,7 @@ const AllWorkers = () => {
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/50">
                   <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Worker Details</th>
+                  <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Location</th>
                   <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Category</th>
                   <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Subscription</th>
@@ -270,11 +293,11 @@ const AllWorkers = () => {
               <tbody className="divide-y divide-gray-50">
                 {loading ? (
                   <tr>
-                    <td colSpan="5" className="px-4 py-8 text-center text-xs text-gray-500">Loading workers...</td>
+                    <td colSpan="6" className="px-4 py-8 text-center text-xs text-gray-500">Loading workers...</td>
                   </tr>
                 ) : filteredWorkers.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="px-4 py-8 text-center text-xs text-gray-500">No workers found</td>
+                    <td colSpan="6" className="px-4 py-8 text-center text-xs text-gray-500">No workers found</td>
                   </tr>
                 ) : (
                   filteredWorkers.map((worker) => (
@@ -284,6 +307,14 @@ const AllWorkers = () => {
                           <p className="font-bold text-gray-900 text-xs">{worker.name}</p>
                           <p className="text-[10px] text-gray-500">{worker.phone}</p>
                           <p className="text-[10px] text-gray-400">{worker.email}</p>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-start gap-1.5 max-w-[220px]">
+                          <FiMapPin className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
+                          <p className={`text-[11px] leading-snug ${worker.location === 'Not set' ? 'text-gray-400 italic' : 'text-gray-700'}`}>
+                            {worker.location}
+                          </p>
                         </div>
                       </td>
                       <td className="px-4 py-3">
@@ -412,6 +443,10 @@ const AllWorkers = () => {
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Phone</label>
                 <div className="text-gray-900">{selectedWorker.phone}</div>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Location</label>
+                <div className="text-gray-900">{selectedWorker.location || 'Not set'}</div>
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Service Category</label>

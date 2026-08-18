@@ -1,5 +1,6 @@
 const Settings = require('../models/Settings');
 const HomeContent = require('../models/HomeContent');
+const { filterBannersByAudience } = require('../utils/bannerAudience');
 
 const formatBanners = (banners = []) => banners
   .filter((banner) => banner && banner.isActive !== false && banner.imageUrl)
@@ -92,9 +93,11 @@ const getWorkerDashboardBannersForWorker = async () => {
     }).sort({ updatedAt: -1 }).lean();
   }
 
+  const workerHomeBanners = filterBannersByAudience(homeContent?.banners || [], 'worker');
+
   return {
     isVisible: homeContent?.isBannersVisible !== false,
-    banners: formatBanners((homeContent?.banners || []).map((banner) => ({
+    banners: formatBanners(workerHomeBanners.map((banner) => ({
       ...banner,
       isActive: true
     }))),
