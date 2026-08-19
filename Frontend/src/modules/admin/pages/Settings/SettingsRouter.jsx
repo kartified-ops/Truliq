@@ -23,27 +23,6 @@ const SettingsRouter = () => (
       <Route path="maps" element={<MapsSettings />} />
       <Route path="mail" element={<MailSettings />} />
       <Route path="storage" element={<StorageSettings />} />
-      <Route path="notification-channel" element={<NotificationChannelSettings />} />
-      <Route
-        path="recaptcha"
-        element={
-          <SimpleProviderCards
-            serviceName="recaptcha"
-            title="Recaptcha Settings"
-            description="Configure Google reCAPTCHA credentials."
-          />
-        }
-      />
-      <Route
-        path="kyc"
-        element={
-          <SimpleProviderCards
-            serviceName="kyc"
-            title="KYC Settings"
-            description="Configure KYC verification providers."
-          />
-        }
-      />
     </Route>
     <Route path="app" element={<AdminSettings defaultView="system" />} />
     <Route path="*" element={<AdminSettings />} />

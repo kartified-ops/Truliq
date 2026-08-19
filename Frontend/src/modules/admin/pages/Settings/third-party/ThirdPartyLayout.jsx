@@ -10,10 +10,7 @@ const THIRD_PARTY_LINKS = [
   { key: 'firebase', label: 'Firebase Settings', serviceKey: 'firebase' },
   { key: 'maps', label: 'Map & Map APIs Settings', serviceKey: 'maps' },
   { key: 'mail', label: 'Mail Configuration', serviceKey: 'email' },
-  { key: 'storage', label: 'Media Storage', serviceKey: 'storage' },
-  { key: 'recaptcha', label: 'Recaptcha Settings', serviceKey: 'recaptcha' },
-  { key: 'kyc', label: 'KYC Settings', serviceKey: 'kyc' },
-  { key: 'notification-channel', label: 'Notification Channel', serviceKey: 'notification_channel' }
+  { key: 'storage', label: 'Media Storage', serviceKey: 'storage' }
 ];
 
 const SETTINGS_LINKS = [
