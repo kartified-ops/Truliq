@@ -1,6 +1,6 @@
 /**
  * Central provider catalog for Third-party Settings.
- * status: 'active' = backend adapter exists | 'coming_soon' = visible but not selectable
+ * All listed providers are Admin-configurable. Credentials are stored in the database.
  */
 const SERVICE_KEYS = Object.freeze({
   PAYMENT_GATEWAY: 'payment_gateway',
@@ -91,15 +91,23 @@ const PROVIDER_REGISTRY = Object.freeze({
         label: 'SMS Ala',
         status: 'active',
         sensitiveFields: ['apiKey'],
-        publicFields: ['senderId'],
-        fields: [FIELD('apiKey', 'API Key', 'secret'), FIELD('senderId', 'Sender ID')]
+        publicFields: ['senderId', 'apiUrl'],
+        fields: [
+          FIELD('apiKey', 'API Key', 'secret'),
+          FIELD('senderId', 'Sender ID'),
+          FIELD('apiUrl', 'API URL', 'url')
+        ]
       },
       miolo: {
         label: 'Miolo',
         status: 'active',
         sensitiveFields: ['apiKey'],
-        publicFields: ['senderId'],
-        fields: [FIELD('apiKey', 'API Key', 'secret'), FIELD('senderId', 'Sender ID')]
+        publicFields: ['senderId', 'apiUrl'],
+        fields: [
+          FIELD('apiKey', 'API Key', 'secret'),
+          FIELD('senderId', 'Sender ID'),
+          FIELD('apiUrl', 'API URL', 'url')
+        ]
       },
       twilio: {
         label: 'Twilio',
@@ -386,33 +394,136 @@ const getServiceCatalog = (serviceKey) => {
 
 const getAllCatalogs = () => Object.keys(PROVIDER_REGISTRY).map(getServiceCatalog);
 
+const FALLBACK_SENSITIVE = Object.freeze([
+  'apiKey', 'apiSecret', 'secretKey', 'password', 'authToken', 'accessToken',
+  'bearerToken', 'serviceAccountJson', 'webhookSecret', 'merchantSalt',
+  'testSecretKey', 'liveSecretKey', 'restApiKey', 'secretAccessKey', 'appKey', 'clientSecret'
+]);
+
+const DEFAULT_CUSTOM_SCHEMA = Object.freeze({
+  [SERVICE_KEYS.PAYMENT_GATEWAY]: {
+    supportsEnvironment: true,
+    sensitiveFields: ['testSecretKey', 'liveSecretKey', 'secretKey'],
+    publicFields: ['testKeyId', 'liveKeyId', 'appId'],
+    fields: [
+      FIELD('testKeyId', 'Test API Key'),
+      FIELD('testSecretKey', 'Test Secret Key', 'secret'),
+      FIELD('liveKeyId', 'Live API Key'),
+      FIELD('liveSecretKey', 'Live Secret Key', 'secret')
+    ]
+  },
+  [SERVICE_KEYS.SMS]: {
+    sensitiveFields: ['apiKey', 'authToken'],
+    publicFields: ['senderId', 'apiUrl', 'dltTemplateId', 'accountSid', 'phoneNumber'],
+    fields: [
+      FIELD('apiKey', 'API Key', 'secret'),
+      FIELD('senderId', 'Sender ID'),
+      FIELD('apiUrl', 'API URL', 'url'),
+      FIELD('dltTemplateId', 'Template ID')
+    ]
+  },
+  [SERVICE_KEYS.MAPS]: {
+    sensitiveFields: ['apiKey', 'accessToken'],
+    publicFields: ['mapId'],
+    fields: [FIELD('apiKey', 'API Key', 'secret')]
+  },
+  [SERVICE_KEYS.FIREBASE]: {
+    sensitiveFields: ['serviceAccountJson', 'restApiKey'],
+    publicFields: ['databaseUrl', 'projectId', 'appId'],
+    fields: [
+      FIELD('databaseUrl', 'Database URL', 'url'),
+      FIELD('projectId', 'Project ID'),
+      FIELD('serviceAccountJson', 'Service Account JSON', 'json')
+    ]
+  },
+  [SERVICE_KEYS.STORAGE]: {
+    sensitiveFields: ['apiSecret', 'secretAccessKey'],
+    publicFields: ['cloudName', 'apiKey', 'defaultFolder', 'bucket', 'region'],
+    fields: [
+      FIELD('cloudName', 'Cloud Name'),
+      FIELD('apiKey', 'API Key'),
+      FIELD('apiSecret', 'API Secret', 'secret')
+    ]
+  },
+  [SERVICE_KEYS.EMAIL]: {
+    sensitiveFields: ['password', 'apiKey'],
+    publicFields: ['host', 'port', 'user', 'from', 'fromName', 'encryption'],
+    fields: [
+      FIELD('host', 'SMTP Host'),
+      FIELD('port', 'SMTP Port', 'number'),
+      FIELD('user', 'Username'),
+      FIELD('password', 'Password', 'secret'),
+      FIELD('from', 'From Email'),
+      FIELD('fromName', 'From Name')
+    ]
+  },
+  [SERVICE_KEYS.RECAPTCHA]: {
+    sensitiveFields: ['secretKey'],
+    publicFields: ['siteKey', 'version'],
+    fields: [
+      FIELD('siteKey', 'Site Key'),
+      FIELD('secretKey', 'Secret Key', 'secret')
+    ]
+  },
+  [SERVICE_KEYS.KYC]: {
+    sensitiveFields: ['clientSecret', 'appKey', 'apiKey'],
+    publicFields: ['clientId', 'appId', 'username'],
+    fields: [
+      FIELD('clientId', 'Client ID'),
+      FIELD('clientSecret', 'Client Secret', 'secret')
+    ]
+  },
+  [SERVICE_KEYS.NOTIFICATION_CHANNEL]: {
+    sensitiveFields: ['serviceAccountJson', 'restApiKey'],
+    publicFields: ['databaseUrl', 'projectId', 'appId'],
+    fields: [
+      FIELD('appId', 'App ID'),
+      FIELD('restApiKey', 'REST API Key', 'secret')
+    ]
+  }
+});
+
+const getDefaultCustomSchema = (serviceKey) => DEFAULT_CUSTOM_SCHEMA[serviceKey] || DEFAULT_CUSTOM_SCHEMA[SERVICE_KEYS.SMS];
+
 const getProviderMeta = (serviceKey, providerId) => {
   const service = PROVIDER_REGISTRY[serviceKey];
   if (!service) return null;
-  return service.providers[providerId] || null;
+  if (service.providers[providerId]) return service.providers[providerId];
+  const defaults = getDefaultCustomSchema(serviceKey);
+  if (providerId && /^[a-z0-9_]{2,60}$/.test(providerId)) {
+    return {
+      label: providerId,
+      status: 'active',
+      custom: true,
+      ...defaults
+    };
+  }
+  return null;
 };
 
 const getActiveProviders = (serviceKey) => {
   const catalog = getServiceCatalog(serviceKey);
   if (!catalog) return [];
-  return catalog.providers.filter((p) => p.status === 'active');
+  return catalog.providers;
 };
 
 const assertActiveProvider = (serviceKey, providerId) => {
   const meta = getProviderMeta(serviceKey, providerId);
   if (!meta) throw new Error('Unknown provider.');
-  if (meta.status !== 'active') throw new Error(`${meta.label} is not available yet.`);
   return meta;
 };
 
 const getSensitiveFields = (serviceKey, providerId) => {
   const meta = getProviderMeta(serviceKey, providerId);
-  return meta?.sensitiveFields || [];
+  const listed = meta?.sensitiveFields;
+  if (listed && listed.length) return listed;
+  return [...FALLBACK_SENSITIVE];
 };
 
 const getPublicFields = (serviceKey, providerId) => {
   const meta = getProviderMeta(serviceKey, providerId);
-  return meta?.publicFields || [];
+  if (meta?.publicFields?.length) return meta.publicFields;
+  return getDefaultCustomSchema(serviceKey).publicFields || [];
 };
 
 // Legacy service name mapping (storage was cloudinary in older code)
@@ -433,5 +544,6 @@ module.exports = {
   assertActiveProvider,
   getSensitiveFields,
   getPublicFields,
+  getDefaultCustomSchema,
   normalizeServiceKey
 };

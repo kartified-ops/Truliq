@@ -195,6 +195,11 @@ const settingsSchema = new mongoose.Schema({
       enum: ['DAY', 'WEEK', 'MONTH'],
       default: 'MONTH'
     },
+    freeBookingsCount: {
+      type: Number,
+      default: 5,
+      min: 0
+    },
     campaignStartDate: {
       type: Date,
       default: null

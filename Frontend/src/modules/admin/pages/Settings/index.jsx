@@ -28,6 +28,15 @@ const AdminSettings = ({ defaultView = 'main' }) => {
     isOnlinePaymentEnabled: true
   });
 
+  // Free Trial & Subscription Settings State
+  const [workerFreeTrial, setWorkerFreeTrial] = useState({
+    enabled: true,
+    duration: 1,
+    durationUnit: 'MONTH',
+    freeBookingsCount: 5,
+    reminderDays: 3
+  });
+
   // Billing Configuration State
   const [billingSettings, setBillingSettings] = useState({
     companyName: 'TodayMyDream',
@@ -134,6 +143,15 @@ const AdminSettings = ({ defaultView = 'main' }) => {
             isOnlinePaymentEnabled: res.settings.isOnlinePaymentEnabled !== undefined ? res.settings.isOnlinePaymentEnabled : true,
             bookingModel: res.settings.bookingModel || 'worker'
           });
+          if (res.settings.workerFreeTrial) {
+            setWorkerFreeTrial({
+              enabled: res.settings.workerFreeTrial.enabled !== false,
+              duration: res.settings.workerFreeTrial.duration || 1,
+              durationUnit: res.settings.workerFreeTrial.durationUnit || 'MONTH',
+              freeBookingsCount: res.settings.workerFreeTrial.freeBookingsCount !== undefined ? res.settings.workerFreeTrial.freeBookingsCount : 5,
+              reminderDays: res.settings.workerFreeTrial.reminderDays !== undefined ? res.settings.workerFreeTrial.reminderDays : 3
+            });
+          }
           // Load billing settings
           setBillingSettings({
             companyName: res.settings.companyName || 'TodayMyDream',
@@ -717,6 +735,67 @@ const AdminSettings = ({ defaultView = 'main' }) => {
                           <input type="number" name="searchRadius" value={financialSettings.searchRadius} onChange={handleFinancialChange}
                             className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-green-500 transition-all" />
                           <p className="text-[10px] text-gray-400 mt-1">Default distance to hunt for {providersLabel.toLowerCase()} around booking location</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-gray-100 md:col-span-2">
+                      <h4 className="text-xs font-bold text-gray-700 uppercase mb-3 flex items-center justify-between">
+                        <span>{providerLabel} Free Trial & Subscription Limits</span>
+                        <label className="flex items-center gap-2 cursor-pointer text-xs font-normal text-slate-600">
+                          <input
+                            type="checkbox"
+                            checked={workerFreeTrial.enabled}
+                            onChange={(e) => setWorkerFreeTrial(p => ({ ...p, enabled: e.target.checked }))}
+                            className="w-4 h-4 text-green-600 rounded"
+                          />
+                          Enable Free Trial Campaign
+                        </label>
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Free Trial Duration</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="number"
+                              min="1"
+                              value={workerFreeTrial.duration}
+                              onChange={(e) => setWorkerFreeTrial(p => ({ ...p, duration: Number(e.target.value) }))}
+                              className="w-1/2 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-green-500 transition-all"
+                            />
+                            <select
+                              value={workerFreeTrial.durationUnit}
+                              onChange={(e) => setWorkerFreeTrial(p => ({ ...p, durationUnit: e.target.value }))}
+                              className="w-1/2 px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-green-500 text-sm"
+                            >
+                              <option value="MONTH">Month(s)</option>
+                              <option value="WEEK">Week(s)</option>
+                              <option value="DAY">Day(s)</option>
+                            </select>
+                          </div>
+                          <p className="text-[10px] text-gray-400 mt-1">Default free access period granted to newly registered {providersLabel.toLowerCase()}</p>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Free Subscription Bookings Count</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={workerFreeTrial.freeBookingsCount}
+                            onChange={(e) => setWorkerFreeTrial(p => ({ ...p, freeBookingsCount: Number(e.target.value) }))}
+                            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-green-500 transition-all"
+                          />
+                          <p className="text-[10px] text-gray-400 mt-1">Number of free job leads / bookings allowed under trial (0 = Unlimited)</p>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Expiry Alert Threshold (Days)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={workerFreeTrial.reminderDays}
+                            onChange={(e) => setWorkerFreeTrial(p => ({ ...p, reminderDays: Number(e.target.value) }))}
+                            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-green-500 transition-all"
+                          />
+                          <p className="text-[10px] text-gray-400 mt-1">Send renewal reminder push notification N days before trial ends</p>
                         </div>
                       </div>
                     </div>

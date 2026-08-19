@@ -141,6 +141,12 @@ exports.updateSettings = async (req, res, next) => {
         if (workerFreeTrial.durationUnit !== undefined) {
           settings.workerFreeTrial.durationUnit = workerFreeTrial.durationUnit;
         }
+        if (workerFreeTrial.freeBookingsCount !== undefined) {
+          settings.workerFreeTrial.freeBookingsCount = workerFreeTrial.freeBookingsCount;
+        }
+        if (workerFreeTrial.reminderDays !== undefined) {
+          settings.workerFreeTrial.reminderDays = workerFreeTrial.reminderDays;
+        }
         settings.workerFreeTrial.updatedAt = new Date();
         if (req.user?.id) settings.workerFreeTrial.updatedBy = req.user.id;
       }

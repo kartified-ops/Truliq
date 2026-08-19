@@ -1,20 +1,28 @@
 const { SERVICE_KEYS } = require('../../../config/integrationProviders');
 const { resolveConfig } = require('../../integrationConfigService');
 const smsIndiaHubAdapter = require('./smsIndiaHubAdapter');
+const twilioAdapter = require('./twilioAdapter');
+const genericHttpAdapter = require('./genericHttpAdapter');
 
 const ADAPTERS = Object.freeze({
-  sms_india_hub: smsIndiaHubAdapter
+  sms_india_hub: smsIndiaHubAdapter,
+  twilio: twilioAdapter
 });
+
+const resolveAdapter = (providerId, credentials = {}) => {
+  if (ADAPTERS[providerId]) return ADAPTERS[providerId];
+  if (credentials.accountSid && credentials.authToken) return twilioAdapter;
+  return genericHttpAdapter;
+};
 
 const getActiveSmsConfig = async () => {
   const config = await resolveConfig(SERVICE_KEYS.SMS);
   if (!config) return null;
-  const providerId = config.provider || 'sms_india_hub';
-  const adapter = ADAPTERS[providerId];
-  if (!adapter) throw new Error(`SMS provider "${providerId}" is not supported.`);
+  const providerId = config.configuration?.activeProvider || config.provider || 'sms_india_hub';
   const credentials = config.configuration?.providerProfiles?.[providerId]
     || config.credentials
     || {};
+  const adapter = resolveAdapter(providerId, credentials);
   return {
     providerId,
     adapter,
@@ -37,9 +45,6 @@ const sendSms = async (phone, message) => {
   if (!active || !active.enabled) {
     return { success: false, message: 'SMS configuration missing' };
   }
-  if (!active.credentials.apiKey || !active.credentials.senderId) {
-    return { success: false, message: 'SMS configuration missing' };
-  }
   try {
     return await active.adapter.sendSms(active.credentials, phone, message);
   } catch (error) {
@@ -57,14 +62,13 @@ const getSmsCredentials = async () => {
     senderId: active.credentials.senderId || '',
     dltTemplateId: active.credentials.dltTemplateId || '',
     username: active.credentials.username || '',
-    apiUrl: active.credentials.apiUrl || 'https://cloud.smsindiahub.in/vendorsms/pushsms.aspx',
+    apiUrl: active.credentials.apiUrl || '',
     source: active.source
   };
 };
 
 const testProvider = async (providerId, credentials, options = {}) => {
-  const adapter = ADAPTERS[providerId];
-  if (!adapter) return { success: false, message: 'Provider not supported.' };
+  const adapter = resolveAdapter(providerId, credentials);
   return adapter.testConnection(credentials, options);
 };
 

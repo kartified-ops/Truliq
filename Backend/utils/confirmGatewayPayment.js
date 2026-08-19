@@ -25,9 +25,6 @@ const { getPaymentDetails, getOrderDetails } = require('../services/razorpayServ
  */
 const isDevMockOrder = async (orderId) => {
   if (process.env.NODE_ENV === 'production') return false;
-  if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
-    return String(orderId || '').startsWith('order_mock_');
-  }
   try {
     const { getPaymentGatewayCredentials } = require('../services/integrationConfigService');
     const creds = await getPaymentGatewayCredentials();

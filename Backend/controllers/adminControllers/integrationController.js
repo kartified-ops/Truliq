@@ -7,7 +7,8 @@ const {
   updateIntegrationStatus,
   setActiveProvider,
   getCatalog,
-  testIntegration
+  testIntegration,
+  revealSecretValue
 } = require('../../services/integrationConfigService');
 const IntegrationAuditLog = require('../../models/IntegrationAuditLog');
 
@@ -137,5 +138,34 @@ exports.getAuditLogs = async (req, res) => {
   } catch (error) {
     console.error('[Integrations] Audit log error:', error);
     res.status(500).json({ success: false, message: 'Failed to load audit logs.' });
+  }
+};
+
+exports.revealSecret = async (req, res) => {
+  try {
+    const { serviceName } = req.params;
+    const { provider, field } = req.body || {};
+    if (!isManagedService(serviceName)) {
+      return res.status(404).json({ success: false, message: 'Integration not found.' });
+    }
+    if (!provider || !field) {
+      return res.status(400).json({ success: false, message: 'Provider and field parameters are required.' });
+    }
+    const secretValue = await revealSecretValue(serviceName, {
+      provider,
+      field,
+      adminId: req.user.id,
+      adminEmail: req.user.email || '',
+      ipAddress: req.ip || req.headers['x-forwarded-for'] || '',
+      userAgent: req.headers['user-agent'] || ''
+    });
+    res.status(200).json({
+      success: true,
+      field,
+      value: secretValue
+    });
+  } catch (error) {
+    console.error('[Integrations] Reveal error:', error);
+    res.status(400).json({ success: false, message: error.message || 'Failed to reveal secret.' });
   }
 };

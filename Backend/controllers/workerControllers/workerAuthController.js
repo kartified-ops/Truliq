@@ -23,7 +23,7 @@ const handleAuthFcmToken = async (Model, docId, req) => {
     const isMobileReq = !!(req.body.fcmTokenMobile || req.body.mobileToken || req.body.isMobile === true) ||
       reqPlatform === 'mobile' || reqPlatform === 'android' || reqPlatform === 'ios' ||
       (req.headers && req.headers['user-agent'] && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS|Fios/i.test(req.headers['user-agent']));
-    
+
     const targetField = isMobileReq ? 'fcmTokenMobile' : 'fcmTokens';
 
     // 1. Remove from both arrays to prevent duplicates (and clean up 'verification-pending')

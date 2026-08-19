@@ -8,12 +8,13 @@ const {
 } = require('../utils/credentialEncryption');
 const {
   SERVICE_KEYS,
+  PROVIDER_REGISTRY,
   getServiceCatalog,
-  getAllCatalogs,
   getActiveProviders,
   assertActiveProvider,
   getSensitiveFields,
   getPublicFields,
+  getDefaultCustomSchema,
   normalizeServiceKey
 } = require('../config/integrationProviders');
 
@@ -148,6 +149,10 @@ const ENV_FIELD_MAP = Object.freeze({
       liveSecretKey,
       webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || ''
     };
+    const cashfreeCredentials = {
+      appId: process.env.CASHFREE_APP_ID || process.env.CASHFREE_CLIENT_ID || '',
+      secretKey: process.env.CASHFREE_SECRET_KEY || process.env.CASHFREE_CLIENT_SECRET || ''
+    };
     return {
       provider: 'razorpay',
       enabled: !!(keyId && secret),
@@ -155,7 +160,10 @@ const ENV_FIELD_MAP = Object.freeze({
       credentials,
       configuration: {
         activeProvider: 'razorpay',
-        providerProfiles: { razorpay: credentials }
+        providerProfiles: {
+          razorpay: credentials,
+          cashfree: cashfreeCredentials
+        }
       },
       source: 'env'
     };
@@ -209,15 +217,20 @@ const ENV_FIELD_MAP = Object.freeze({
     try {
       if (json) projectId = JSON.parse(json).project_id || '';
     } catch (_) { /* ignore */ }
-    const credentials = { serviceAccountJson: json };
+    const databaseUrl = process.env.FIREBASE_DATABASE_URL || 'https://truliq-default-rtdb.asia-southeast1.firebasedatabase.app/';
+    const credentials = {
+      databaseUrl,
+      projectId: projectId || 'truliq',
+      serviceAccountJson: json
+    };
     return {
       provider: 'firebase_fcm',
       enabled: !!json,
       environment: 'production',
       credentials,
       configuration: {
-        databaseUrl: process.env.FIREBASE_DATABASE_URL || 'https://truliq-default-rtdb.asia-southeast1.firebasedatabase.app/',
-        projectId,
+        databaseUrl,
+        projectId: projectId || 'truliq',
         activeProvider: 'firebase_fcm',
         providerProfiles: { firebase_fcm: credentials }
       },
@@ -424,8 +437,9 @@ const getMapsCredentials = async () => {
   const config = await resolveConfig(SERVICE_NAMES.MAPS);
   if (!config) return { apiKey: '', mapId: '', enabled: false, source: 'none' };
   return {
-    apiKey: config.credentials?.apiKey || '',
-    mapId: config.configuration?.mapId || '',
+    apiKey: config.credentials?.apiKey || config.credentials?.accessToken || '',
+    mapId: config.credentials?.mapId || config.configuration?.mapId || '',
+    provider: config.configuration?.activeProvider || config.provider || 'google_maps',
     enabled: config.enabled !== false,
     source: config.source
   };
@@ -512,20 +526,36 @@ const computeStatus = ({ enabled, credentials, lastTestStatus, source, serviceKe
 };
 
 const buildProviderProfilesSummary = (serviceKey, dbDoc, envFallback) => {
-  const profiles = { ...(envFallback?.configuration?.providerProfiles || {}), ...(dbDoc?.configuration?.providerProfiles || {}) };
+  const envProfiles = envFallback?.configuration?.providerProfiles || {};
+  const dbProfiles = dbDoc?.configuration?.providerProfiles || {};
+  const allProviders = new Set([...Object.keys(envProfiles), ...Object.keys(dbProfiles)]);
+
   const summary = {};
-  Object.keys(profiles).forEach((providerId) => {
+  allProviders.forEach((providerId) => {
     const pid = normalizeProviderId(serviceKey, providerId);
-    const raw = profiles[providerId];
-    const decrypted = decryptProviderCredentials(serviceKey, pid, raw);
-    const masked = maskProviderCredentials(serviceKey, pid, decrypted);
+    const envRaw = envProfiles[providerId] || {};
+    const dbRaw = dbProfiles[providerId] || {};
+
+    const decryptedEnv = decryptProviderCredentials(serviceKey, pid, envRaw);
+    const decryptedDb = decryptProviderCredentials(serviceKey, pid, dbRaw);
+
+    const isDbConfigured = Object.values(decryptedDb).some(v => !!v);
+
+    const merged = { ...decryptedEnv };
+    Object.keys(decryptedDb).forEach(k => {
+      if (decryptedDb[k] !== undefined && decryptedDb[k] !== null && decryptedDb[k] !== '') {
+        merged[k] = decryptedDb[k];
+      }
+    });
+
+    const masked = maskProviderCredentials(serviceKey, pid, merged);
     summary[pid] = {
-      configured: Object.keys(decrypted).some((k) => decrypted[k]),
+      configured: Object.values(merged).some(v => !!v),
       credentials: masked,
       status: computeStatus({
         enabled: true,
-        credentials: decrypted,
-        source: dbDoc?.configuration?.providerProfiles?.[providerId] ? 'database' : 'env',
+        credentials: merged,
+        source: isDbConfigured ? 'database' : 'env',
         serviceKey,
         providerId: pid
       })
@@ -548,15 +578,24 @@ const serializeIntegration = async (serviceName) => {
     configuration: { ...(envFallback?.configuration || {}), ...(dbDoc?.configuration || {}) }
   }, serviceKey);
 
-  const profileSource = dbDoc?.configuration?.providerProfiles?.[activeProvider]
-    || envFallback?.configuration?.providerProfiles?.[activeProvider]
-    || dbDoc?.credentials
-    || envFallback?.credentials
-    || {};
+  const envProfileRaw = envFallback?.configuration?.providerProfiles?.[activeProvider] || envFallback?.credentials || {};
+  const dbProfileRaw = dbDoc?.configuration?.providerProfiles?.[activeProvider] || dbDoc?.credentials || {};
 
-  const displayCreds = typeof profileSource === 'object' && !Array.isArray(profileSource)
-    ? decryptProviderCredentials(serviceKey, activeProvider, profileSource)
+  const decryptedEnv = typeof envProfileRaw === 'object' && !Array.isArray(envProfileRaw)
+    ? decryptProviderCredentials(serviceKey, activeProvider, envProfileRaw)
     : {};
+  const decryptedDb = typeof dbProfileRaw === 'object' && !Array.isArray(dbProfileRaw)
+    ? decryptProviderCredentials(serviceKey, activeProvider, dbProfileRaw)
+    : {};
+
+  const isDbConfigured = Object.values(decryptedDb).some(v => !!v);
+
+  const displayCreds = { ...decryptedEnv };
+  Object.keys(decryptedDb).forEach(k => {
+    if (decryptedDb[k] !== undefined && decryptedDb[k] !== null && decryptedDb[k] !== '') {
+      displayCreds[k] = decryptedDb[k];
+    }
+  });
 
   const maskedCreds = maskProviderCredentials(serviceKey, activeProvider, displayCreds);
   const status = computeStatus({
@@ -564,7 +603,7 @@ const serializeIntegration = async (serviceName) => {
     enabled: resolved?.enabled,
     credentials: displayCreds,
     lastTestStatus: dbDoc?.lastTestStatus,
-    source: resolved?.source,
+    source: isDbConfigured ? 'database' : 'env',
     serviceKey,
     providerId: activeProvider
   });
@@ -612,7 +651,18 @@ const listIntegrations = async () => {
   return { overview, integrations: items };
 };
 
-const getCatalog = () => getAllCatalogs();
+const getCatalog = () => {
+  const keyed = {};
+  Object.keys(PROVIDER_REGISTRY).forEach((serviceKey) => {
+    const service = PROVIDER_REGISTRY[serviceKey];
+    keyed[serviceKey] = {
+      label: service.label,
+      routeKey: service.routeKey,
+      providers: service.providers
+    };
+  });
+  return keyed;
+};
 
 const writeAuditLog = async ({ adminId, serviceName, provider, action, success, message, metadata = {} }) => {
   try {
@@ -634,10 +684,12 @@ const validatePayload = (serviceName, payload) => {
   const def = getDefinition(serviceName);
   if (!def) throw new Error('Unknown integration service.');
   const providerId = normalizeProviderId(def.serviceKey, payload.provider);
-  if (providerId && !def.providers.includes(providerId)) {
-    throw new Error(`Invalid provider for ${def.label}.`);
-  }
   if (providerId) {
+    const isCatalog = def.providers.includes(providerId);
+    const isCustomSlug = /^[a-z0-9_]{2,60}$/.test(providerId);
+    if (!isCatalog && !isCustomSlug) {
+      throw new Error(`Invalid provider for ${def.label}.`);
+    }
     assertActiveProvider(def.serviceKey, providerId);
   }
   if (payload.environment && !['test', 'production'].includes(payload.environment)) {
@@ -668,6 +720,22 @@ const upsertIntegration = async (serviceName, payload, adminId) => {
   );
   const encryptedProfile = encryptProviderCredentials(serviceKey, providerId, mergedPlainCreds);
 
+  const existingCustom = existing?.configuration?.customProviders || {};
+  const incomingCustom = payload.configuration?.customProviders || {};
+  const customProviders = { ...existingCustom, ...incomingCustom };
+  const isCatalogProvider = def.providers.includes(providerId);
+  if (!isCatalogProvider) {
+    const defaults = getDefaultCustomSchema(serviceKey);
+    customProviders[providerId] = {
+      ...(customProviders[providerId] || {}),
+      label: payload.providerLabel || payload.providerName || customProviders[providerId]?.label || providerId,
+      fields: payload.customFields || customProviders[providerId]?.fields || defaults.fields,
+      publicFields: customProviders[providerId]?.publicFields || defaults.publicFields,
+      sensitiveFields: customProviders[providerId]?.sensitiveFields || defaults.sensitiveFields,
+      supportsEnvironment: defaults.supportsEnvironment || false
+    };
+  }
+
   const activeProvider = normalizeProviderId(
     serviceKey,
     payload.configuration?.activeProvider || existing?.configuration?.activeProvider || providerId
@@ -677,6 +745,7 @@ const upsertIntegration = async (serviceName, payload, adminId) => {
     ...(existing?.configuration || {}),
     ...(payload.configuration || {}),
     activeProvider,
+    customProviders,
     providerProfiles: {
       ...existingProfiles,
       [providerId]: encryptedProfile
@@ -725,6 +794,18 @@ const setActiveProvider = async (serviceName, providerId, adminId) => {
 
   const existing = await IntegrationConfig.findOne({ serviceName: serviceKey });
   const envConfig = getEnvFallback(serviceKey);
+
+  // Validate that provider profile exists and has required credentials before activating
+  const targetProfile = (existing?.configuration?.providerProfiles?.[normalized]) ||
+                        (envConfig?.configuration?.providerProfiles?.[normalized]);
+  const decryptedTarget = targetProfile ? decryptProviderCredentials(serviceKey, normalized, targetProfile) : {};
+  const sensitiveFields = getProviderSensitiveFields(serviceKey, normalized);
+  const publicFields = getProviderPublicFields(serviceKey, normalized);
+
+  const hasCredentials = sensitiveFields.some(f => decryptedTarget[f]) || publicFields.some(f => decryptedTarget[f]);
+  if (!hasCredentials) {
+    throw new Error(`Cannot activate ${normalized}. Please fill and save credentials first.`);
+  }
 
   let configuration;
   let credentials;
@@ -816,7 +897,6 @@ const updateIntegrationStatus = async (serviceName, { enabled }, adminId) => {
   });
   return serializeIntegration(serviceKey);
 };
-
 const recordTestResult = async (serviceName, { success, message }) => {
   const serviceKey = resolveServiceKey(serviceName);
   await IntegrationConfig.findOneAndUpdate(
@@ -878,15 +958,56 @@ const testIntegration = async (serviceName, options = {}, adminId = null) => {
   return result;
 };
 
-// Legacy aliases for encrypt/decrypt used in tests
-const encryptCredentials = (serviceName, credentials, providerId) =>
-  encryptProviderCredentials(resolveServiceKey(serviceName), providerId || getDefinition(serviceName)?.defaultProvider, credentials);
+const revealSecretValue = async (serviceName, { provider, field, adminId, adminEmail, ipAddress, userAgent }) => {
+  const def = getDefinition(serviceName);
+  if (!def) throw new Error('Unknown integration service.');
+  const serviceKey = def.serviceKey;
+  const providerId = normalizeProviderId(serviceKey, provider);
 
-const decryptCredentials = (serviceName, credentials, providerId) =>
-  decryptProviderCredentials(resolveServiceKey(serviceName), providerId || getDefinition(serviceName)?.defaultProvider, credentials);
+  const CredentialAccessLog = require('../models/CredentialAccessLog');
+  const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
+  const recentCount = await CredentialAccessLog.countDocuments({
+    adminId,
+    createdAt: { $gte: oneMinuteAgo }
+  });
+  if (recentCount >= 10) {
+    throw new Error('Rate limit exceeded for credential reveal. Maximum 10 reveals per minute allowed.');
+  }
 
-const maskCredentials = (serviceName, credentials, providerId) =>
-  maskProviderCredentials(resolveServiceKey(serviceName), providerId || getDefinition(serviceName)?.defaultProvider, credentials);
+  const dbDoc = await getDbConfig(serviceKey);
+  const envConfig = getEnvFallback(serviceKey);
+
+  const envRaw = envConfig?.configuration?.providerProfiles?.[providerId] || envConfig?.credentials || {};
+  const dbRaw = dbDoc?.configuration?.providerProfiles?.[providerId] || dbDoc?.credentials || {};
+
+  const decryptedEnv = decryptProviderCredentials(serviceKey, providerId, envRaw);
+  const decryptedDb = decryptProviderCredentials(serviceKey, providerId, dbRaw);
+
+  const merged = { ...decryptedEnv };
+  Object.keys(decryptedDb).forEach(k => {
+    if (decryptedDb[k] !== undefined && decryptedDb[k] !== null && decryptedDb[k] !== '') {
+      merged[k] = decryptedDb[k];
+    }
+  });
+
+  const secretValue = merged[field] || '';
+
+  if (!secretValue) {
+    throw new Error(`Field '${field}' is not configured or empty.`);
+  }
+
+  await CredentialAccessLog.create({
+    adminId,
+    adminEmail: adminEmail || '',
+    serviceName: serviceKey,
+    providerId,
+    field,
+    ipAddress: ipAddress || '',
+    userAgent: userAgent || ''
+  });
+
+  return secretValue;
+};
 
 module.exports = {
   SERVICE_NAMES,
@@ -911,11 +1032,6 @@ module.exports = {
   updateIntegrationStatus,
   testIntegration,
   recordTestResult,
-  maskCredentials,
-  mergeCredentials,
-  encryptCredentials,
-  decryptCredentials,
-  encryptProviderCredentials,
-  decryptProviderCredentials,
+  revealSecretValue,
   maskProviderCredentials
 };

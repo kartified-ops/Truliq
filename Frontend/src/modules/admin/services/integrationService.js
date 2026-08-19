@@ -10,5 +10,7 @@ export const toggleIntegration = (serviceName, enabled) =>
   api.patch(`/admin/integrations/${serviceName}/status`, { enabled });
 export const testIntegration = (serviceName, payload = {}) =>
   api.post(`/admin/integrations/${serviceName}/test`, payload);
+export const revealIntegrationSecret = (serviceName, payload) =>
+  api.post(`/admin/integrations/${serviceName}/reveal`, payload);
 export const fetchIntegrationAuditLogs = (params = {}) =>
   api.get('/admin/integrations/audit-logs', { params });

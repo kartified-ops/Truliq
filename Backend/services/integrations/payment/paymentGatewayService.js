@@ -21,13 +21,10 @@ const getActivePaymentConfig = async () => {
     return null;
   }
   const providerId = config.configuration?.activeProvider || config.provider || 'razorpay';
-  const adapter = ADAPTERS[providerId];
-  if (!adapter) {
-    throw new Error(`Payment provider "${providerId}" is not supported.`);
-  }
   const credentials = config.configuration?.providerProfiles?.[providerId]
     || config.credentials
     || {};
+  const adapter = ADAPTERS[providerId] || null;
   return {
     providerId,
     adapter,
@@ -40,7 +37,7 @@ const getActivePaymentConfig = async () => {
 
 const getClient = async () => {
   const active = await getActivePaymentConfig();
-  if (!active || active.providerId !== 'razorpay') {
+  if (!active || !active.adapter || active.providerId !== 'razorpay') {
     return { client: null, active, keyId: '', keySecret: '' };
   }
   const { keyId, keySecret } = active.adapter.resolveKeys(active.credentials, active.environment);
@@ -91,7 +88,14 @@ const verifySignature = async (orderId, paymentId, signature) => {
 
 const testProvider = async (providerId, credentials, environment) => {
   const adapter = ADAPTERS[providerId];
-  if (!adapter) return { success: false, message: 'Provider not supported.' };
+  if (!adapter) {
+    const hasSecret = !!(credentials?.secretKey || credentials?.liveSecretKey || credentials?.apiSecret || credentials?.merchantSalt);
+    const hasKey = !!(credentials?.appId || credentials?.liveKeyId || credentials?.testKeyId || credentials?.publishableKey || credentials?.merchantKey);
+    if (hasKey && hasSecret) {
+      return { success: true, message: 'Credentials saved. This provider will be used when activated.' };
+    }
+    return { success: false, message: 'Save API credentials first.' };
+  }
   return adapter.testConnection(credentials, environment);
 };
 
