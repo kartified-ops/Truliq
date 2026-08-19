@@ -198,14 +198,22 @@ exports.getPublicSettings = async (req, res, next) => {
   try {
     let settings = await Settings.findOne({ type: 'global' }).select('visitedCharges serviceGstPercentage partsGstPercentage supportEmail supportPhone supportWhatsapp cancellationPenalty companyName companyAddress companyCity companyState companyPincode companyPhone companyEmail isOnlinePaymentEnabled termsAndConditions privacyPolicy supportPageContent');
 
-    // Default if not found (fallback values)
     if (!settings) {
       settings = { visitedCharges: 29, serviceGstPercentage: 18, partsGstPercentage: 18 };
     }
 
+    let clientIntegrations = {};
+    try {
+      const { getPublicClientConfig } = require('../../services/integrationConfigService');
+      clientIntegrations = await getPublicClientConfig();
+    } catch (integrationError) {
+      console.warn('[PublicConfig] Integration config unavailable:', integrationError.message);
+    }
+
     res.status(200).json({
       success: true,
-      settings
+      settings,
+      integrations: clientIntegrations
     });
   } catch (error) {
     console.error('Error fetching public settings:', error);

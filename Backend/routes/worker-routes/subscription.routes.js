@@ -99,6 +99,14 @@ router.get('/status', authenticate, isWorker, async (req, res) => {
     }
 
     const now = new Date();
+
+    try {
+      const { applyPendingOffersForWorker } = require('../../services/promotionalOfferService');
+      await applyPendingOffersForWorker(worker, now);
+    } catch (offerError) {
+      console.error('[Subscription] Apply promotional offers failed:', offerError);
+    }
+
     if (expireSubscriptionIfNeeded(worker, now)) {
       await worker.save();
     }
@@ -113,6 +121,14 @@ router.get('/status', authenticate, isWorker, async (req, res) => {
     }
 
     const payload = formatStatusPayload(worker.toObject ? worker.toObject() : worker, now);
+
+    try {
+      const { getWorkerPromotionalState } = require('../../services/promotionalOfferService');
+      payload.promotionalOffer = await getWorkerPromotionalState(worker._id, now);
+      payload.promotionalPauseDays = worker.subscription?.promotionalPauseDays || payload.promotionalOffer?.pausedDaysApplied || 0;
+    } catch (promoError) {
+      payload.promotionalOffer = { isActive: false, isPausedToday: false, platformFee: null };
+    }
 
     if ((payload.amountPaid === undefined || payload.amountPaid === null) && (payload.isActive || payload.expiryDate)) {
       try {
@@ -189,6 +205,13 @@ router.post('/activate', authenticate, isWorker, async (req, res) => {
     });
 
     await worker.save();
+
+    try {
+      const { applyPendingOffersForWorker } = require('../../services/promotionalOfferService');
+      await applyPendingOffersForWorker(worker);
+    } catch (offerError) {
+      console.error('[Subscription] Apply promotional offers after activate failed:', offerError);
+    }
 
     const { markPhoneAsPaid } = require('../../services/workerFreeTrialService');
     markPhoneAsPaid(worker.phone, worker._id).catch((err) => {

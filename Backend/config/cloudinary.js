@@ -1,12 +1,8 @@
 const cloudinary = require('cloudinary').v2;
-const dotenv = require('dotenv');
+const { applyConfig } = require('../services/cloudinaryService');
 
-dotenv.config();
-
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
+applyConfig().catch((err) => {
+  console.warn('[Cloudinary config] Initial load failed:', err.message);
 });
 
 module.exports = cloudinary;

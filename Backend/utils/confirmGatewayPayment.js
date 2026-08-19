@@ -23,14 +23,23 @@ const { getPaymentDetails, getOrderDetails } = require('../services/razorpayServ
  * accepting `order_mock_*` ids. Fail-closed: never active in production, so a
  * misconfigured live server rejects payments instead of trusting the client.
  */
-const isDevMockOrder = (orderId) => {
+const isDevMockOrder = async (orderId) => {
   if (process.env.NODE_ENV === 'production') return false;
-  const noCredentials = !process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET;
-  return noCredentials || String(orderId || '').startsWith('order_mock_');
+  if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+    return String(orderId || '').startsWith('order_mock_');
+  }
+  try {
+    const { getPaymentGatewayCredentials } = require('../services/integrationConfigService');
+    const creds = await getPaymentGatewayCredentials();
+    const noCredentials = !creds.keyId || !creds.keySecret;
+    return noCredentials || String(orderId || '').startsWith('order_mock_');
+  } catch (_) {
+    return String(orderId || '').startsWith('order_mock_');
+  }
 };
 
 const confirmGatewayPayment = async ({ orderId, paymentId }) => {
-  if (isDevMockOrder(orderId)) {
+  if (await isDevMockOrder(orderId)) {
     console.warn(`[Payments] DEV: skipping gateway confirmation for mock order ${orderId}`);
     return { ok: true, mock: true, amount: null, notes: {}, payment: null };
   }

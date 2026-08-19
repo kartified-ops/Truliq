@@ -76,7 +76,8 @@ const notificationSchema = new mongoose.Schema({
       'admin_notification',
       'admin_promotion',
       'admin_reminder',
-      'admin_system'
+      'admin_system',
+      'promotional_offer'
     ],
     index: true
   },
@@ -98,7 +99,7 @@ const notificationSchema = new mongoose.Schema({
   },
   relatedType: {
     type: String,
-    enum: ['booking', 'payment', 'user', 'vendor', 'worker', 'service', 'scrap', 'withdrawal'],
+    enum: ['booking', 'payment', 'user', 'vendor', 'worker', 'service', 'scrap', 'withdrawal', 'promotional_offer'],
     default: null
   },
   // Notification Status

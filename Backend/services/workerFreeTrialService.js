@@ -229,6 +229,13 @@ const grantFreeTrialIfEligible = async (worker, options = {}) => {
   worker.subscription = subscription;
   await worker.save(session ? { session } : undefined);
 
+  try {
+    const { applyPendingOffersForWorker } = require('./promotionalOfferService');
+    await applyPendingOffersForWorker(worker);
+  } catch (offerError) {
+    console.error('[FREE trial] Apply promotional offers failed:', offerError);
+  }
+
   return { granted: true, reason: null, subscription, config };
 };
 

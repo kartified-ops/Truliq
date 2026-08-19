@@ -69,7 +69,7 @@ exports.createSubscriptionOrder = async (req, res) => {
         orderId: orderResult.orderId,
         amount: orderResult.amount,
         currency: orderResult.currency,
-        keyId: process.env.RAZORPAY_KEY_ID,
+        keyId: (await require('../../services/razorpayService').getCredentials()).keyId,
         planTitle: plan.title,
         durationDays: plan.durationDays,
         workerName: worker.name,
@@ -96,7 +96,7 @@ exports.verifySubscriptionPayment = async (req, res) => {
     }
 
     // Verify payment signature
-    const isValid = verifyPayment(razorpay_order_id, razorpay_payment_id, razorpay_signature);
+    const isValid = await verifyPayment(razorpay_order_id, razorpay_payment_id, razorpay_signature);
     if (!isValid) {
       return res.status(400).json({ success: false, message: 'Invalid payment signature. Payment verification failed.' });
     }
@@ -208,6 +208,17 @@ exports.verifySubscriptionPayment = async (req, res) => {
     }
 
     const { expiryDate } = outcome;
+
+    try {
+      const Worker = require('../../models/Worker');
+      const workerDoc = await Worker.findById(workerId);
+      if (workerDoc) {
+        const { applyPendingOffersForWorker } = require('../../services/promotionalOfferService');
+        await applyPendingOffersForWorker(workerDoc);
+      }
+    } catch (offerError) {
+      console.error('[SubscriptionPayment] Apply promotional offers failed:', offerError);
+    }
 
     // --- UPDATE PLATFORM EARNINGS (post-commit: analytics must not fail the sale) ---
     const { recordWorkerSubscription } = require('../../services/earningTrackerService');

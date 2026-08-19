@@ -4,7 +4,7 @@ const Settings = require('../../models/Settings');
 const Plan = require('../../models/Plan');
 const { validationResult } = require('express-validator');
 const { PAYMENT_STATUS, BOOKING_STATUS } = require('../../utils/constants');
-const { createOrder, verifyPayment, refundPayment } = require('../../services/razorpayService');
+const { createOrder, verifyPayment, refundPayment, getCredentials } = require('../../services/razorpayService');
 const { createNotification } = require('../notificationControllers/notificationController');
 const { recordBookingEarning } = require('../../services/earningTrackerService');
 const { withTransaction, abort } = require('../../utils/withTransaction');
@@ -80,7 +80,7 @@ const createPaymentOrder = async (req, res) => {
         orderId: orderResult.orderId,
         amount: orderResult.amount / 100, // Convert back to rupees
         currency: orderResult.currency,
-        key: process.env.RAZORPAY_KEY_ID,
+        key: (await getCredentials()).keyId,
         bookingId: booking._id
       }
     });
@@ -106,7 +106,7 @@ const verifyPaymentWebhook = async (req, res) => {
     } = req.body;
 
     // Verify signature
-    const isValid = verifyPayment(razorpay_order_id, razorpay_payment_id, razorpay_signature);
+    const isValid = await verifyPayment(razorpay_order_id, razorpay_payment_id, razorpay_signature);
 
     if (!isValid) {
       return res.status(400).json({
@@ -935,7 +935,7 @@ const createPlanOrder = async (req, res) => {
       data: {
         orderId: orderResult.orderId,
         amount: orderResult.amount / 100,
-        key: process.env.RAZORPAY_KEY_ID
+        key: (await getCredentials()).keyId
       }
     });
   } catch (error) {
@@ -954,7 +954,7 @@ const verifyPlanPayment = async (req, res) => {
     }
 
     // Import verifyPayment if needed, but it's destructured at top
-    const isValid = verifyPayment(razorpay_order_id, razorpay_payment_id, razorpay_signature);
+    const isValid = await verifyPayment(razorpay_order_id, razorpay_payment_id, razorpay_signature);
     if (!isValid) return res.status(400).json({ success: false, message: 'Invalid signature' });
 
     // Confirm with the gateway. The signature alone doesn't say WHICH plan was

@@ -85,7 +85,7 @@ const addMoneyToWallet = async (req, res) => {
         orderId: orderResult.orderId,
         amount: orderResult.amount / 100,
         currency: orderResult.currency,
-        key: process.env.RAZORPAY_KEY_ID
+        key: (await require('../../services/razorpayService').getCredentials()).keyId
       }
     });
   } catch (error) {
@@ -120,7 +120,7 @@ const verifyWalletTopup = async (req, res) => {
 
     // Verify signature
     const { verifyPayment } = require('../../services/razorpayService');
-    const isValid = verifyPayment(razorpay_order_id, razorpay_payment_id, razorpay_signature);
+    const isValid = await verifyPayment(razorpay_order_id, razorpay_payment_id, razorpay_signature);
 
     if (!isValid) {
       return res.status(400).json({

@@ -18,6 +18,7 @@ import {
   FiTrash2,
   FiStar,
   FiShield,
+  FiGift,
 } from "react-icons/fi";
 import adminMenu from "../../config/adminMenu.json";
 import dashboardService from "../../services/dashboardService";
@@ -42,6 +43,7 @@ const iconMap = {
   Settings: FiSettings,
   Plans: FiPackage,
   "Worker Plans": FiBriefcase,
+  "Promotional Offers": FiGift,
   Legal: FiShield,
 };
 
@@ -99,6 +101,14 @@ const getChildRoute = (parentRoute, childName) => {
       "Notification Settings": "/admin/notifications/history"
     },
     "/admin/settings": {
+      "Business Settings": "/admin/settings",
+      "App Settings": "/admin/settings/app",
+      "Third-party Settings": "/admin/settings/third-party/payment-gateway",
+      "Payment Gateway": "/admin/settings/third-party/payment-gateway",
+      "SMS Gateway": "/admin/settings/third-party/sms-gateway",
+      "Firebase Settings": "/admin/settings/third-party/firebase",
+      "Map Settings": "/admin/settings/third-party/maps",
+      "Mail Configuration": "/admin/settings/third-party/mail",
       "General Settings": "/admin/settings/general",
       "Worker Assignment": "/admin/settings/worker-assignment",
       "Service Configuration": "/admin/settings/service-config",

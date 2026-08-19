@@ -418,6 +418,7 @@ const WorkerPlans = () => {
                     onChange={(e) => setTrialSettings((prev) => ({ ...prev, durationUnit: e.target.value }))}
                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none font-bold text-slate-800 text-sm transition-all appearance-none cursor-pointer pr-10"
                   >
+                    <option value="DAY">Days</option>
                     <option value="WEEK">Weeks</option>
                     <option value="MONTH">Months</option>
                   </select>
@@ -761,8 +762,9 @@ const WorkerPlans = () => {
                     onChange={handleInputChange}
                     className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-bold text-xs cursor-pointer"
                   >
-                    <option value="WEEK">Week</option>
-                    <option value="MONTH">Month</option>
+                    <option value="DAY">Days</option>
+                    <option value="WEEK">Weeks</option>
+                    <option value="MONTH">Months</option>
                   </select>
                 </div>
               </div>

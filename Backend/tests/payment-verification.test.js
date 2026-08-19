@@ -119,12 +119,12 @@ const main = async () => {
   await check('mock bypass is DISABLED in production, even for order_mock_ ids', async () => {
     process.env.NODE_ENV = 'production';
     const { isDevMockOrder } = loadHelperWith(happyStub);
-    assert.strictEqual(isDevMockOrder('order_mock_123'), false);
+    assert.strictEqual(await isDevMockOrder('order_mock_123'), false);
 
     // ...and also when credentials are missing (a misconfigured live server)
     const keyId = process.env.RAZORPAY_KEY_ID;
     delete process.env.RAZORPAY_KEY_ID;
-    assert.strictEqual(isDevMockOrder('order_real_1'), false,
+    assert.strictEqual(await isDevMockOrder('order_real_1'), false,
       'production must never trust the client, even with no credentials');
     process.env.RAZORPAY_KEY_ID = keyId;
   });
@@ -132,7 +132,7 @@ const main = async () => {
   await check('mock bypass works outside production so local dev still runs', async () => {
     process.env.NODE_ENV = 'development';
     const { confirmGatewayPayment, isDevMockOrder } = loadHelperWith(happyStub);
-    assert.strictEqual(isDevMockOrder('order_mock_123'), true);
+    assert.strictEqual(await isDevMockOrder('order_mock_123'), true);
 
     const out = await confirmGatewayPayment({ orderId: 'order_mock_123', paymentId: 'pay_1' });
     assert.strictEqual(out.ok, true);

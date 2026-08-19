@@ -10,7 +10,7 @@ import Login from '../pages/login';
 
 // Lazy load admin pages for code splitting
 const Dashboard = lazy(() => import('../pages/Dashboard'));
-const Settings = lazy(() => import('../pages/Settings'));
+const Settings = lazy(() => import('../pages/Settings/SettingsRouter'));
 const UserCategories = lazy(() => import('../pages/UserCategories'));
 const Users = lazy(() => import('../pages/Users'));
 const Vendors = lazy(() => import('../pages/Vendors'));
@@ -24,6 +24,7 @@ const Notifications = lazy(() => import('../pages/Notifications'));
 
 const Plans = lazy(() => import('../pages/Plans/Plans'));
 const WorkerPlans = lazy(() => import('../pages/Plans/WorkerPlans'));
+const PromotionalOffers = lazy(() => import('../pages/PromotionalOffers'));
 const LegalSettings = lazy(() => import('../pages/LegalSettings'));
 const Scrap = lazy(() => import('../pages/Scrap'));
 const Settlements = lazy(() => import('../pages/Settlements'));
@@ -70,6 +71,7 @@ const AdminRoutes = () => {
           <Route path="scrap" element={<Scrap />} />
           <Route path="plans" element={<Plans />} />
           <Route path="worker-plans" element={<WorkerPlans />} />
+          <Route path="promotional-offers" element={<PromotionalOffers />} />
           <Route path="legal/terms" element={<LegalSettings type="terms" />} />
           <Route path="legal/privacy" element={<LegalSettings type="privacy" />} />
           <Route path="legal/support" element={<LegalSettings type="support" />} />

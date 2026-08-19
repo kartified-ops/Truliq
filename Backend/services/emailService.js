@@ -96,16 +96,32 @@ const emailWrapper = (content, title, preheader = '') => `
 </html>
 `;
 
-const createTransporter = () => {
+const createTransporter = async () => {
+  const { getEmailCredentials } = require('./integrationConfigService');
+  const creds = await getEmailCredentials();
   return nodemailer.createTransport({
-    host: process.env.EMAIL_HOST,
-    port: parseInt(process.env.EMAIL_PORT) || 587,
-    secure: false,
+    host: creds.host,
+    port: creds.port,
+    secure: creds.encryption === 'ssl',
     auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS
+      user: creds.user,
+      pass: creds.pass
     }
   });
+};
+
+const getFromAddress = async () => {
+  const { getEmailCredentials } = require('./integrationConfigService');
+  const creds = await getEmailCredentials();
+  const name = creds.fromName || 'Truliq';
+  const email = creds.from || creds.user || process.env.EMAIL_FROM || 'noreply@truliq.com';
+  return `${name} <${email}>`;
+};
+
+const hasEmailConfig = async () => {
+  const { getEmailCredentials } = require('./integrationConfigService');
+  const creds = await getEmailCredentials();
+  return creds.enabled && creds.user && creds.pass;
 };
 
 /**
@@ -113,12 +129,12 @@ const createTransporter = () => {
  */
 const sendOTPEmail = async (email, otp, purpose = 'verification') => {
   try {
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    if (!(await hasEmailConfig())) {
       console.log(`[EMAIL SERVICE] OTP for ${email}: ${otp}`);
       return { success: true };
     }
 
-    const transporter = createTransporter();
+    const transporter = await createTransporter();
     const subjectPrefix = purpose === 'password_reset' ? 'Reset Password' : 'Verify Email';
 
     const content = `
@@ -137,7 +153,7 @@ const sendOTPEmail = async (email, otp, purpose = 'verification') => {
     `;
 
     await transporter.sendMail({
-      from: process.env.EMAIL_FROM || 'Homster <noreply@homster.com>',
+      from: await getFromAddress(),
       to: email,
       subject: `${subjectPrefix} - Homster`,
       html: emailWrapper(content, subjectPrefix, `Your verification code is ${otp}`)
@@ -154,8 +170,8 @@ const sendOTPEmail = async (email, otp, purpose = 'verification') => {
  */
 const sendWelcomeEmail = async (email, name) => {
   try {
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return { success: true };
-    const transporter = createTransporter();
+    if (!(await hasEmailConfig())) return { success: true };
+    const transporter = await createTransporter();
 
     const content = `
       <div style="text-align: center;">
@@ -185,7 +201,7 @@ const sendWelcomeEmail = async (email, name) => {
     `;
 
     await transporter.sendMail({
-      from: process.env.EMAIL_FROM || 'Homster <noreply@homster.com>',
+      from: await getFromAddress(),
       to: email,
       subject: 'Welcome to Homster!',
       html: emailWrapper(content, 'Welcome', 'Welcome to the future of home services')
@@ -202,8 +218,8 @@ const sendWelcomeEmail = async (email, name) => {
  */
 const sendBookingEmails = async (booking, user, vendor, service) => {
   try {
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return;
-    const transporter = createTransporter();
+    if (!(await hasEmailConfig())) return;
+    const transporter = await createTransporter();
     const bookingId = booking.bookingNumber || booking._id;
 
     if (user && user.email) {
@@ -231,7 +247,7 @@ const sendBookingEmails = async (booking, user, vendor, service) => {
       `;
 
       await transporter.sendMail({
-        from: process.env.EMAIL_FROM || 'Homster <noreply@homster.com>',
+        from: await getFromAddress(),
         to: user.email,
         subject: `Booking Confirmed #${bookingId} - Homster`,
         html: emailWrapper(content, 'Confirmed', 'Your booking is scheduled successfully')
@@ -259,7 +275,7 @@ const sendBookingEmails = async (booking, user, vendor, service) => {
       `;
 
       await transporter.sendMail({
-        from: process.env.EMAIL_FROM || 'Homster <noreply@homster.com>',
+        from: await getFromAddress(),
         to: vendor.email,
         subject: `New Job Assigned #${bookingId} - Homster`,
         html: emailWrapper(vContent, 'New Job', 'Action Required: New job assigned')
@@ -273,8 +289,8 @@ const sendBookingEmails = async (booking, user, vendor, service) => {
  */
 const sendBookingCompletionEmails = async (booking) => {
   try {
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return;
-    const transporter = createTransporter();
+    if (!(await hasEmailConfig())) return;
+    const transporter = await createTransporter();
     const user = booking.userId;
     const bookingId = booking.bookingNumber || booking._id;
 
@@ -310,7 +326,7 @@ const sendBookingCompletionEmails = async (booking) => {
       `;
 
       await transporter.sendMail({
-        from: process.env.EMAIL_FROM || 'Homster <noreply@homster.com>',
+        from: await getFromAddress(),
         to: user.email,
         subject: `Service Invoice #${bookingId} - Homster`,
         html: emailWrapper(content, 'Invoice', 'Your service is complete. Here is the receipt.')
@@ -324,8 +340,8 @@ const sendBookingCompletionEmails = async (booking) => {
  */
 const sendWithdrawalApprovedEmail = async (vendor, amount, transactionId) => {
   try {
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS || !vendor.email) return;
-    const transporter = createTransporter();
+    if (!(await hasEmailConfig()) || !vendor.email) return;
+    const transporter = await createTransporter();
 
     const content = `
       <div style="text-align: center;">
@@ -345,7 +361,7 @@ const sendWithdrawalApprovedEmail = async (vendor, amount, transactionId) => {
     `;
 
     await transporter.sendMail({
-      from: process.env.EMAIL_FROM || 'Homster <noreply@homster.com>',
+      from: await getFromAddress(),
       to: vendor.email,
       subject: 'Withdrawal Success - Homster',
       html: emailWrapper(content, 'Withdrawal', 'Your funds are on the way')
@@ -358,8 +374,8 @@ const sendWithdrawalApprovedEmail = async (vendor, amount, transactionId) => {
  */
 const sendDuesPaymentApprovedEmail = async (vendor, amount, balanceAfter) => {
   try {
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS || !vendor.email) return;
-    const transporter = createTransporter();
+    if (!(await hasEmailConfig()) || !vendor.email) return;
+    const transporter = await createTransporter();
 
     const content = `
       <div style="text-align: center;">
@@ -378,7 +394,7 @@ const sendDuesPaymentApprovedEmail = async (vendor, amount, balanceAfter) => {
     `;
 
     await transporter.sendMail({
-      from: process.env.EMAIL_FROM || 'Homster <noreply@homster.com>',
+      from: await getFromAddress(),
       to: vendor.email,
       subject: 'Dues Payment Verified - Homster',
       html: emailWrapper(content, 'Verified', 'We have received your payment')

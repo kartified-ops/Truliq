@@ -279,10 +279,25 @@ const register = async (req, res) => {
       if (uploadRes.success) aadharBackUrl = uploadRes.url;
     }
 
+    const country = req.body.country || 'India';
+    const state = req.body.state || '';
+    const city = req.body.city || '';
+    const categories = Array.isArray(req.body.serviceCategories)
+      ? req.body.serviceCategories
+      : (Array.isArray(req.body.categories) ? req.body.categories : []);
+
     // Create worker
     const worker = await Worker.create({
       name, email, phone,
       isPhoneVerified: true,
+      serviceCategories: categories,
+      address: {
+        country,
+        state,
+        city,
+        addressLine1: req.body.addressLine1 || '',
+        pincode: req.body.pincode || ''
+      },
       aadhar: {
         number: req.body.aadhar || aadharNumber,
         document: aadharUrl,

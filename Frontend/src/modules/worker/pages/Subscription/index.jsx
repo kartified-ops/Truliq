@@ -140,7 +140,15 @@ const Subscription = () => {
   const formatDate = (dateStr) => {
     if (!dateStr) return null;
     return new Date(dateStr).toLocaleDateString('en-IN', {
-      day: 'numeric', month: 'long', year: 'numeric'
+      day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata'
+    });
+  };
+
+  const formatDayKey = (key) => {
+    if (!key) return '';
+    const [year, month, day] = key.split('-');
+    return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), 6, 30)).toLocaleDateString('en-IN', {
+      day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata'
     });
   };
 
@@ -191,6 +199,16 @@ const Subscription = () => {
             <p className="text-white text-2xl font-black mb-1">
               {status.planType === 'TRIAL' || status.isTrial ? 'FREE SUBSCRIPTION' : status.planName}
             </p>
+            <p className="text-white/90 text-sm font-semibold mb-1">
+              Subscription Status: Active
+              {status.promotionalOffer?.isPausedToday ? ' · Clock Paused' : ''}
+            </p>
+            {(status.promotionalOffer?.subscriptionDay || status.durationDays) && (
+              <p className="text-white/80 text-sm mb-1">
+                Subscription Day {status.promotionalOffer?.subscriptionDay || 0}
+                {status.durationDays ? ` / ${status.durationDays}` : ''}
+              </p>
+            )}
             <div className="flex items-center gap-2 text-white/80 text-sm">
               <FiClock className="w-4 h-4" />
               <span>
@@ -235,6 +253,43 @@ const Subscription = () => {
           {(status?.status === 'EXPIRED' || status?.trialUsed) && (
             <p className="mt-3 text-white font-bold text-sm">Upgrade Now</p>
           )}
+        </div>
+      )}
+
+      {status?.promotionalOffer?.isActive && (
+        <div className="mx-4 mb-6 rounded-2xl p-4 border border-amber-400/40 bg-amber-400/15">
+          <p className="text-amber-200 font-black text-sm uppercase tracking-wider mb-1">🎉 Festival Offer</p>
+          <p className="text-white font-bold">{status.promotionalOffer.name || 'Free Platform Fee'}</p>
+          {status.promotionalOffer.isPausedToday && (
+            <p className="text-white/80 text-xs mt-1 font-semibold">Subscription Paused · Promotional Offer Active</p>
+          )}
+          <p className="text-white/70 text-xs mt-1">Your plan stays active. Subscription days are not consumed today.</p>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div className="rounded-xl bg-black/20 p-2">
+              <p className="text-white/50 uppercase font-bold">Offer Active Until</p>
+              <p className="text-white font-semibold">{formatDate(status.promotionalOffer.endDate)}</p>
+            </div>
+            <div className="rounded-xl bg-black/20 p-2">
+              <p className="text-white/50 uppercase font-bold">Today's Platform Fee</p>
+              <p className="text-emerald-300 font-black">₹{status.promotionalOffer.platformFee ?? 0}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {Array.isArray(status?.promotionalOffer?.timeline) && status.promotionalOffer.timeline.some((entry) => entry.type === 'pause') && (
+        <div className="mx-4 mb-6 rounded-2xl p-4 border border-white/10 bg-white/5">
+          <p className="text-white/70 text-xs font-bold uppercase tracking-widest mb-3">Subscription Timeline</p>
+          <div className="space-y-1.5 max-h-56 overflow-y-auto">
+            {status.promotionalOffer.timeline.map((entry) => (
+              <div key={entry.date} className="flex items-center justify-between text-xs">
+                <span className="text-white/70">{formatDayKey(entry.date)}</span>
+                <span className={entry.type === 'pause' ? 'text-amber-300 font-bold' : 'text-white font-semibold'}>
+                  {entry.type === 'pause' ? '🎉 Promotional Pause' : `Day ${entry.dayNumber}`}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

@@ -228,6 +228,8 @@ app.use('/api/admin', require('./routes/admin-routes/upload.routes'));
 app.use('/api/admin', require('./routes/admin-routes/planManagement.routes'));
 app.use('/api/admin/worker-plans', require('./routes/admin-routes/workerPlanManagement.routes'));
 app.use('/api/admin/push-notifications', require('./routes/admin-routes/adminPushNotification.routes'));
+app.use('/api/admin/promotional-offers', require('./routes/admin-routes/promotionalOffer.routes'));
+app.use('/api/admin/integrations', require('./routes/admin-routes/integration.routes'));
 app.use('/api/admin', require('./routes/admin-routes/settings.routes'));
 app.use('/api/admin', require('./routes/admin-routes/reviewManagement.routes'));
 app.use('/api/admin', require('./routes/admin-routes/reportManagement.routes'));

@@ -45,6 +45,13 @@ const requireActiveSubscription = async (req, res, next) => {
     }
 
     const now = new Date();
+    try {
+      const { applyPendingOffersForWorker } = require('../services/promotionalOfferService');
+      await applyPendingOffersForWorker(worker, now);
+    } catch (offerError) {
+      console.error('[SubscriptionMiddleware] Apply promotional offers failed:', offerError);
+    }
+
     if (expireSubscriptionIfNeeded(worker, now)) {
       await worker.save();
     }

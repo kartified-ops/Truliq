@@ -688,7 +688,12 @@ module.exports = {
         const settings = await Settings.findOne({ type: 'global' }).session(session);
         // Workers have no TDS/Platform fee under simplified flow
         const tdsRate = isWorker ? 0 : (settings?.tdsPercentage || 1);
-        const platformFeeRate = isWorker ? 0 : (settings?.platformFeePercentage || 1);
+        const existingPlatformFeeRate = isWorker ? 0 : (settings?.platformFeePercentage || 1);
+        const { getWorkerWithdrawalPlatformFeeRate } = require('../../services/promotionalOfferService');
+        const platformFeeRate = await getWorkerWithdrawalPlatformFeeRate({
+          workerId: existing.workerId,
+          existingRate: existingPlatformFeeRate
+        });
 
         const targetId = isWorker ? existing.workerId : existing.vendorId;
         const TargetModel = isWorker ? Worker : Vendor;

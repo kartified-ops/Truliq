@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiSettings, FiGrid, FiDollarSign, FiSave, FiUser, FiMail, FiTrash2, FiPlus, FiUsers, FiShield, FiFileText, FiMapPin, FiPhone, FiHeadphones, FiMessageCircle, FiEdit, FiLock, FiUnlock, FiX, FiEye, FiEyeOff } from 'react-icons/fi';
+import { FiSettings, FiGrid, FiDollarSign, FiSave, FiUser, FiMail, FiTrash2, FiPlus, FiUsers, FiShield, FiFileText, FiMapPin, FiPhone, FiHeadphones, FiMessageCircle, FiEdit, FiLock, FiUnlock, FiX, FiEye, FiEyeOff, FiLink2 } from 'react-icons/fi';
 import { getSettings, updateSettings, updateAdminProfile, getAdminProfile, getAllAdmins, createAdmin, deleteAdmin, updateAdminDetails, toggleAdminStatus } from '../../services/settingsService';
 import { cityService } from '../../services/cityService';
 import CityManagement from '../Cities';
 import { toast } from 'react-hot-toast';
+import { Link } from 'react-router-dom';
 
-const AdminSettings = () => {
+const AdminSettings = ({ defaultView = 'main' }) => {
   const [settings, setSettings] = useState({
     workerAutoAssignment: true,
   });
@@ -70,7 +71,7 @@ const AdminSettings = () => {
 
   const [loading, setLoading] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
-  const [activeView, setActiveView] = useState('main'); // 'main', 'profile', 'financial', 'system', 'admins'
+  const [activeView, setActiveView] = useState(defaultView); // 'main', 'profile', 'financial', 'system', 'admins'
 
   // Password visibility states
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
@@ -504,6 +505,18 @@ const AdminSettings = () => {
         </div>
       )}
 
+      {/* Third-party Settings - Super Admin Only */}
+      {isSuperAdmin && (
+        <Link to="/admin/settings/third-party/payment-gateway"
+          className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-pointer group block">
+          <div className="w-12 h-12 bg-indigo-50 rounded-lg flex items-center justify-center mb-4 group-hover:bg-indigo-100 transition-colors">
+            <FiLink2 className="w-6 h-6 text-indigo-600" />
+          </div>
+          <h3 className="text-lg font-bold text-gray-800 mb-2">Third-party Settings</h3>
+          <p className="text-sm text-gray-500">Payment, SMS, Maps, Firebase, Email, and media provider credentials</p>
+        </Link>
+      )}
+
       {/* Admin Management Card - Super Admin Only */}
       {isSuperAdmin && (
         <div onClick={() => setActiveView('admins')}
@@ -919,6 +932,7 @@ const AdminSettings = () => {
           )
         }
 
+        {/* API & Integrations - Super Admin Only */}
         {/* City Management View */}
         {
           activeView === 'cities' && (

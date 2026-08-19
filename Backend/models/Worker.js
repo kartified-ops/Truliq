@@ -70,6 +70,10 @@ const workerSchema = new mongoose.Schema({
     addressLine2: String,
     city: String,
     state: String,
+    country: {
+      type: String,
+      default: 'India'
+    },
     pincode: String,
     landmark: String
   },
@@ -267,6 +271,10 @@ const workerSchema = new mongoose.Schema({
     lastOrderId: {
       type: String,
       default: null
+    },
+    promotionalPauseDays: {
+      type: Number,
+      default: 0
     }
   }
 }, {

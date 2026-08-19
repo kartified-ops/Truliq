@@ -78,7 +78,8 @@ const applyPaidSubscription = (worker, {
     transactionId: transactionId || paymentId || prev.transactionId || null,
     lastPaymentId: paymentId || prev.lastPaymentId || null,
     lastOrderId: orderId || prev.lastOrderId || null,
-    trialUsed: !!(worker.trialUsed || prev.trialUsed)
+    trialUsed: !!(worker.trialUsed || prev.trialUsed),
+    promotionalPauseDays: prev.promotionalPauseDays || 0
   };
   if (prev.trialDuration) next.trialDuration = prev.trialDuration;
   if (prev.trialDurationUnit) next.trialDurationUnit = prev.trialDurationUnit;

@@ -1,83 +1,79 @@
 /**
- * Firebase Admin Service
- * Handles push notification sending via Firebase Cloud Messaging (FCM)
+ * Firebase Admin Service — dynamic credentials via IntegrationConfigService
  */
-
 const admin = require('firebase-admin');
-const path = require('path');
-
-// Initialize Firebase Admin SDK
-// Initialize Firebase Admin SDK
-let serviceAccount;
-
-try {
-  if (process.env.FIREBASE_CONFIG) {
-    // Production: Use environment variable JSON content
-    serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG);
-  } else if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
-    // Alternative Env Var
-    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
-  } else {
-    // Local: Use file path
-    const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || './config/truliq-firebase-adminsdk-fbsvc-ce65e5c441.json';
-    serviceAccount = require(path.resolve(__dirname, '..', serviceAccountPath));
-  }
-} catch (error) {
-  console.error('❌ Failed to load Firebase credentials:', error.message);
-}
-
-// Initialize only if not already initialized
-if (!admin.apps.length && serviceAccount) {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    databaseURL: "https://truliq-default-rtdb.asia-southeast1.firebasedatabase.app/"
-  });
-  console.log('✅ Firebase Admin SDK initialized');
-}
+const {
+  getFirebaseCredentials,
+  registerRefreshHook
+} = require('./integrationConfigService');
 
 const NotificationLog = require('../models/NotificationLog');
 
-/**
- * Send push notification to multiple tokens
- * @param {string[]|Object} recipientOrTokens - Array of FCM tokens or a Mongoose Document (User/Worker/Vendor)
- * @param {Object} payload - Notification payload
- * @param {string} payload.title - Notification title
- * @param {string} payload.body - Notification body
- * @param {Object} payload.data - Additional data (optional)
- * @param {string} payload.notificationId - Custom unique ID for deduplication (optional)
- * @returns {Promise<Object>} - Response with success/failure counts
- */
+let initialized = false;
+let initFingerprint = '';
+
+const ensureFirebaseApp = async () => {
+  const creds = await getFirebaseCredentials();
+  const fingerprint = creds.projectId || '';
+  if (!creds.enabled || !creds.serviceAccount) {
+    initialized = false;
+    return false;
+  }
+
+  if (initialized && initFingerprint === fingerprint && admin.apps.length) {
+    return true;
+  }
+
+  if (admin.apps.length) {
+    try {
+      await Promise.all(admin.apps.map((app) => app.delete()));
+    } catch (err) {
+      console.warn('[Firebase] Failed to delete existing app:', err.message);
+    }
+  }
+
+  admin.initializeApp({
+    credential: admin.credential.cert(creds.serviceAccount),
+    databaseURL: creds.databaseUrl || 'https://truliq-default-rtdb.asia-southeast1.firebasedatabase.app/'
+  });
+
+  initialized = true;
+  initFingerprint = fingerprint;
+  return true;
+};
+
+registerRefreshHook(() => {
+  initialized = false;
+  initFingerprint = '';
+});
+
 async function sendPushNotification(recipientOrTokens, payload) {
   try {
-    // 1. Generate/Extract unique notification ID (SOP Step 4)
+    const ready = await ensureFirebaseApp();
+    if (!ready) {
+      console.log('[FCM] Firebase not configured');
+      return { successCount: 0, failureCount: 0 };
+    }
+
     const userId = (recipientOrTokens && recipientOrTokens._id) ? String(recipientOrTokens._id) : 'anonymous';
     const type = payload.data?.type || 'generic';
     const relatedId = payload.data?.bookingId || payload.data?.id || Date.now();
-    
-    // If notificationId is provided in payload, use it, otherwise generate one
     const notificationId = payload.notificationId || `${userId}_${type}_${relatedId}`;
 
-    // 2. Check NotificationLog (SOP Section 6, Step 4)
-    // Allow repeated tests to bypass dedupe
     if (notificationId !== 'test-notification') {
       const alreadySent = await NotificationLog.findOne({ notificationId });
       if (alreadySent) {
-        console.log(`[FCM] 🚫 Duplicate notification prevented: ${notificationId}`);
         return { successCount: 0, failureCount: 0, duplicate: true };
       }
     }
 
-    // 3. Extract tokens
     let tokens = [];
     let recipient = recipientOrTokens;
 
-    // If ID string is passed, try to fetch the user/worker/vendor
     if (typeof recipientOrTokens === 'string') {
       const Worker = require('../models/Worker');
       const User = require('../models/User');
       const Vendor = require('../models/Vendor');
-
-      // Try fetching from all 3 collections
       const [worker, user, vendor] = await Promise.all([
         Worker.findById(recipientOrTokens),
         User.findById(recipientOrTokens),
@@ -89,66 +85,40 @@ async function sendPushNotification(recipientOrTokens, payload) {
     if (Array.isArray(recipient)) {
       tokens = recipient;
     } else if (recipient && typeof recipient === 'object') {
-      const modelTokens = recipient.fcmTokens || [];
-      const mobileTokens = recipient.fcmTokenMobile || [];
-      const singleToken = recipient.fcmToken;
-      
-      tokens = [...modelTokens, ...mobileTokens];
-      if (singleToken) tokens.push(singleToken);
+      tokens = [...(recipient.fcmTokens || []), ...(recipient.fcmTokenMobile || [])];
+      if (recipient.fcmToken) tokens.push(recipient.fcmToken);
     }
 
-    if (!tokens || tokens.length === 0) {
-      console.log('[FCM] No tokens found for recipient');
-      return { successCount: 0, failureCount: 0 };
-    }
+    if (!tokens.length) return { successCount: 0, failureCount: 0 };
 
-    // Remove duplicates and empty values (Robust deduplication)
-    const uniqueTokens = Array.from(new Set(tokens.filter(t => t && typeof t === 'string' && t.trim().length > 0)));
+    const uniqueTokens = Array.from(new Set(tokens.filter((t) => t && typeof t === 'string' && t.trim())));
+    if (!uniqueTokens.length) return { successCount: 0, failureCount: 0 };
 
-
-    if (uniqueTokens.length === 0) {
-      console.log('No valid FCM tokens after filtering');
-      return { successCount: 0, failureCount: 0 };
-    }
-
-    // ✅ Build complete data payload (all as strings - FCM requirement)
     const stringData = {
       title: payload.title || 'App Notification',
       body: payload.body || 'New Update',
-      notificationId: String(notificationId),
+      notificationId: String(notificationId)
     };
     if (payload.data) {
-      Object.keys(payload.data).forEach(key => {
+      Object.keys(payload.data).forEach((key) => {
         stringData[key] = String(payload.data[key]);
       });
     }
-    // Always ensure these are set correctly
-    stringData.title = payload.title || 'App Notification';
-    stringData.body = payload.body || 'New Update';
-    stringData.notificationId = String(notificationId);
-    if (payload.icon) stringData.icon = payload.icon;
 
     const message = {
       data: stringData,
       tokens: uniqueTokens,
-
-      // Android: high priority
-      android: {
-        priority: 'high',
-      },
-
-      // WebPush: high urgency
+      android: { priority: 'high' },
       webpush: {
         headers: { Urgency: 'high', TTL: '86400' },
         fcmOptions: { link: payload.data?.link || '/' }
-      },
+      }
     };
 
-    // If NOT data-only, add the standard notification objects
     if (!payload.dataOnly) {
       message.notification = {
         title: payload.title || 'App Notification',
-        body: payload.body || 'New Update',
+        body: payload.body || 'New Update'
       };
       message.android.notification = {
         title: payload.title || 'App Notification',
@@ -160,16 +130,13 @@ async function sendPushNotification(recipientOrTokens, payload) {
         priority: 'high',
         visibility: 'public',
         defaultSound: true,
-        defaultVibrateTimings: true,
+        defaultVibrateTimings: true
       };
       message.apns = {
         headers: { 'apns-priority': '10', 'apns-push-type': 'alert' },
         payload: {
           aps: {
-            alert: {
-              title: payload.title || 'App Notification',
-              body: payload.body || 'New Update',
-            },
+            alert: { title: payload.title || 'App Notification', body: payload.body || 'New Update' },
             sound: 'default',
             badge: 1,
             'mutable-content': 1,
@@ -177,277 +144,139 @@ async function sendPushNotification(recipientOrTokens, payload) {
           }
         }
       };
-    } else {
-      // Data-only requires background push type for iOS
-      message.apns = {
-        headers: { 'apns-priority': '5', 'apns-push-type': 'background' },
-        payload: {
-          aps: {
-            'content-available': 1,
-          }
-        }
-      };
     }
-
-    // Log intent
-    console.log(`[FCM] Sending standard notification to ${uniqueTokens.length} tokens:`, payload.title);
 
     const response = await admin.messaging().sendEachForMulticast(message);
 
-    console.log(`✅ Push notification sent - Success: ${response.successCount}, Failed: ${response.failureCount}`);
-
-    // 4. Save log (LOCK) - SOP Section 6, Step 4
     if (response.successCount > 0) {
       try {
-        await NotificationLog.create({ 
-          notificationId, 
-          userId, 
-          tokens: uniqueTokens 
-        });
+        await NotificationLog.create({ notificationId, userId, tokens: uniqueTokens });
       } catch (logErr) {
-        // Ignore duplicate key error if another process just saved it
-        if (logErr.code !== 11000) console.error('[FCM Log Error]:', logErr);
+        if (logErr.code !== 11000) console.error('[FCM Log Error]:', logErr.message);
       }
     }
 
-    // Log failed tokens for debugging and cleanup invalid ones
     if (response.failureCount > 0) {
       const invalidTokens = [];
       response.responses.forEach((resp, idx) => {
         if (!resp.success) {
           const errorCode = resp.error?.code;
-          console.log(`❌ Failed token[${idx}]: ${errorCode} - ${resp.error?.message}`);
-
-          if (errorCode === 'messaging/registration-token-not-registered' ||
-            errorCode === 'messaging/invalid-registration-token') {
+          if (errorCode === 'messaging/registration-token-not-registered'
+            || errorCode === 'messaging/invalid-registration-token') {
             invalidTokens.push(uniqueTokens[idx]);
           }
         }
       });
-
-      // Cleanup invalid tokens
-      if (invalidTokens.length > 0) {
-        removeInvalidTokens(invalidTokens);
-      }
+      if (invalidTokens.length) removeInvalidTokens(invalidTokens);
     }
 
     return response;
   } catch (error) {
-    console.error('❌ Error sending push notification:', error);
+    console.error('❌ Error sending push notification:', error.message);
     throw error;
   }
 }
 
-/**
- * Remove invalid FCM tokens from all collections
- * @param {string[]} tokens - Array of invalid tokens to remove
- */
 async function removeInvalidTokens(tokens) {
   try {
-    console.log(`[FCM Cleanup] Removing ${tokens.length} invalid tokens...`);
     const User = require('../models/User');
     const Vendor = require('../models/Vendor');
     const Worker = require('../models/Worker');
-
     const updateQuery = {
-      $pull: {
-        fcmTokens: { $in: tokens },
-        fcmTokenMobile: { $in: tokens }
-      }
+      $pull: { fcmTokens: { $in: tokens }, fcmTokenMobile: { $in: tokens } }
     };
-
-    // We run updates in parallel for all collections as a token might belong to any
     await Promise.all([
       User.updateMany({ $or: [{ fcmTokens: { $in: tokens } }, { fcmTokenMobile: { $in: tokens } }] }, updateQuery),
       Vendor.updateMany({ $or: [{ fcmTokens: { $in: tokens } }, { fcmTokenMobile: { $in: tokens } }] }, updateQuery),
       Worker.updateMany({ $or: [{ fcmTokens: { $in: tokens } }, { fcmTokenMobile: { $in: tokens } }] }, updateQuery)
     ]);
-
-    console.log('[FCM Cleanup] ✅ Invalid tokens removed from database');
   } catch (err) {
-    console.error('[FCM Cleanup] ❌ Error removing tokens:', err);
+    console.error('[FCM Cleanup] Error:', err.message);
   }
 }
 
-/**
- * Send notification to a specific user
- * @param {string} userId - User's MongoDB _id
- * @param {Object} payload - Notification payload
- * @param {boolean} includeMobile - Include mobile tokens (default: true)
- */
 async function sendNotificationToUser(userId, payload, includeMobile = true) {
   try {
     const User = require('../models/User');
     const user = await User.findById(userId);
+    if (!user) return;
 
-    if (!user) {
-      console.log(`[FCM] ❌ User not found for notification: ${userId}`);
-      return;
-    }
+    let tokens = [...(user.fcmTokens || [])];
+    if (includeMobile && user.fcmTokenMobile?.length) tokens.push(...user.fcmTokenMobile);
 
-    let tokens = [];
-    if (user.fcmTokens && user.fcmTokens.length > 0) {
-      tokens = [...tokens, ...user.fcmTokens];
-    }
-    if (includeMobile && user.fcmTokenMobile && user.fcmTokenMobile.length > 0) {
-      tokens = [...tokens, ...user.fcmTokenMobile];
-    }
+    if (!tokens.length) return;
 
-    if (tokens.length === 0) {
-      console.log(`[FCM] ⚠️ No FCM tokens found for user: ${userId}`);
-      return;
-    }
-
-    console.log(`[FCM] 📤 Sending notification to user ${user.name} (${userId}) on ${tokens.length} devices`);
-
-    // Add priority and sound for user notifications too
-    const finalPayload = {
+    await sendPushNotification(tokens, {
       ...payload,
-      highPriority: payload.priority === 'high' ||
-        ['booking_accepted', 'worker_started', 'journey_started', 'work_done', 'work_completed', 'booking_completed', 'vendor_reached', 'visit_verified', 'payment_success', 'payment_received', 'work_started', 'in_progress', 'worker_accepted'].includes(payload.data?.type),
-      dataOnly: false // Explicitly disable dataOnly to force system tray notification
-    };
-
-    await sendPushNotification(tokens, finalPayload);
+      highPriority: payload.priority === 'high',
+      dataOnly: false
+    });
   } catch (error) {
-    console.error(`[FCM] ❌ Error sending notification to user ${userId}:`, error);
+    console.error(`[FCM] Error sending notification to user ${userId}:`, error.message);
   }
 }
 
-/**
- * Send notification to a specific vendor
- * @param {string} vendorId - Vendor's MongoDB _id
- * @param {Object} payload - Notification payload
- * @param {boolean} includeMobile - Include mobile tokens (default: true)
- */
 async function sendNotificationToVendor(vendorId, payload, includeMobile = true) {
   try {
     const Vendor = require('../models/Vendor');
     const vendor = await Vendor.findById(vendorId);
+    if (!vendor) return;
 
-    if (!vendor) {
-      console.log(`[FCM] ❌ Vendor not found for notification: ${vendorId}`);
-      return;
-    }
+    let tokens = [...(vendor.fcmTokens || [])];
+    if (includeMobile && vendor.fcmTokenMobile?.length) tokens.push(...vendor.fcmTokenMobile);
+    if (!tokens.length) return;
 
-    let tokens = [];
-    if (vendor.fcmTokens && vendor.fcmTokens.length > 0) {
-      tokens = [...tokens, ...vendor.fcmTokens];
-    }
-    if (includeMobile && vendor.fcmTokenMobile && vendor.fcmTokenMobile.length > 0) {
-      tokens = [...tokens, ...vendor.fcmTokenMobile];
-    }
-
-    if (tokens.length === 0) {
-      console.log(`[FCM] ⚠️ No FCM tokens found for vendor: ${vendorId}`);
-      return;
-    }
-
-    console.log(`[FCM] 📤 Sending notification to vendor ${vendor.businessName || vendor.name} (${vendorId}) on ${tokens.length} devices`);
-
-    const finalPayload = {
+    await sendPushNotification(tokens, {
       ...payload,
-      title: `🏢 [Partner] ${payload.title}`, // Add identification
-      dataOnly: false // false = OS shows notification when killed/background + onMessage fires in foreground
-    };
-
-    await sendPushNotification(tokens, finalPayload);
+      title: `🏢 [Partner] ${payload.title}`,
+      dataOnly: false
+    });
   } catch (error) {
-    console.error(`[FCM] ❌ Error sending notification to vendor ${vendorId}:`, error);
+    console.error(`[FCM] Error sending notification to vendor ${vendorId}:`, error.message);
   }
 }
 
-/**
- * Send notification to a specific worker
- * @param {string} workerId - Worker's MongoDB _id
- * @param {Object} payload - Notification payload
- * @param {boolean} includeMobile - Include mobile tokens (default: true)
- */
 async function sendNotificationToWorker(workerId, payload, includeMobile = true) {
   try {
     const Worker = require('../models/Worker');
     const worker = await Worker.findById(workerId);
+    if (!worker) return;
 
-    if (!worker) {
-      console.log(`[FCM] ❌ Worker not found for notification: ${workerId}`);
-      return;
-    }
+    let tokens = [...(worker.fcmTokens || [])];
+    if (includeMobile && worker.fcmTokenMobile?.length) tokens.push(...worker.fcmTokenMobile);
+    if (!tokens.length) return;
 
-    let tokens = [];
-    if (worker.fcmTokens && worker.fcmTokens.length > 0) {
-      tokens = [...tokens, ...worker.fcmTokens];
-    }
-    if (includeMobile && worker.fcmTokenMobile && worker.fcmTokenMobile.length > 0) {
-      tokens = [...tokens, ...worker.fcmTokenMobile];
-    }
-
-    if (tokens.length === 0) {
-      console.log(`[FCM] ⚠️ No FCM tokens found for worker: ${workerId}`);
-      return;
-    }
-
-    console.log(`[FCM] 📤 Sending notification to worker ${worker.name} (${workerId}) on ${tokens.length} devices`);
-
-    const finalPayload = {
+    await sendPushNotification(tokens, {
       ...payload,
-      title: `👷 [Pro] ${payload.title}`, // Add identification
-      dataOnly: false // Allow OS system notification + sound for workers
-    };
-
-    await sendPushNotification(tokens, finalPayload);
+      title: `👷 [Pro] ${payload.title}`,
+      dataOnly: false
+    });
   } catch (error) {
-    console.error(`[FCM] ❌ Error sending notification to worker ${workerId}:`, error);
+    console.error(`[FCM] Error sending notification to worker ${workerId}:`, error.message);
   }
 }
 
-/**
- * Send notification to a specific admin
- * @param {string} adminId - Admin's MongoDB _id
- * @param {Object} payload - Notification payload
- * @param {boolean} includeMobile - Include mobile tokens (default: true)
- */
 async function sendNotificationToAdmin(adminId, payload, includeMobile = true) {
   try {
-    const User = require('../models/User'); // Use User model for admin too as they share collection or separate Admin model?
+    const Admin = require('../models/Admin');
+    const adminUser = await Admin.findById(adminId);
+    if (!adminUser) return;
 
-    let adminUser = null;
-    try {
-      const Admin = require('../models/Admin');
-      adminUser = await Admin.findById(adminId);
-    } catch (e) {
-      // If Admin model doesn't exist, try User model with role check?
-      // Or maybe adminId refers to a User document.
-      const User = require('../models/User');
-      adminUser = await User.findById(adminId);
-    }
+    let tokens = [...(adminUser.fcmTokens || [])];
+    if (includeMobile && adminUser.fcmTokenMobile?.length) tokens.push(...adminUser.fcmTokenMobile);
+    if (!tokens.length) return;
 
-    if (!adminUser) {
-      console.log(`Admin not found: ${adminId}`);
-      return;
-    }
-
-    let tokens = [];
-    if (adminUser.fcmTokens && adminUser.fcmTokens.length > 0) {
-      tokens = [...tokens, ...adminUser.fcmTokens];
-    }
-    if (includeMobile && adminUser.fcmTokenMobile && adminUser.fcmTokenMobile.length > 0) {
-      tokens = [...tokens, ...adminUser.fcmTokenMobile];
-    }
-
-    console.log(`[FCM] 📤 Sending notification to admin (${adminId}) on ${tokens.length} devices`);
-
-    const finalPayload = {
+    await sendPushNotification(tokens, {
       ...payload,
-      title: `🛡️ [Admin] ${payload.title}` // Add identification
-    };
-
-    await sendPushNotification(tokens, finalPayload);
+      title: `🛡️ [Admin] ${payload.title}`
+    });
   } catch (error) {
-    console.error(`[FCM] ❌ Error sending notification to admin ${adminId}:`, error);
+    console.error(`[FCM] Error sending notification to admin ${adminId}:`, error.message);
   }
 }
 
 module.exports = {
+  ensureFirebaseApp,
   sendPushNotification,
   sendNotificationToUser,
   sendNotificationToVendor,

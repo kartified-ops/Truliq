@@ -160,6 +160,15 @@
     "children": []
   },
   {
+    "title": "Promotional Offers",
+    "route": "/admin/promotional-offers",
+    "allowedRoles": [
+      "super_admin",
+      "admin"
+    ],
+    "children": []
+  },
+  {
     "title": "Legal",
     "route": "/admin/legal",
     "allowedRoles": [
@@ -178,6 +187,10 @@
       "super_admin",
       "admin"
     ],
-    "children": []
+    "children": [
+      "Business Settings",
+      "App Settings",
+      "Third-party Settings"
+    ]
   }
 ]

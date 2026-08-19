@@ -48,8 +48,16 @@ const createOrUpdateBill = async (req, res) => {
     // Check if it's a Direct Worker flow to apply 100% payout
     const isDirectWorkerFlow = booking.bookingModel === 'worker';
 
-    const serviceSplitPct = isDirectWorkerFlow ? 100 : (settings?.servicePayoutPercentage ?? DEFAULT_SERVICE_PAYOUT_PCT);
-    const partsSplitPct = isDirectWorkerFlow ? 100 : (settings?.partsPayoutPercentage ?? 10);
+    const { getWorkerServiceSplitPct } = require('../../services/promotionalOfferService');
+    const existingServiceSplit = isDirectWorkerFlow ? 100 : (settings?.servicePayoutPercentage ?? DEFAULT_SERVICE_PAYOUT_PCT);
+    const existingPartsSplit = isDirectWorkerFlow ? 100 : (settings?.partsPayoutPercentage ?? 10);
+    const serviceSplitPct = isDirectWorkerFlow
+      ? await getWorkerServiceSplitPct({
+        workerId: booking.workerId,
+        existingSplitPct: existingServiceSplit
+      })
+      : existingServiceSplit;
+    const partsSplitPct = isDirectWorkerFlow ? 100 : existingPartsSplit;
     const serviceGstPct = 0;
     const partsGstPct = 0;
 

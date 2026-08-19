@@ -622,10 +622,16 @@ const Dashboard = () => {
 
                   <div className="flex items-center gap-1.5 shrink-0">
                     {/* Status Badge */}
-                    {subData.statusType === 'active' && (
+                    {subData.statusType === 'active' && !subscriptionStatus?.promotionalOffer?.isPausedToday && (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                         Active
+                      </span>
+                    )}
+                    {subData.statusType === 'active' && subscriptionStatus?.promotionalOffer?.isPausedToday && (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200/80">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                        Active · Paused
                       </span>
                     )}
                     {subData.statusType === 'expiring' && (
@@ -673,6 +679,24 @@ const Dashboard = () => {
                     </button>
                   )}
                 </div>
+
+                {subscriptionStatus?.promotionalOffer?.isActive && (
+                  <div className="mb-2 p-2 rounded-lg bg-amber-50 border border-amber-200/70">
+                    <p className="text-[11px] font-bold text-amber-800">
+                      🎉 {subscriptionStatus.promotionalOffer.name || 'Festival Offer'} · Free Platform Fee
+                    </p>
+                    {subscriptionStatus.promotionalOffer.isPausedToday && (
+                      <p className="text-[10px] text-amber-700 mt-0.5">
+                        Subscription paused today · Promotional offer active · Today's platform fee ₹0
+                      </p>
+                    )}
+                    {subscriptionStatus.promotionalOffer.endDate && (
+                      <p className="text-[10px] text-amber-700 mt-0.5">
+                        Offer active until {new Date(subscriptionStatus.promotionalOffer.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {/* Subscription Details (Show if active, expiring, or has past plan history) */}
                 {(subData.isActive || subData.startDateFormatted !== 'N/A' || subData.endDateFormatted !== 'N/A') && (
