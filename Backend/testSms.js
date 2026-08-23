@@ -1,4 +1,4 @@
-zrequire('dotenv').config();
+require('dotenv').config();
 const { sendOTP } = require('./services/smsService');
 
 async function test() {
