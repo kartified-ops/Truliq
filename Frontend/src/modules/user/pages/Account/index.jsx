@@ -419,6 +419,11 @@ const Account = () => {
               label="Help & Support"
               onClick={() => navigate('/user/help-support')}
             />
+            <MenuItem
+              icon={FiZap}
+              label="Test Button"
+              onClick={() => toast('Test Button clicked')}
+            />
             <motion.button
               whileTap={{ scale: 0.98 }}
               onClick={() => navigate('/user/about-Truliq')}
