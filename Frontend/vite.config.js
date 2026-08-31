@@ -65,7 +65,5 @@ export default defineConfig({
       'react-router-dom',
     ],
   },
-<<<<<<< HEAD
 })
-=======
-});																																																																																																																																																																																																																
+
