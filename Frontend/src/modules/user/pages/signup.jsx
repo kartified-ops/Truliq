@@ -232,45 +232,46 @@ const Signup = () => {
   const brandColor = themeColors.brand?.teal || '#347989';
 
   return (
-    <div className="min-h-[100dvh] bg-gray-50 flex flex-col justify-start sm:justify-center py-12 sm:px-6 lg:px-8 relative overflow-x-hidden">
+  return (
+    <div className="min-h-[100dvh] bg-gray-50 flex flex-col justify-between py-6 sm:py-10 px-4 sm:px-6 lg:px-8 relative overflow-x-hidden overflow-y-auto">
       {/* Decorative Background Elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[#347989] opacity-[0.03] rounded-full blur-3xl animate-floating" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[#D68F35] opacity-[0.03] rounded-full blur-3xl animate-floating" style={{ animationDelay: '2s' }} />
       </div>
 
-      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center mb-8 relative z-10 animate-fade-in">
-        <Logo className="h-16 w-auto transform hover:scale-110 transition-transform duration-500 mx-auto" />
-        <h2 className="mt-4 text-3xl font-extrabold text-gray-900 tracking-tight">
-          {step === 'details' ? 'Create Account' : 'Verify Phone'}
-        </h2>
-        <p className="mt-2 text-sm text-gray-600 animate-stagger-1 animate-fade-in">
-          {step === 'details' ? 'Join Truliq to start booking services' : `We've sent a 6-digit code to ${formData.phoneNumber}`}
-        </p>
+      <div className="w-full max-w-md mx-auto relative z-10 flex-1 flex flex-col justify-center my-auto">
+        <div className="text-center mb-6 animate-fade-in">
+          <Logo className="h-14 sm:h-16 w-auto transform hover:scale-110 transition-transform duration-500 mx-auto" />
+          <h2 className="mt-3 sm:mt-4 text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
+            {step === 'details' ? 'Create Account' : 'Verify Phone'}
+          </h2>
+          <p className="mt-1.5 sm:mt-2 text-xs sm:text-sm text-gray-600 animate-stagger-1 animate-fade-in">
+            {step === 'details' ? 'Join Truliq to start booking services' : `We've sent a 6-digit code to ${formData.phoneNumber}`}
+          </p>
 
-        {/* Premium Team Illustration */}
-        {step === 'details' && (
-          <div className="mt-6 flex justify-center">
-            <img 
-              src={signupTeamImg} 
-              alt="Our Team" 
-              className="w-56 h-auto rounded-2xl shadow-xl border border-gray-100"
-            />
-          </div>
-        )}
-      </div>
+          {/* Premium Team Illustration */}
+          {step === 'details' && (
+            <div className="mt-4 sm:mt-6 flex justify-center">
+              <img 
+                src={signupTeamImg} 
+                alt="Our Team" 
+                className="w-40 sm:w-56 h-auto rounded-2xl shadow-lg border border-gray-100 max-h-40 sm:max-h-52 object-cover"
+              />
+            </div>
+          )}
+        </div>
 
-      <div className="sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0 relative z-10">
-        <div className="bg-white py-8 px-4 shadow-2xl shadow-gray-200/50 sm:rounded-2xl sm:px-10 border border-gray-100 relative overflow-hidden animate-slide-in-bottom">
+        <div className="bg-white py-6 sm:py-8 px-4 sm:px-8 shadow-2xl shadow-gray-200/50 rounded-2xl border border-gray-100 relative overflow-hidden animate-slide-in-bottom">
           <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#347989] via-[#D68F35] to-[#BB5F36]" />
 
           {step === 'details' ? (
-            <form onSubmit={handleDetailsSubmit} className="space-y-6" noValidate>
+            <form onSubmit={handleDetailsSubmit} className="space-y-5" noValidate>
               {verificationToken && (
                 <button
                   type="button"
                   onClick={() => navigate('/user/login')}
-                  className="flex items-center text-sm text-gray-500 hover:text-[#347989] transition-colors mb-4 animate-fade-in"
+                  className="flex items-center text-sm text-gray-500 hover:text-[#347989] transition-colors mb-2 animate-fade-in"
                 >
                   <FiChevronLeft className="mr-1" /> Back to Login
                 </button>
@@ -296,7 +297,7 @@ const Signup = () => {
                       handleInputChange({ target: { name: 'name', value: val } });
                     }}
                     onFocus={handleFocus}
-                    className={`block w-full pl-10 pr-4 py-3 border ${errors.name ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300'} rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-300 hover:border-gray-400`}
+                    className={`block w-full pl-10 pr-4 py-3 border ${errors.name ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300'} rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-300 hover:border-gray-400 text-sm`}
                     placeholder="Enter your name"
                     style={{ '--tw-ring-color': brandColor }}
                   />
@@ -319,7 +320,7 @@ const Signup = () => {
                     value={formData.email}
                     onChange={handleInputChange}
                     onFocus={handleFocus}
-                    className={`block w-full pl-10 pr-4 py-3 border ${errors.email ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300'} rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-300 hover:border-gray-400`}
+                    className={`block w-full pl-10 pr-4 py-3 border ${errors.email ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300'} rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-300 hover:border-gray-400 text-sm`}
                     placeholder="you@example.com"
                     style={{ '--tw-ring-color': brandColor }}
                   />
@@ -337,7 +338,7 @@ const Signup = () => {
                       <FiPhone className="h-5 w-5 text-gray-400" />
                     </div>
                     <div className="absolute inset-y-0 left-10 flex items-center pointer-events-none">
-                      <span className="text-gray-500 font-medium border-r border-gray-300 pr-2">+91</span>
+                      <span className="text-gray-500 font-medium border-r border-gray-300 pr-2 text-sm">+91</span>
                     </div>
                     <input
                       id="phoneNumber"
@@ -346,11 +347,11 @@ const Signup = () => {
                       required
                       value={formData.phoneNumber}
                       onChange={(e) => {
-                        const val = e.target.value.replace(/\\D/g, '').slice(0, 10);
+                        const val = e.target.value.replace(/\D/g, '').slice(0, 10);
                         handleInputChange({ target: { name: 'phoneNumber', value: val } });
                       }}
                       onFocus={handleFocus}
-                      className={`block w-full pl-24 pr-4 py-3 border ${errors.phoneNumber ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300'} rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-300 hover:border-gray-400`}
+                      className={`block w-full pl-24 pr-4 py-3 border ${errors.phoneNumber ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300'} rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-300 hover:border-gray-400 text-sm`}
                       placeholder="9876543210"
                       style={{ '--tw-ring-color': brandColor }}
                     />
@@ -359,11 +360,11 @@ const Signup = () => {
                 </div>
               )}
 
-              <div className="animate-stagger-4 animate-fade-in">
+              <div className="animate-stagger-4 animate-fade-in pt-1">
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="group relative w-full flex justify-center py-3.5 px-4 border border-transparent text-sm font-bold rounded-xl text-white transition-all duration-500 shadow-lg hover:shadow-xl hover:-translate-y-1 transform disabled:opacity-50 disabled:cursor-not-allowed  overflow-hidden"
+                  className="group relative w-full flex justify-center py-3.5 px-4 border border-transparent text-sm font-bold rounded-xl text-white transition-all duration-500 shadow-lg hover:shadow-xl hover:-translate-y-1 transform disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
                   style={{
                     backgroundColor: '#000000',
                     boxShadow: `0 10px 15px -3px rgba(0, 0, 0, 0.3)`
@@ -443,7 +444,7 @@ const Signup = () => {
                   <button
                     type="submit"
                     disabled={isLoading || otp.join('').length !== 6}
-                    className="group relative w-full flex justify-center py-3.5 px-4 border border-transparent text-sm font-bold rounded-xl text-white transition-all duration-500 shadow-lg hover:shadow-xl hover:-translate-y-1 transform disabled:opacity-50 disabled:cursor-not-allowed  overflow-hidden"
+                    className="group relative w-full flex justify-center py-3.5 px-4 border border-transparent text-sm font-bold rounded-xl text-white transition-all duration-500 shadow-lg hover:shadow-xl hover:-translate-y-1 transform disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
                     style={{
                       backgroundColor: '#000000',
                       boxShadow: `0 10px 15px -3px rgba(0, 0, 0, 0.3)`
@@ -465,12 +466,16 @@ const Signup = () => {
           )}
         </div>
 
-        <p className="fixed bottom-4 left-0 w-full text-center text-sm text-gray-500 animate-fade-in animate-stagger-5">
+        <p className="mt-6 text-center text-sm text-gray-500 animate-fade-in animate-stagger-5">
           Already have an account?{' '}
           <Link to="/user/login" className="font-semibold text-[#347989] hover:text-[#D68F35] transition-colors duration-300">
             Sign in
           </Link>
         </p>
+      </div>
+
+      <div className="w-full text-center text-xs text-gray-400 mt-6 pb-2">
+        &copy; {new Date().getFullYear()} Truliq. All rights reserved.
       </div>
     </div>
   );

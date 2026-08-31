@@ -213,41 +213,41 @@ const Login = () => {
   const brandColor = themeColors.brand?.teal || '#347989';
 
   return (
-    <div className="min-h-[100dvh] bg-gray-50 flex flex-col justify-start sm:justify-center py-12 sm:px-6 lg:px-8 relative overflow-x-hidden">
+    <div className="min-h-[100dvh] bg-gray-50 flex flex-col justify-between py-6 sm:py-10 px-4 sm:px-6 lg:px-8 relative overflow-x-hidden overflow-y-auto">
       {/* Decorative Background Elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[#347989] opacity-[0.03] rounded-full blur-3xl animate-floating" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[#D68F35] opacity-[0.03] rounded-full blur-3xl animate-floating" style={{ animationDelay: '2s' }} />
       </div>
 
-      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center mb-8 relative z-10 animate-fade-in">
-        <div className="flex justify-center mb-6">
-          <Logo className="h-16 w-auto transform hover:scale-110 transition-transform duration-500" />
-        </div>
-        <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">
-          {step === 'phone' ? 'Sign in to account' : 'Verify your phone'}
-        </h2>
-        <p className="mt-2 text-sm text-gray-600 animate-stagger-1 animate-fade-in">
-          {step === 'phone'
-            ? 'Enter your mobile number to get started'
-            : `We've sent a code to +91 ${phoneNumber}`
-          }
-        </p>
-
-        {/* Premium Service Providers Illustration */}
-        {step === 'phone' && (
-          <div className="mt-6 flex justify-center">
-            <img
-              src={serviceProvidersImg}
-              alt="Service Providers"
-              className="w-56 h-auto rounded-2xl shadow-xl border border-gray-100"
-            />
+      <div className="w-full max-w-md mx-auto relative z-10 flex-1 flex flex-col justify-center my-auto">
+        <div className="text-center mb-6 animate-fade-in">
+          <div className="flex justify-center mb-4 sm:mb-6">
+            <Logo className="h-14 sm:h-16 w-auto transform hover:scale-110 transition-transform duration-500" />
           </div>
-        )}
-      </div>
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
+            {step === 'phone' ? 'Sign in to account' : 'Verify your phone'}
+          </h2>
+          <p className="mt-1.5 sm:mt-2 text-xs sm:text-sm text-gray-600 animate-stagger-1 animate-fade-in">
+            {step === 'phone'
+              ? 'Enter your mobile number to get started'
+              : `We've sent a code to +91 ${phoneNumber}`
+            }
+          </p>
 
-      <div className="sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0 relative z-10">
-        <div className="bg-white py-8 px-4 shadow-2xl shadow-gray-200/50 sm:rounded-2xl sm:px-10 border border-gray-100 relative overflow-hidden animate-slide-in-bottom">
+          {/* Premium Service Providers Illustration */}
+          {step === 'phone' && (
+            <div className="mt-4 sm:mt-6 flex justify-center">
+              <img
+                src={serviceProvidersImg}
+                alt="Service Providers"
+                className="w-40 sm:w-56 h-auto rounded-2xl shadow-lg border border-gray-100 max-h-40 sm:max-h-52 object-cover"
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="bg-white py-6 sm:py-8 px-4 sm:px-8 shadow-2xl shadow-gray-200/50 rounded-2xl border border-gray-100 relative overflow-hidden animate-slide-in-bottom">
           <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#347989] via-[#D68F35] to-[#BB5F36]" />
 
           {step === 'phone' ? (
@@ -432,7 +432,7 @@ const Login = () => {
         </div>
       </div>
 
-      <div className="fixed bottom-4 left-0 w-full text-center text-xs text-gray-400 animate-fade-in animate-stagger-4">
+      <div className="w-full text-center text-xs text-gray-400 mt-6 pb-2">
         &copy; {new Date().getFullYear()} Truliq. All rights reserved.
       </div>
       <DebugConsole />
