@@ -366,25 +366,37 @@ const resolveConfig = async (serviceName, { skipCache = false } = {}) => {
   }
 
   const dbDoc = await getDbConfig(serviceKey);
+  const envConfig = getEnvFallback(serviceKey);
+  const isDbEnabled = dbDoc && dbDoc.enabled !== false && dbDoc.isActive !== false;
   let resolved;
 
-  if (dbDoc && ((dbDoc.credentials && Object.keys(dbDoc.credentials).length)
+  if (isDbEnabled && ((dbDoc.credentials && Object.keys(dbDoc.credentials).length)
     || dbDoc.configuration?.providerProfiles)) {
     const configuration = dbDoc.configuration || {};
     const activeProvider = resolveActiveProvider({ ...dbDoc, configuration }, serviceKey);
-    const credentials = resolveActiveCredentials({
+    const dbCreds = resolveActiveCredentials({
       ...dbDoc,
       configuration,
       provider: activeProvider
     }, serviceKey);
 
+    const envCreds = envConfig ? resolveActiveCredentials(envConfig, serviceKey) : {};
+    const mergedCreds = { ...envCreds };
+    Object.keys(dbCreds).forEach(k => {
+      if (dbCreds[k] !== undefined && dbCreds[k] !== null && dbCreds[k] !== '') {
+        mergedCreds[k] = dbCreds[k];
+      }
+    });
+
+    const hasAnyCreds = Object.values(mergedCreds).some(v => !!v);
+
     resolved = {
       serviceName: serviceKey,
       provider: activeProvider,
-      enabled: dbDoc.enabled !== false,
+      enabled: true,
       environment: dbDoc.environment || 'production',
-      isActive: dbDoc.isActive !== false,
-      credentials,
+      isActive: true,
+      credentials: hasAnyCreds ? mergedCreds : dbCreds,
       configuration,
       lastTestedAt: dbDoc.lastTestedAt,
       lastTestStatus: dbDoc.lastTestStatus,
@@ -393,14 +405,14 @@ const resolveConfig = async (serviceName, { skipCache = false } = {}) => {
       source: 'database'
     };
   } else {
-    const envConfig = getEnvFallback(serviceKey);
     if (envConfig) {
       const activeProvider = resolveActiveProvider(envConfig, serviceKey);
       resolved = {
         serviceName: serviceKey,
         ...envConfig,
         provider: activeProvider,
-        credentials: resolveActiveCredentials(envConfig, serviceKey)
+        credentials: resolveActiveCredentials(envConfig, serviceKey),
+        source: 'env'
       };
     } else {
       resolved = null;
@@ -615,6 +627,7 @@ const serializeIntegration = async (serviceName) => {
     provider: activeProvider,
     activeProvider,
     providers: def.catalog.providers,
+    dbEnabled: dbDoc ? (dbDoc.enabled !== false && dbDoc.isActive !== false) : false,
     enabled: resolved?.enabled !== false,
     environment: dbDoc?.environment || envFallback?.environment || 'production',
     isActive: dbDoc?.isActive !== false,

@@ -450,7 +450,7 @@ const CategoriesPage = ({ catalog, setCatalog, selectedCity }) => {
             <table className="w-full">
               <thead>
                 <tr className="border-b-2 border-gray-200">
-                  <th className="text-left py-3 px-4 text-sm font-bold text-gray-700 w-12">#</th>
+                  <th className="text-left py-3 px-4 text-sm font-bold text-gray-700 w-24">Serial No.</th>
                   <th className="text-left py-3 px-4 text-sm font-bold text-gray-700 w-20">Icon</th>
                   <th className="text-left py-3 px-4 text-sm font-bold text-gray-700">Name</th>
                   <th className="text-left py-3 px-4 text-sm font-bold text-gray-700">Slug</th>

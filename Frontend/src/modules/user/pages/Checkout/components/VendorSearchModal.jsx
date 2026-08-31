@@ -19,7 +19,11 @@ const VendorSearchModal = ({ isOpen, onClose, currentStep, acceptedVendor, onRet
       let initialTime = 120;
       if (createdAt) {
         const elapsed = Math.floor((Date.now() - new Date(createdAt).getTime()) / 1000);
-        initialTime = Math.max(0, 120 - elapsed);
+        if (elapsed >= 0 && elapsed < 120) {
+          initialTime = 120 - elapsed;
+        } else {
+          initialTime = 120;
+        }
       }
       setTimeLeft(initialTime);
 
@@ -101,7 +105,7 @@ const VendorSearchModal = ({ isOpen, onClose, currentStep, acceptedVendor, onRet
             <div className="text-center relative z-20 px-4 mb-4">
               <h3 className="text-xl font-black text-gray-900 mb-2">Searching nearby {bookingModel === 'worker' ? 'workers' : 'vendors'}</h3>
               <p className="text-gray-500 text-xs font-bold leading-relaxed mb-1">
-                Please wait for a few minutes (2-3 minutes){dots}
+                Please wait ({Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}){dots}
               </p>
               <p className="text-gray-400 text-[10px] font-medium leading-relaxed">
                 This window will close automatically if no worker is assigned.

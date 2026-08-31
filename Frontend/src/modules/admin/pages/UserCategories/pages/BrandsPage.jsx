@@ -377,7 +377,7 @@ const BrandsPage = ({ catalog, setCatalog, selectedCity }) => {
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="text-left py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-12">#</th>
+                  <th className="text-left py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-24">Serial No.</th>
                   <th className="text-left py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-20">Icon</th>
                   <th className="text-left py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Name</th>
                   <th className="text-left py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Categories</th>

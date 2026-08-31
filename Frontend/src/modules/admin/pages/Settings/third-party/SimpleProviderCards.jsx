@@ -7,6 +7,7 @@ import {
   saveIntegration,
   testIntegration,
   switchActiveProvider,
+  toggleIntegration,
   revealIntegrationSecret
 } from '../../../services/integrationService';
 
@@ -473,6 +474,7 @@ const SimpleProviderCards = ({ serviceName, title, description }) => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [adding, setAdding] = useState(false);
+  const [toggling, setToggling] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -494,6 +496,20 @@ const SimpleProviderCards = ({ serviceName, title, description }) => {
   }, [serviceName]);
 
   useEffect(() => { load(); }, [load]);
+
+  const handleToggleDbEnabled = async () => {
+    const nextState = !integration?.dbEnabled;
+    setToggling(true);
+    try {
+      await toggleIntegration(serviceName, nextState);
+      toast.success(nextState ? 'Database integration enabled' : 'Database integration disabled (Using .env fallback)');
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update integration status');
+    } finally {
+      setToggling(false);
+    }
+  };
 
   if (loading) return <div className="py-16 text-center text-slate-400">Loading…</div>;
 
@@ -537,6 +553,53 @@ const SimpleProviderCards = ({ serviceName, title, description }) => {
           className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 shrink-0">
           <FiPlus size={14} /> Add Provider
         </button>
+      </div>
+
+      {/* Database Integration Active vs .env Fallback Banner with Toggle */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className={`w-3.5 h-3.5 rounded-full ${integration?.dbEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-bold text-slate-800">
+                {integration?.dbEnabled ? 'Database Integration Active' : 'Fallback Mode: Reading from .env'}
+              </span>
+              <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full uppercase ${
+                integration?.dbEnabled
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : 'bg-amber-50 text-amber-700 border border-amber-200'
+              }`}>
+                {integration?.dbEnabled ? 'DATABASE ENABLED' : 'USING .ENV'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {integration?.dbEnabled
+                ? 'The platform is actively using credentials configured below in this panel.'
+                : 'Database configuration is disabled. The platform is automatically using credentials from your server .env file.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+          <span className="text-xs font-semibold text-slate-600">
+            {integration?.dbEnabled ? 'Enabled' : 'Disabled'}
+          </span>
+          <button
+            type="button"
+            onClick={handleToggleDbEnabled}
+            disabled={toggling}
+            aria-label="Toggle Database Integration"
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 ${
+              integration?.dbEnabled ? 'bg-emerald-600' : 'bg-slate-300'
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                integration?.dbEnabled ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center gap-3 bg-white rounded-xl border border-slate-200 px-4 py-3">
