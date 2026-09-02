@@ -232,7 +232,6 @@ const Signup = () => {
   const brandColor = themeColors.brand?.teal || '#347989';
 
   return (
-  return (
     <div className="min-h-[100dvh] bg-gray-50 flex flex-col justify-between py-6 sm:py-10 px-4 sm:px-6 lg:px-8 relative overflow-x-hidden overflow-y-auto">
       {/* Decorative Background Elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
