@@ -419,11 +419,6 @@ const Account = () => {
               label="Help & Support"
               onClick={() => navigate('/user/help-support')}
             />
-            <MenuItem
-              icon={FiZap}
-              label="Test Button"
-              onClick={() => toast('Test Button clicked')}
-            />
             <motion.button
               whileTap={{ scale: 0.98 }}
               onClick={() => navigate('/user/about-Truliq')}
@@ -468,21 +463,7 @@ const Account = () => {
               <span>Delete Account</span>
             </motion.button>
 
-            <motion.button
-              whileTap={{ scale: 0.98 }}
-              onClick={() => toast('Test Button clicked')}
-              className="w-full flex items-center justify-center gap-2 p-4 bg-white border border-gray-200 hover:bg-gray-50 active:bg-gray-100 text-gray-600 font-bold tracking-wide rounded-2xl transition-all mb-3"
-            >
-              <span>Test Button</span>
-            </motion.button>
 
-            <motion.button
-              whileTap={{ scale: 0.98 }}
-              onClick={() => toast('Test App')}
-              className="w-full flex items-center justify-center gap-2 p-4 bg-white border border-gray-200 hover:bg-gray-50 active:bg-gray-100 text-gray-600 font-bold tracking-wide rounded-2xl transition-all mb-3"
-            >
-              <span>Test App</span>
-            </motion.button>
           </motion.div>
 
           <motion.div variants={itemVariants} className="text-center pb-8">
