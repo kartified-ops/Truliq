@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { FiX, FiPlus, FiTrash2, FiCreditCard, FiClock, FiCheck, FiDollarSign, FiPlusCircle } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 
@@ -169,15 +170,15 @@ const CashCollectionModal = ({
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === 'undefined') return null;
 
-  return (
-    <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity overflow-hidden">
       {/* Modal Container */}
       <div className={`
         bg-white w-full max-w-md rounded-3xl overflow-hidden shadow-2xl
         animate-in slide-in-from-bottom-4 duration-300
-        max-h-[85vh] sm:max-h-[90vh] flex flex-col mb-24
+        max-h-[85vh] sm:max-h-[90vh] flex flex-col
       `}>  {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 flex-shrink-0">
           <div>
@@ -390,7 +391,8 @@ const CashCollectionModal = ({
           </p>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

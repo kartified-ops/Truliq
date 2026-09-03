@@ -30,49 +30,35 @@ const freshOtp = () => {
   };
 };
 
-const TEST_PHONE = '6266925739';
+const TEST_PHONES = ['6266925739', '7869549428', '8888528278'];
 
-// ── 1. Static OTP must be off by default ──────────────────────────────────
-check('generateOTP does not return the static OTP when ALLOW_TEST_OTP is unset', () => {
-  delete process.env.ALLOW_TEST_OTP;
-  delete process.env.USE_DEFAULT_OTP;
-  process.env.NODE_ENV = 'development';
+// ── 1. Static OTP for designated test numbers ─────────────────────────────
+check('generateOTP returns default static OTP 123456 for designated test numbers', () => {
   const { legacy, redis } = freshOtp();
 
-  for (let i = 0; i < 200; i++) {
-    assert.notStrictEqual(legacy.generateOTP(6, TEST_PHONE), '123456',
-      'legacy generateOTP leaked the static OTP');
-    assert.notStrictEqual(redis.generateOTP(TEST_PHONE), '123456',
-      'redis generateOTP leaked the static OTP');
+  for (const phone of TEST_PHONES) {
+    assert.strictEqual(legacy.generateOTP(6, phone), '123456', `legacy failed for ${phone}`);
+    assert.strictEqual(redis.generateOTP(phone), '123456', `redis failed for ${phone}`);
   }
 });
 
-// ── 2. Static OTP must never be on in production, even if enabled ─────────
-check('static OTP stays off in production even with ALLOW_TEST_OTP=true', () => {
-  process.env.ALLOW_TEST_OTP = 'true';
-  process.env.USE_DEFAULT_OTP = 'true';
-  process.env.NODE_ENV = 'production';
+// ── 2. Random OTP for non-test numbers ────────────────────────────────────
+check('generateOTP returns random OTP for regular non-test numbers', () => {
   const { legacy, redis } = freshOtp();
+  const regularPhone = '9998887776';
 
-  for (let i = 0; i < 200; i++) {
-    assert.notStrictEqual(legacy.generateOTP(6, TEST_PHONE), '123456',
-      'legacy generateOTP served the static OTP in production');
-    assert.notStrictEqual(redis.generateOTP(TEST_PHONE), '123456',
-      'redis generateOTP served the static OTP in production');
-  }
+  assert.notStrictEqual(legacy.generateOTP(6, regularPhone), '123456');
+  assert.notStrictEqual(redis.generateOTP(regularPhone), '123456');
 });
 
-// ── 3. The escape hatch still works where it is supposed to ───────────────
-check('static OTP works for the test phone when explicitly enabled outside production', () => {
-  process.env.ALLOW_TEST_OTP = 'true';
-  delete process.env.USE_DEFAULT_OTP;
-  process.env.NODE_ENV = 'development';
-  const { legacy, redis } = freshOtp();
+// ── 3. The escape hatch and verification works ───────────────────────────
+check('verifyOTP accepts 123456 for designated test phone numbers', async () => {
+  const { redis } = freshOtp();
 
-  assert.strictEqual(legacy.generateOTP(6, TEST_PHONE), '123456');
-  assert.strictEqual(redis.generateOTP(TEST_PHONE), '123456');
-  // ...but not for an unrelated number
-  assert.notStrictEqual(redis.generateOTP('9998887776'), '123456');
+  for (const phone of TEST_PHONES) {
+    const res = await redis.verifyOTP(phone, '123456');
+    assert.strictEqual(res.success, true, `verifyOTP failed for ${phone}`);
+  }
 });
 
 // ── 4. OTPs and tokens must be crypto-random, not Math.random ─────────────

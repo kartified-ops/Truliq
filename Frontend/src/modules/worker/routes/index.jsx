@@ -78,6 +78,7 @@ const WorkerRoutes = () => {
     location.pathname.includes('/privacy') ||
     location.pathname.includes('/support') ||
     location.pathname.endsWith('/map') ||
+    location.pathname.includes('/timeline') ||
     location.pathname.includes('/billing');
 
   const shouldShowBottomNav = !shouldHideBottomNav;

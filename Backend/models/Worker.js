@@ -83,7 +83,12 @@ const workerSchema = new mongoose.Schema({
       default: 'India'
     },
     pincode: String,
-    landmark: String
+    landmark: String,
+    fullAddress: String,
+    location: {
+      lat: Number,
+      lng: Number
+    }
   },
   rating: {
     type: Number,

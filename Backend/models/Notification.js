@@ -67,6 +67,8 @@ const notificationSchema = new mongoose.Schema({
       'worker_approved',
       'worker_rejected',
       'worker_suspended',
+      'worker_deleted',
+      'account_deleted',
       'wallet_topup',
       'payout_requested',
       'payout_processed',

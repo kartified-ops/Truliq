@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { FiCheckCircle, FiPlus } from 'react-icons/fi';
 import { MdQrCode } from 'react-icons/md';
 
@@ -11,11 +12,11 @@ const ScanAndPayModal = ({
 }) => {
   const [isZoomed, setIsZoomed] = useState(false);
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === 'undefined') return null;
 
-  return (
+  return createPortal(
     <>
-      <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+      <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-hidden">
         <div className="bg-white w-full max-w-sm rounded-[2.5rem] overflow-hidden shadow-2xl relative animate-in zoom-in-95 duration-200">
           <div className="p-8 pb-4 text-center">
             <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -63,7 +64,7 @@ const ScanAndPayModal = ({
       {/* Fullscreen Zoom */}
       {isZoomed && (
         <div 
-          className="fixed inset-0 z-[300] bg-black/95 backdrop-blur-3xl flex flex-col items-center justify-center p-4 animate-in fade-in duration-300"
+          className="fixed inset-0 z-[100000] bg-black/95 backdrop-blur-3xl flex flex-col items-center justify-center p-4 animate-in fade-in duration-300"
           onClick={() => setIsZoomed(false)}
         >
           <div className="relative w-full max-w-xl flex flex-col items-center animate-in zoom-in-95 duration-300">
@@ -89,7 +90,8 @@ const ScanAndPayModal = ({
           </div>
         </div>
       )}
-    </>
+    </>,
+    document.body
   );
 };
 

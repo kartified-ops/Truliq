@@ -542,7 +542,7 @@ const deleteWorker = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const worker = await Worker.findByIdAndDelete(id);
+    const worker = await Worker.findById(id);
 
     if (!worker) {
       return res.status(404).json({
@@ -550,6 +550,24 @@ const deleteWorker = async (req, res) => {
         message: 'Worker not found'
       });
     }
+
+    // Send push notification to worker before deleting record
+    try {
+      const { sendPushNotification } = require('../../services/firebaseAdmin');
+      await sendPushNotification(worker, {
+        title: 'Account Deleted 👋',
+        body: 'Your worker account has been deleted by admin.',
+        priority: 'high',
+        data: {
+          type: 'worker_deleted',
+          workerId: worker._id.toString()
+        }
+      });
+    } catch (pushErr) {
+      console.error('[AdminWorkerDelete] Push notification failed:', pushErr);
+    }
+
+    await Worker.findByIdAndDelete(id);
 
     res.status(200).json({
       success: true,

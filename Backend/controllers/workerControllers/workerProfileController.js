@@ -93,14 +93,37 @@ const updateProfile = async (req, res) => {
 
     if (skills && Array.isArray(skills)) worker.skills = skills;
     if (address) {
+      const fullAddr = address.fullAddress || [
+        address.addressLine1 || worker.address?.addressLine1,
+        address.addressLine2 || worker.address?.addressLine2,
+        address.city || worker.address?.city,
+        address.state || worker.address?.state,
+        address.pincode || worker.address?.pincode
+      ].filter(Boolean).join(', ') || worker.address?.fullAddress || '';
+
       worker.address = {
-        addressLine1: address.addressLine1 || worker.address?.addressLine1 || '',
-        addressLine2: address.addressLine2 || worker.address?.addressLine2 || '',
-        city: address.city || worker.address?.city || '',
-        state: address.state || worker.address?.state || '',
-        pincode: address.pincode || worker.address?.pincode || '',
-        landmark: address.landmark || worker.address?.landmark || ''
+        addressLine1: address.addressLine1 !== undefined ? address.addressLine1 : (worker.address?.addressLine1 || ''),
+        addressLine2: address.addressLine2 !== undefined ? address.addressLine2 : (worker.address?.addressLine2 || ''),
+        city: address.city !== undefined ? address.city : (worker.address?.city || ''),
+        state: address.state !== undefined ? address.state : (worker.address?.state || ''),
+        country: address.country || worker.address?.country || 'India',
+        pincode: address.pincode !== undefined ? address.pincode : (worker.address?.pincode || ''),
+        landmark: address.landmark !== undefined ? address.landmark : (worker.address?.landmark || ''),
+        fullAddress: fullAddr,
+        location: address.location || worker.address?.location || undefined
       };
+
+      if (address.location && address.location.lat && address.location.lng) {
+        worker.location = {
+          lat: address.location.lat,
+          lng: address.location.lng,
+          updatedAt: new Date()
+        };
+        worker.geoLocation = {
+          type: 'Point',
+          coordinates: [address.location.lng, address.location.lat]
+        };
+      }
     }
     if (status) worker.status = status;
     // Update profile photo - upload to Cloudinary if it's a base64 string
@@ -270,6 +293,22 @@ const deleteProfile = async (req, res) => {
         success: false,
         message: 'Worker not found'
       });
+    }
+
+    // Send push notification to worker before deleting account record
+    try {
+      const { sendPushNotification } = require('../../services/firebaseAdmin');
+      await sendPushNotification(worker, {
+        title: 'Account Deleted 👋',
+        body: 'Your worker account and associated data have been permanently deleted.',
+        priority: 'high',
+        data: {
+          type: 'worker_deleted',
+          workerId: worker._id.toString()
+        }
+      });
+    } catch (pushErr) {
+      console.error('[WorkerDelete] Push notification failed:', pushErr);
     }
 
     // Delete worker

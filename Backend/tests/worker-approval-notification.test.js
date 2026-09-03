@@ -191,6 +191,136 @@ const main = async () => {
         Worker.findById = originalFindById;
       }
     });
+
+    await check('deleteProfile controller sends push notification before deleting worker document', async () => {
+      const { deleteProfile } = require('../controllers/workerControllers/workerProfileController');
+      const firebaseAdmin = require('../services/firebaseAdmin');
+      const mockWorkerId = new mongoose.Types.ObjectId();
+      const fakeWorker = {
+        _id: mockWorkerId,
+        name: 'Test Worker',
+        fcmTokens: ['token_123'],
+        fcmTokenMobile: ['mobile_token_456']
+      };
+
+      let pushRecipient = null;
+      let pushPayload = null;
+      let workerDeletedId = null;
+
+      const originalSendPush = firebaseAdmin.sendPushNotification;
+      const originalFindById = Worker.findById;
+      const originalFindByIdAndDelete = Worker.findByIdAndDelete;
+
+      firebaseAdmin.sendPushNotification = async (recipient, payload) => {
+        pushRecipient = recipient;
+        pushPayload = payload;
+        return { successCount: 1, failureCount: 0 };
+      };
+
+      Worker.findById = async (id) => {
+        if (String(id) === String(mockWorkerId)) return fakeWorker;
+        return null;
+      };
+
+      Worker.findByIdAndDelete = async (id) => {
+        workerDeletedId = id;
+        return fakeWorker;
+      };
+
+      const req = { user: { id: mockWorkerId.toString() } };
+      let jsonResult = null;
+      let statusCode = null;
+      const res = {
+        status: (code) => {
+          statusCode = code;
+          return {
+            json: (data) => {
+              jsonResult = data;
+              return data;
+            }
+          };
+        }
+      };
+
+      try {
+        await deleteProfile(req, res);
+        assert.strictEqual(statusCode, 200);
+        assert.strictEqual(jsonResult.success, true);
+        assert.ok(pushPayload, 'Push payload should be sent');
+        assert.strictEqual(pushPayload.data?.type, 'worker_deleted');
+        assert.strictEqual(pushRecipient._id.toString(), mockWorkerId.toString());
+        assert.strictEqual(workerDeletedId.toString(), mockWorkerId.toString());
+      } finally {
+        firebaseAdmin.sendPushNotification = originalSendPush;
+        Worker.findById = originalFindById;
+        Worker.findByIdAndDelete = originalFindByIdAndDelete;
+      }
+    });
+
+    await check('admin deleteWorker controller sends push notification before deleting worker document', async () => {
+      const { deleteWorker } = require('../controllers/adminControllers/adminWorkerController');
+      const firebaseAdmin = require('../services/firebaseAdmin');
+      const mockWorkerId = new mongoose.Types.ObjectId();
+      const fakeWorker = {
+        _id: mockWorkerId,
+        name: 'Test Worker',
+        fcmTokens: ['token_123'],
+        fcmTokenMobile: ['mobile_token_456']
+      };
+
+      let pushRecipient = null;
+      let pushPayload = null;
+      let workerDeletedId = null;
+
+      const originalSendPush = firebaseAdmin.sendPushNotification;
+      const originalFindById = Worker.findById;
+      const originalFindByIdAndDelete = Worker.findByIdAndDelete;
+
+      firebaseAdmin.sendPushNotification = async (recipient, payload) => {
+        pushRecipient = recipient;
+        pushPayload = payload;
+        return { successCount: 1, failureCount: 0 };
+      };
+
+      Worker.findById = async (id) => {
+        if (String(id) === String(mockWorkerId)) return fakeWorker;
+        return null;
+      };
+
+      Worker.findByIdAndDelete = async (id) => {
+        workerDeletedId = id;
+        return fakeWorker;
+      };
+
+      const req = { params: { id: mockWorkerId.toString() } };
+      let jsonResult = null;
+      let statusCode = null;
+      const res = {
+        status: (code) => {
+          statusCode = code;
+          return {
+            json: (data) => {
+              jsonResult = data;
+              return data;
+            }
+          };
+        }
+      };
+
+      try {
+        await deleteWorker(req, res);
+        assert.strictEqual(statusCode, 200);
+        assert.strictEqual(jsonResult.success, true);
+        assert.ok(pushPayload, 'Push payload should be sent');
+        assert.strictEqual(pushPayload.data?.type, 'worker_deleted');
+        assert.strictEqual(pushRecipient._id.toString(), mockWorkerId.toString());
+        assert.strictEqual(workerDeletedId.toString(), mockWorkerId.toString());
+      } finally {
+        firebaseAdmin.sendPushNotification = originalSendPush;
+        Worker.findById = originalFindById;
+        Worker.findByIdAndDelete = originalFindByIdAndDelete;
+      }
+    });
   } finally {
     Notification.findOne = originalFindOne;
     Notification.create = originalCreate;
