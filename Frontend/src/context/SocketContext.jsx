@@ -195,21 +195,33 @@ export const SocketProvider = ({ children }) => {
           data={data}
           onClick={() => {
             toast.dismiss(t.id);
-            // Optional: navigate based on relatedId
-            if (data.relatedId) {
+            // Navigate based on notification type and related entity
+            if (data.type === 'worker_approved') {
+              navigate('/worker/dashboard');
+            } else if (data.type === 'vendor_approved') {
+              navigate('/vendor/dashboard');
+            } else if (data.relatedId && (data.relatedType === 'booking' || !data.relatedType)) {
               if (userType === 'vendor') navigate(`/vendor/booking/${data.relatedId}`);
               else if (userType === 'worker') navigate(`/worker/job/${data.relatedId}`);
               else navigate(`/user/booking/${data.relatedId}`);
+            } else if (userType === 'worker') {
+              navigate('/worker/notifications');
+            } else if (userType === 'vendor') {
+              navigate('/vendor/notifications');
             }
           }}
         />
       ), {
-        duration: 3000,
+        duration: 4000,
         position: 'top-right'
       });
 
       // Dispatch update events to refresh UI components
-      if (userType === 'worker') window.dispatchEvent(new Event('workerJobsUpdated'));
+      if (userType === 'worker') {
+        window.dispatchEvent(new Event('workerJobsUpdated'));
+        window.dispatchEvent(new Event('workerNotificationsUpdated'));
+        window.dispatchEvent(new Event('workerProfileUpdated'));
+      }
       if (userType === 'vendor') {
         window.dispatchEvent(new Event('vendorJobsUpdated'));
         window.dispatchEvent(new Event('vendorNotificationsUpdated'));

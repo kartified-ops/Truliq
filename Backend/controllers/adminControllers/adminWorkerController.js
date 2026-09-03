@@ -144,21 +144,36 @@ const approveWorker = async (req, res) => {
     }
 
     worker.approvalStatus = 'approved';
+    worker.approvalDate = new Date();
     worker.isActive = true;
     await worker.save();
 
-    // Send notification to worker
-    /*
-    // Note: Assuming notification system supports 'worker' type or we treat them as users for now
-    await createNotification({
-      userId: worker._id, // Use userId for workers too? or need separate workerId field in notification
-      type: 'worker_approved',
-      title: 'Worker Registration Approved',
-      message: 'Your worker registration has been approved.',
-      relatedId: worker._id,
-      relatedType: 'worker'
-    });
-    */
+    // Send in-app and push notification to worker
+    try {
+      await createNotification({
+        workerId: worker._id,
+        type: 'worker_approved',
+        title: 'Worker Registration Approved 🎉',
+        message: 'Your worker registration has been approved by admin. You can now go online and accept bookings.',
+        relatedId: worker._id,
+        relatedType: 'worker',
+        data: {
+          workerId: worker._id.toString(),
+          approvalStatus: 'approved',
+          type: 'worker_approved',
+          link: '/worker/dashboard'
+        },
+        pushData: {
+          type: 'worker_approved',
+          workerId: worker._id.toString(),
+          link: '/worker/dashboard',
+          priority: 'high'
+        },
+        priority: 'high'
+      });
+    } catch (notifErr) {
+      console.error('Failed to send worker approval notification:', notifErr);
+    }
 
     res.status(200).json({
       success: true,
@@ -191,10 +206,37 @@ const rejectWorker = async (req, res) => {
       });
     }
 
+    const rejectReason = reason ? String(reason).trim() : 'Registration rejected by admin';
     worker.approvalStatus = 'rejected';
+    worker.rejectedReason = rejectReason;
     worker.isActive = false;
-    // worker.rejectedReason = reason; // If we want to store reason
     await worker.save();
+
+    // Send in-app and push notification to worker
+    try {
+      await createNotification({
+        workerId: worker._id,
+        type: 'worker_rejected',
+        title: 'Worker Registration Rejected',
+        message: `Your worker registration has been rejected. Reason: ${rejectReason}`,
+        relatedId: worker._id,
+        relatedType: 'worker',
+        data: {
+          workerId: worker._id.toString(),
+          approvalStatus: 'rejected',
+          type: 'worker_rejected',
+          reason: rejectReason
+        },
+        pushData: {
+          type: 'worker_rejected',
+          workerId: worker._id.toString(),
+          priority: 'high'
+        },
+        priority: 'high'
+      });
+    } catch (notifErr) {
+      console.error('Failed to send worker rejection notification:', notifErr);
+    }
 
     res.status(200).json({
       success: true,
@@ -229,6 +271,31 @@ const suspendWorker = async (req, res) => {
     worker.approvalStatus = 'suspended';
     worker.isActive = false;
     await worker.save();
+
+    // Send in-app and push notification to worker
+    try {
+      await createNotification({
+        workerId: worker._id,
+        type: 'worker_suspended',
+        title: 'Worker Account Suspended',
+        message: 'Your worker account has been suspended by admin. Please contact support for assistance.',
+        relatedId: worker._id,
+        relatedType: 'worker',
+        data: {
+          workerId: worker._id.toString(),
+          approvalStatus: 'suspended',
+          type: 'worker_suspended'
+        },
+        pushData: {
+          type: 'worker_suspended',
+          workerId: worker._id.toString(),
+          priority: 'high'
+        },
+        priority: 'high'
+      });
+    } catch (notifErr) {
+      console.error('Failed to send worker suspension notification:', notifErr);
+    }
 
     res.status(200).json({
       success: true,

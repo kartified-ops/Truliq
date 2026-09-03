@@ -53,6 +53,14 @@ const workerSchema = new mongoose.Schema({
     enum: ['pending', 'approved', 'rejected', 'suspended'],
     default: 'pending'
   },
+  approvalDate: {
+    type: Date,
+    default: null
+  },
+  rejectedReason: {
+    type: String,
+    default: null
+  },
   serviceCategories: [{
     type: String
   }],

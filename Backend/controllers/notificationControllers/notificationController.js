@@ -112,6 +112,7 @@ const createNotification = async ({
         title: title,
         body: message,
         priority: priority || pushData.priority || 'high',
+        notificationId: String(notification._id),
         data: {
           ...data,
           ...pushData,

@@ -142,6 +142,8 @@ const Notifications = () => {
 
   const getNotificationIcon = (type = '') => {
     const t = type.toLowerCase();
+    if (t.includes('approve')) return <FiCheck className="w-5 h-5" />;
+    if (t.includes('reject') || t.includes('suspend')) return <FiX className="w-5 h-5" />;
     if (t.includes('job') || t.includes('booking')) return <FiBriefcase className="w-5 h-5" />;
     if (t.includes('payment')) return <span className="text-lg font-bold">₹</span>;
     return <FiBell className="w-5 h-5" />;
@@ -149,6 +151,8 @@ const Notifications = () => {
 
   const getNotificationColor = (type = '') => {
     const t = type.toLowerCase();
+    if (t.includes('approve')) return '#10B981';
+    if (t.includes('reject') || t.includes('suspend')) return '#EF4444';
     if (t.includes('job') || t.includes('booking')) return '#3B82F6';
     if (t.includes('payment')) return '#10B981';
     return themeColors.button;
@@ -301,6 +305,22 @@ const Notifications = () => {
                               style={{ color: iconColor }}
                             >
                               View Job <FiChevronRight className="w-3 h-3" />
+                            </button>
+                          ) : notif.type === 'worker_approved' ? (
+                            <button
+                              onClick={() => navigate('/worker/dashboard')}
+                              className="text-xs font-bold uppercase tracking-wide flex items-center gap-1 transition-colors hover:opacity-80"
+                              style={{ color: iconColor }}
+                            >
+                              Go to Dashboard <FiChevronRight className="w-3 h-3" />
+                            </button>
+                          ) : (notif.type === 'worker_rejected' || notif.type === 'worker_suspended') ? (
+                            <button
+                              onClick={() => navigate('/worker/support')}
+                              className="text-xs font-bold uppercase tracking-wide flex items-center gap-1 transition-colors hover:opacity-80"
+                              style={{ color: iconColor }}
+                            >
+                              Contact Support <FiChevronRight className="w-3 h-3" />
                             </button>
                           ) : <div></div>}
                         </div>

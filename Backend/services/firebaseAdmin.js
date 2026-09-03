@@ -55,18 +55,6 @@ async function sendPushNotification(recipientOrTokens, payload) {
       return { successCount: 0, failureCount: 0 };
     }
 
-    const userId = (recipientOrTokens && recipientOrTokens._id) ? String(recipientOrTokens._id) : 'anonymous';
-    const type = payload.data?.type || 'generic';
-    const relatedId = payload.data?.bookingId || payload.data?.id || Date.now();
-    const notificationId = payload.notificationId || `${userId}_${type}_${relatedId}`;
-
-    if (notificationId !== 'test-notification') {
-      const alreadySent = await NotificationLog.findOne({ notificationId });
-      if (alreadySent) {
-        return { successCount: 0, failureCount: 0, duplicate: true };
-      }
-    }
-
     let tokens = [];
     let recipient = recipientOrTokens;
 
@@ -87,6 +75,18 @@ async function sendPushNotification(recipientOrTokens, payload) {
     } else if (recipient && typeof recipient === 'object') {
       tokens = [...(recipient.fcmTokens || []), ...(recipient.fcmTokenMobile || [])];
       if (recipient.fcmToken) tokens.push(recipient.fcmToken);
+    }
+
+    const userId = (recipient && recipient._id) ? String(recipient._id) : (payload.data?.workerId || payload.data?.userId || payload.data?.vendorId || payload.data?.adminId || 'anonymous');
+    const type = payload.data?.type || 'generic';
+    const relatedId = payload.data?.bookingId || payload.data?.id || payload.data?.relatedId || Date.now();
+    const notificationId = payload.notificationId || payload.data?.notificationId || `${userId}_${type}_${relatedId}`;
+
+    if (notificationId !== 'test-notification') {
+      const alreadySent = await NotificationLog.findOne({ notificationId });
+      if (alreadySent) {
+        return { successCount: 0, failureCount: 0, duplicate: true };
+      }
     }
 
     if (!tokens.length) return { successCount: 0, failureCount: 0 };
@@ -206,7 +206,7 @@ async function sendNotificationToUser(userId, payload, includeMobile = true) {
 
     if (!tokens.length) return;
 
-    await sendPushNotification(tokens, {
+    await sendPushNotification(user, {
       ...payload,
       highPriority: payload.priority === 'high',
       dataOnly: false
@@ -226,7 +226,7 @@ async function sendNotificationToVendor(vendorId, payload, includeMobile = true)
     if (includeMobile && vendor.fcmTokenMobile?.length) tokens.push(...vendor.fcmTokenMobile);
     if (!tokens.length) return;
 
-    await sendPushNotification(tokens, {
+    await sendPushNotification(vendor, {
       ...payload,
       title: `🏢 [Partner] ${payload.title}`,
       dataOnly: false
@@ -246,7 +246,7 @@ async function sendNotificationToWorker(workerId, payload, includeMobile = true)
     if (includeMobile && worker.fcmTokenMobile?.length) tokens.push(...worker.fcmTokenMobile);
     if (!tokens.length) return;
 
-    await sendPushNotification(tokens, {
+    await sendPushNotification(worker, {
       ...payload,
       title: `👷 [Pro] ${payload.title}`,
       dataOnly: false
@@ -266,7 +266,7 @@ async function sendNotificationToAdmin(adminId, payload, includeMobile = true) {
     if (includeMobile && adminUser.fcmTokenMobile?.length) tokens.push(...adminUser.fcmTokenMobile);
     if (!tokens.length) return;
 
-    await sendPushNotification(tokens, {
+    await sendPushNotification(adminUser, {
       ...payload,
       title: `🛡️ [Admin] ${payload.title}`
     });

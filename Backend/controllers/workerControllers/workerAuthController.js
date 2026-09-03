@@ -173,7 +173,7 @@ const verifyLogin = async (req, res) => {
           email: worker.email,
           phone: worker.phone,
           status: worker.status,
-          status: worker.status,
+          approvalStatus: worker.approvalStatus || 'pending',
           serviceCategories: worker.serviceCategories || []
         },
         ...tokens
@@ -338,7 +338,8 @@ const register = async (req, res) => {
         name: worker.name,
         email: worker.email,
         phone: worker.phone,
-        status: worker.status
+        status: worker.status,
+        approvalStatus: worker.approvalStatus || 'pending'
       },
       subscription: subscription ? {
         planType: subscription.planType,
