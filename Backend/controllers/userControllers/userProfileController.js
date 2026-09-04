@@ -220,7 +220,7 @@ const getCheckoutData = async (req, res) => {
 };
 
 /**
- * Delete user profile
+ * Delete user profile (Soft Delete - Preserves all history, bookings, and data for Admin)
  */
 const deleteProfile = async (req, res) => {
   try {
@@ -235,11 +235,31 @@ const deleteProfile = async (req, res) => {
       });
     }
 
-    // Optional: Delete user's cart
+    // Clean up active cart
     await Cart.findOneAndDelete({ userId });
 
-    // Delete user
-    await User.findByIdAndDelete(userId);
+    const now = new Date();
+    const originalPhone = user.originalPhone || user.phone;
+    const originalEmail = user.originalEmail || user.email;
+
+    // Soft delete user and release unique phone/email constraint for fresh future signups
+    user.isDeleted = true;
+    user.deletedAt = now;
+    user.deleteReason = req.body?.reason || 'User self-deleted account';
+    user.isActive = false;
+    user.originalPhone = originalPhone;
+    user.originalEmail = originalEmail || null;
+    user.phone = `deleted_${now.getTime()}_${originalPhone}`;
+    if (user.email) {
+      user.email = `deleted_${now.getTime()}_${originalEmail}`;
+    }
+    user.fcmTokens = [];
+    user.fcmTokenMobile = [];
+    user.loginSessionId = null;
+
+    await user.save();
+
+    console.log(`[UserDelete] 🗑️ Soft-deleted user ${userId} (${originalPhone}). Historical records preserved for Admin.`);
 
     res.status(200).json({
       success: true,

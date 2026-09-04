@@ -106,6 +106,28 @@ const workerSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  // Soft Deletion Tracking
+  isDeleted: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
+  deletedAt: {
+    type: Date,
+    default: null
+  },
+  deleteReason: {
+    type: String,
+    default: null
+  },
+  originalPhone: {
+    type: String,
+    default: null
+  },
+  originalEmail: {
+    type: String,
+    default: null
+  },
   isPhoneVerified: {
     type: Boolean,
     default: false

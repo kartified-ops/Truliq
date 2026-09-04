@@ -280,7 +280,7 @@ const toggleOnline = async (req, res) => {
 };
 
 /**
- * Delete worker profile
+ * Delete worker profile (Soft Delete - Preserves all history, completed jobs, and earnings for Admin)
  */
 const deleteProfile = async (req, res) => {
   try {
@@ -295,12 +295,12 @@ const deleteProfile = async (req, res) => {
       });
     }
 
-    // Send push notification to worker before deleting account record
+    // Send push notification to worker before clearing tokens
     try {
       const { sendPushNotification } = require('../../services/firebaseAdmin');
       await sendPushNotification(worker, {
         title: 'Account Deleted 👋',
-        body: 'Your worker account and associated data have been permanently deleted.',
+        body: 'Your worker account has been deleted.',
         priority: 'high',
         data: {
           type: 'worker_deleted',
@@ -311,8 +311,30 @@ const deleteProfile = async (req, res) => {
       console.error('[WorkerDelete] Push notification failed:', pushErr);
     }
 
-    // Delete worker
-    await Worker.findByIdAndDelete(workerId);
+    const now = new Date();
+    const originalPhone = worker.originalPhone || worker.phone;
+    const originalEmail = worker.originalEmail || worker.email;
+
+    // Soft delete worker and release unique phone/email constraint for fresh future signups
+    worker.isDeleted = true;
+    worker.deletedAt = now;
+    worker.deleteReason = req.body?.reason || 'Worker self-deleted account';
+    worker.isActive = false;
+    worker.isOnline = false;
+    worker.status = WORKER_STATUS.OFFLINE;
+    worker.originalPhone = originalPhone;
+    worker.originalEmail = originalEmail || null;
+    worker.phone = `deleted_${now.getTime()}_${originalPhone}`;
+    if (worker.email) {
+      worker.email = `deleted_${now.getTime()}_${originalEmail}`;
+    }
+    worker.fcmTokens = [];
+    worker.fcmTokenMobile = [];
+    worker.loginSessionId = null;
+
+    await worker.save();
+
+    console.log(`[WorkerDelete] 🗑️ Soft-deleted worker ${workerId} (${originalPhone}). Historical records preserved for Admin.`);
 
     res.status(200).json({
       success: true,

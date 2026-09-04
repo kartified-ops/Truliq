@@ -252,6 +252,30 @@ const BookingAlertCard = ({ booking, onAccept, onReject, onAssign, maxSearchTime
 const BookingAlertModal = ({ isOpen, booking, bookings, onAccept, onReject, onAssign, onMinimize, maxSearchTimeMins = 1 }) => {
   const alertsArray = bookings || (booking ? [booking] : []);
 
+  // Lock background scroll when alert modal is open
+  useEffect(() => {
+    if (isOpen && alertsArray.length > 0) {
+      const originalOverflow = document.body.style.overflow;
+      const originalPosition = document.body.style.position;
+      const originalTop = document.body.style.top;
+      const originalWidth = document.body.style.width;
+      const scrollY = window.scrollY;
+
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+      document.body.style.overflow = 'hidden';
+
+      return () => {
+        document.body.style.position = originalPosition;
+        document.body.style.top = originalTop;
+        document.body.style.width = originalWidth;
+        document.body.style.overflow = originalOverflow;
+        window.scrollTo(0, scrollY);
+      };
+    }
+  }, [isOpen, alertsArray.length]);
+
   return (
     <AnimatePresence>
       {isOpen && alertsArray.length > 0 && (
@@ -259,7 +283,7 @@ const BookingAlertModal = ({ isOpen, booking, bookings, onAccept, onReject, onAs
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/80 backdrop-blur-md"
+          className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/80 backdrop-blur-md overscroll-contain touch-none"
         >
           {onMinimize && (
             <button

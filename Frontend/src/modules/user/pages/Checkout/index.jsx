@@ -429,7 +429,7 @@ const Checkout = () => {
         }
       }
     } catch (error) {
-      toast.error('Failed to initiate booking request. Please try again.');
+      toast.error(error.response?.data?.message || error.message || 'Failed to initiate booking request. Please try again.');
       setShowVendorModal(false);
       setSearchingVendors(false);
     }
@@ -702,7 +702,8 @@ const Checkout = () => {
     } catch (error) {
       toast.dismiss();
       console.error('Search vendors error:', error);
-      toast.error('Failed to search for workers. Please try again.');
+      const errMsg = error.response?.data?.message || error.message || 'Failed to search for workers. Please try again.';
+      toast.error(errMsg);
       setCurrentStep('failed');
       setSearchingVendors(false);
     }
@@ -1275,7 +1276,7 @@ const Checkout = () => {
               <FiArrowLeft className="w-6 h-6 text-black" />
             </button>
             <h1 className="text-xl font-bold text-black">
-              {category ? `${category} Checkout` : 'Your cart'}
+              Checkout
             </h1>
           </div>
         </div>

@@ -7,34 +7,7 @@ import ProtectedRoute from '../../../components/auth/ProtectedRoute';
 import PublicRoute from '../../../components/auth/PublicRoute';
 import CashLimitModal from '../components/common/CashLimitModal'; // Import
 import GlobalBookingAlert from '../components/common/GlobalBookingAlert';
-// import useAppNotifications from '../../../hooks/useAppNotifications.jsx'; // Handled globally
-
-// Lazy load wrapper with error handling (same as user app)
-const lazyLoad = (importFunc) => {
-  return lazy(() => {
-    return Promise.resolve(importFunc()).catch((error) => {
-      console.error('Failed to load vendor page:', error);
-      // Return a fallback component wrapped in a Promise
-      return Promise.resolve({
-        default: () => (
-          <div className="flex items-center justify-center min-h-screen bg-white">
-            <div className="text-center p-6">
-              <h2 className="text-xl font-bold text-gray-800 mb-2">Failed to load page</h2>
-              <p className="text-gray-600 mb-4">Please refresh the page or try again later.</p>
-              <button
-                onClick={() => window.location.reload()}
-                className="px-6 py-3 rounded-xl text-white font-semibold transition-all duration-300 hover:opacity-90"
-                style={{ backgroundColor: '#347989' }}
-              >
-                Refresh Page
-              </button>
-            </div>
-          </div>
-        ),
-      });
-    });
-  });
-};
+import { lazyWithRetry as lazyLoad } from '../../../utils/lazyWithRetry';
 
 // Lazy load vendor pages for code splitting
 const Login = lazyLoad(() => import('../pages/login'));

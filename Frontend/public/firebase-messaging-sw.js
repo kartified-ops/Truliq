@@ -292,16 +292,96 @@ self.addEventListener('notificationclose', (event) => {
 // Note: Raw push events are handled by Firebase SDK internally.
 // We relay messages to foreground clients via onBackgroundMessage above.
 
+// App Shell & Offline Navigation Fallback
+const APP_CACHE_NAME = 'truliq-shell-v1';
+const PRECACHE_ASSETS = ['/', '/truliq-logo.png'];
+
 // Install event
 self.addEventListener('install', (event) => {
-  console.log('[SW] 📦 Service Worker installing...');
-  self.skipWaiting();
+  console.log('[SW] 📦 Service Worker installing and caching app shell...');
+  event.waitUntil(
+    caches.open(APP_CACHE_NAME).then((cache) => {
+      return cache.addAll(PRECACHE_ASSETS).catch((err) => {
+        console.warn('[SW] Pre-caching assets skipped/failed:', err);
+      });
+    }).then(() => self.skipWaiting())
+  );
 });
 
 // Activate event
 self.addEventListener('activate', (event) => {
   console.log('[SW] ✅ Service Worker activated');
-  event.waitUntil(clients.claim());
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames
+          .filter((name) => name.startsWith('truliq-') && name !== APP_CACHE_NAME)
+          .map((name) => caches.delete(name))
+      );
+    }).then(() => clients.claim())
+  );
 });
 
-console.log('[SW] 🚀 Firebase Messaging Service Worker loaded');
+// Fetch event: Network-first with App Shell cache fallback for page navigation
+self.addEventListener('fetch', (event) => {
+  const request = event.request;
+
+  // Handle page navigations (HTML document requests)
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          // Cache latest successful navigation response
+          if (response && response.status === 200) {
+            const responseClone = response.clone();
+            caches.open(APP_CACHE_NAME).then((cache) => {
+              cache.put('/', responseClone);
+            });
+          }
+          return response;
+        })
+        .catch(async () => {
+          console.warn('[SW] ⚠️ Network navigation failed (offline/switching). Serving App Shell fallback.');
+          const cachedResponse = await caches.match('/');
+          if (cachedResponse) {
+            return cachedResponse;
+          }
+          // Fallback minimal offline page if root not cached
+          return new Response(
+            `<!DOCTYPE html>
+            <html lang="en">
+            <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Truliq - Reconnecting</title>
+              <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f8fafc; color: #1e293b; text-align: center; padding: 20px; }
+                .card { background: white; padding: 32px; border-radius: 24px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); max-width: 420px; width: 100%; border: 1px solid #e2e8f0; }
+                .icon { font-size: 48px; margin-bottom: 16px; }
+                h1 { font-size: 20px; font-weight: 800; margin: 0 0 8px; color: #0f172a; }
+                p { font-size: 14px; color: #64748b; margin: 0 0 24px; line-height: 1.5; }
+                button { background: #347989; color: white; border: none; padding: 12px 24px; font-size: 14px; font-weight: 700; border-radius: 12px; cursor: pointer; width: 100%; }
+                button:hover { background: #285d69; }
+              </style>
+            </head>
+            <body>
+              <div class="card">
+                <div class="icon">🔄</div>
+                <h1>Connection Interrupted</h1>
+                <p>We are waiting for your network connection to stabilize. Please check your internet or tap below.</p>
+                <button onclick="window.location.reload()">Retry Connection</button>
+              </div>
+            </body>
+            </html>`,
+            {
+              headers: { 'Content-Type': 'text/html' },
+            }
+          );
+        })
+    );
+    return;
+  }
+});
+
+console.log('[SW] 🚀 Firebase Messaging & Offline Fallback Service Worker loaded');
+

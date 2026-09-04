@@ -344,16 +344,47 @@ export default function GlobalWorkerJobAlert() {
     }
   };
 
+  // Lock background scroll when active job alerts are displayed
+  useEffect(() => {
+    if (activeAlerts.length > 0) {
+      const originalOverflow = document.body.style.overflow;
+      const originalPosition = document.body.style.position;
+      const originalTop = document.body.style.top;
+      const originalWidth = document.body.style.width;
+      const scrollY = window.scrollY;
+
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+      document.body.style.overflow = 'hidden';
+
+      return () => {
+        document.body.style.position = originalPosition;
+        document.body.style.top = originalTop;
+        document.body.style.width = originalWidth;
+        document.body.style.overflow = originalOverflow;
+        window.scrollTo(0, scrollY);
+      };
+    }
+  }, [activeAlerts.length]);
+
   if (activeAlerts.length === 0) return null;
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/80 backdrop-blur-md">
+      <div
+        className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/80 backdrop-blur-md overscroll-contain touch-none"
+        onTouchMove={(e) => {
+          if (e.target === e.currentTarget) {
+            e.preventDefault();
+          }
+        }}
+      >
         <button onClick={() => { stopAlertRing(); setActiveAlerts([]); }} className="absolute top-4 right-4 z-50 p-2 bg-black/20 hover:bg-black/30 backdrop-blur-md rounded-full text-white transition-all active:scale-95" title="Minimize Alert">
           <FiMinimize2 className="w-5 h-5" />
         </button>
 
-        <div className="w-full overflow-x-auto snap-x snap-mandatory scrollbar-hide flex gap-4 px-8 items-center h-full">
+        <div className="w-full overflow-x-auto snap-x snap-mandatory scrollbar-hide flex gap-4 px-8 items-center h-full overscroll-contain touch-pan-x">
           <div className="flex gap-4 m-auto">
             {activeAlerts.map(b => (
               <WorkerAlertCard

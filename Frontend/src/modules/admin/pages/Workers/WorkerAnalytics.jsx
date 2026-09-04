@@ -89,15 +89,15 @@ const WorkerAnalytics = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Top Workers Chart */}
-        <CardShell className="bg-white p-3.5" title="Top Performing Workers" icon={FiActivity}>
-          <div className="h-[250px]">
+        <CardShell className="bg-white p-3.5 select-none" title="Top Performing Workers" icon={FiActivity}>
+          <div className="h-[250px] select-none [&_*]:outline-none [&_svg]:outline-none">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data?.topWorkers} layout="vertical">
+              <BarChart data={data?.topWorkers} layout="vertical" className="select-none">
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
-                <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
-                <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 9 }} width={70} />
-                <Tooltip />
-                <Bar dataKey="completedJobs" name="Jobs Completed" fill="#10B981" radius={[0, 4, 4, 0]} />
+                <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 10, userSelect: 'none' }} />
+                <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 9, userSelect: 'none' }} width={70} />
+                <Tooltip cursor={{ fill: 'transparent' }} />
+                <Bar dataKey="completedJobs" name="Jobs Completed" fill="#10B981" radius={[0, 4, 4, 0]} isAnimationActive={false} />
               </BarChart>
             </ResponsiveContainer>
           </div>
