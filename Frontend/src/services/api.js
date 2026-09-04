@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { toast } from 'react-hot-toast';
 import { apiCache } from '../utils/apiCache';
 
 // API Base URL
@@ -146,10 +147,42 @@ api.interceptors.response.use(
       }
     }
 
-    // Handle 403 Forbidden - Role mismatch or Invalid Token
+    // Handle Network Switch / Connection Interruption Auto-Retry
+    const isNetworkError =
+      !error.response &&
+      (error.code === 'ERR_NETWORK' ||
+        error.code === 'ERR_NETWORK_CHANGED' ||
+        error.code === 'ECONNABORTED' ||
+        error.message?.toLowerCase().includes('network') ||
+        error.message?.toLowerCase().includes('timeout'));
+
+    if (isNetworkError && originalRequest) {
+      originalRequest._networkRetryCount = (originalRequest._networkRetryCount || 0) + 1;
+      
+      // Dispatch network error event to show subtle reconnecting banner
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('appApiNetworkError'));
+      }
+
+      // Retry up to 2 times for transient network switches (e.g. WiFi <-> Cellular)
+      if (originalRequest._networkRetryCount <= 2 && (originalRequest.method === 'get' || !originalRequest._networkRetryCount)) {
+        console.warn(`[API] Retrying request due to network switch (attempt ${originalRequest._networkRetryCount}/2):`, originalRequest.url);
+        await new Promise((resolve) => setTimeout(resolve, 800 * originalRequest._networkRetryCount));
+        return api(originalRequest);
+      }
+    }
+
+    // Handle 403 Forbidden - Role mismatch, Invalid Token, or Blocked Account
     if (error.response?.status === 403) {
-      console.error('Access Denied (403):', error.response.data.message);
-      // Removed automatic logout to prevent login loops during debugging
+      console.error('Access Denied (403):', error.response.data?.message);
+      const isBlocked = error.response.data?.isBlocked ||
+        error.response.data?.message?.toLowerCase()?.includes('blocked') ||
+        error.response.data?.message?.toLowerCase()?.includes('deactivated');
+
+      if (isBlocked) {
+        toast.error(error.response.data?.message || 'Your account has been blocked by the admin.');
+        handleLogout(role);
+      }
     }
 
     return Promise.reject(error);

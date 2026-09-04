@@ -3,13 +3,15 @@ const Booking = require('../../models/Booking');
 const { validationResult } = require('express-validator');
 
 /**
- * Get all users with filters and pagination
+ * Get all users with filters and pagination (including Deleted Users)
  */
 const getAllUsers = async (req, res) => {
   try {
     const {
       search,
+      status, // 'all', 'active', 'inactive', 'deleted'
       isActive,
+      isDeleted,
       isPhoneVerified,
       isEmailVerified,
       page = 1,
@@ -19,9 +21,21 @@ const getAllUsers = async (req, res) => {
     // Build query
     const query = { role: 'user' };
 
-    if (isActive !== undefined) {
-      query.isActive = isActive === 'true';
+    if (status === 'deleted' || isDeleted === 'true') {
+      query.isDeleted = true;
+    } else if (status === 'active') {
+      query.isActive = true;
+      query.isDeleted = { $ne: true };
+    } else if (status === 'inactive') {
+      query.isActive = false;
+      query.isDeleted = { $ne: true };
+    } else {
+      // status === 'all' or not specified
+      if (isActive !== undefined) {
+        query.isActive = isActive === 'true';
+      }
     }
+
     if (isPhoneVerified !== undefined) {
       query.isPhoneVerified = isPhoneVerified === 'true';
     }
@@ -29,12 +43,14 @@ const getAllUsers = async (req, res) => {
       query.isEmailVerified = isEmailVerified === 'true';
     }
 
-    // Search by name, phone, or email
+    // Search by name, phone, email, or original contacts
     if (search) {
       query.$or = [
         { name: { $regex: search, $options: 'i' } },
         { phone: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } }
+        { originalPhone: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { originalEmail: { $regex: search, $options: 'i' } }
       ];
     }
 
@@ -46,14 +62,24 @@ const getAllUsers = async (req, res) => {
       .select('-password')
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(parseInt(limit))
+      .lean();
+
+    // Clean up display contact numbers/emails for deleted accounts
+    const formattedUsers = users.map((u) => ({
+      ...u,
+      displayPhone: u.originalPhone || (u.phone?.startsWith('deleted_') ? u.phone.split('_').slice(2).join('_') : u.phone),
+      displayEmail: u.originalEmail || (u.email?.startsWith('deleted_') ? u.email.split('_').slice(2).join('_') : u.email),
+      phone: u.originalPhone || (u.phone?.startsWith('deleted_') ? u.phone.split('_').slice(2).join('_') : u.phone),
+      email: u.originalEmail || (u.email?.startsWith('deleted_') ? u.email.split('_').slice(2).join('_') : u.email),
+    }));
 
     // Get total count
     const total = await User.countDocuments(query);
 
     res.status(200).json({
       success: true,
-      data: users,
+      data: formattedUsers,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -151,6 +177,9 @@ const toggleUserStatus = async (req, res) => {
     }
 
     user.isActive = isActive !== undefined ? isActive : !user.isActive;
+    if (!user.isActive) {
+      user.loginSessionId = null; // Invalidate active sessions immediately
+    }
     await user.save();
 
     res.status(200).json({
@@ -168,7 +197,7 @@ const toggleUserStatus = async (req, res) => {
 };
 
 /**
- * Delete user (soft delete)
+ * Delete user (Soft delete - preserves data & history for admin)
  */
 const deleteUser = async (req, res) => {
   try {
@@ -183,13 +212,30 @@ const deleteUser = async (req, res) => {
       });
     }
 
+    const now = new Date();
+    const originalPhone = user.originalPhone || user.phone;
+    const originalEmail = user.originalEmail || user.email;
+
     // Soft delete
+    user.isDeleted = true;
+    user.deletedAt = now;
+    user.deleteReason = req.body?.reason || 'Deleted by admin';
     user.isActive = false;
+    user.originalPhone = originalPhone;
+    user.originalEmail = originalEmail || null;
+    user.phone = `deleted_${now.getTime()}_${originalPhone}`;
+    if (user.email) {
+      user.email = `deleted_${now.getTime()}_${originalEmail}`;
+    }
+    user.fcmTokens = [];
+    user.fcmTokenMobile = [];
+    user.loginSessionId = null;
+
     await user.save();
 
     res.status(200).json({
       success: true,
-      message: 'User deleted successfully'
+      message: 'User deleted successfully (history preserved)'
     });
   } catch (error) {
     console.error('Delete user error:', error);

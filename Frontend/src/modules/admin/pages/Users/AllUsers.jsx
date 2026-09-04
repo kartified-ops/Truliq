@@ -26,12 +26,9 @@ const AllUsers = () => {
       const params = {
         page,
         limit: 10,
-        search: debouncedSearch
+        search: debouncedSearch,
+        status: statusFilter !== 'all' ? statusFilter : undefined
       };
-
-      if (statusFilter !== 'all') {
-        params.isActive = statusFilter === 'active';
-      }
 
       const response = await adminUserService.getAllUsers(params);
       if (response.success) {
@@ -70,7 +67,7 @@ const AllUsers = () => {
   };
 
   const handleDeleteUser = async (userId) => {
-    if (!window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+    if (!window.confirm('Are you sure you want to delete this user? All historical records and bookings will be preserved in Admin.')) {
       return;
     }
 
@@ -92,7 +89,7 @@ const AllUsers = () => {
           <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
           <input
             type="text"
-            placeholder="Search users..."
+            placeholder="Search users by name, phone, email..."
             value={search}
             onChange={(e) => setSearch(e.target.value.trimStart())}
             className="w-full pl-10 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all text-xs"
@@ -103,11 +100,12 @@ const AllUsers = () => {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs text-gray-600 focus:outline-none focus:border-green-500 cursor-pointer"
+            className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs text-gray-600 focus:outline-none focus:border-green-500 cursor-pointer font-medium"
           >
-            <option value="all">All Status</option>
+            <option value="all">All Users</option>
             <option value="active">Active Only</option>
             <option value="inactive">Blocked Only</option>
+            <option value="deleted">Deleted Accounts</option>
           </select>
 
           <div className="px-3 py-2 bg-green-50 rounded-lg border border-green-100">
@@ -139,14 +137,21 @@ const AllUsers = () => {
                 </tr>
               ) : (
                 users.map((user) => (
-                  <tr key={user._id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={user._id} className={`hover:bg-gray-50 transition-colors ${user.isDeleted ? 'bg-rose-50/20' : ''}`}>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${user.isDeleted ? 'bg-rose-100 text-rose-600' : 'bg-green-100 text-green-600'}`}>
                           <FiUser className="w-4 h-4" />
                         </div>
                         <div>
-                          <p className="font-bold text-gray-900 text-xs">{user.name}</p>
+                          <p className="font-bold text-gray-900 text-xs flex items-center gap-1.5">
+                            {user.name}
+                            {user.isDeleted && (
+                              <span className="text-[9px] font-extrabold px-1.5 py-0.2 bg-rose-100 text-rose-700 rounded border border-rose-200">
+                                DELETED
+                              </span>
+                            )}
+                          </p>
                           <p className="text-[10px] text-gray-400">ID: {user._id.slice(-6).toUpperCase()}</p>
                         </div>
                       </div>
@@ -154,22 +159,37 @@ const AllUsers = () => {
                     <td className="px-4 py-3">
                       <div className="space-y-0.5">
                         <div className="flex items-center gap-1.5 text-gray-600 text-[11px]">
-                          <FiMail className="w-3 h-3" />
-                          <span>{user.email}</span>
+                          <FiMail className="w-3 h-3 text-gray-400" />
+                          <span>{user.email || 'No email'}</span>
                         </div>
                         <div className="flex items-center gap-1.5 text-gray-600 text-[11px]">
-                          <FiPhone className="w-3 h-3" />
+                          <FiPhone className="w-3 h-3 text-gray-400" />
                           <span>{user.phone}</span>
                         </div>
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${user.isActive
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-red-100 text-red-700'
-                        }`}>
-                        {user.isActive ? 'Active' : 'Blocked'}
-                      </span>
+                      {user.isDeleted ? (
+                        <div className="flex flex-col gap-0.5">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-100 text-rose-700 w-fit">
+                            Account Deleted
+                          </span>
+                          {user.deletedAt && (
+                            <span className="text-[10px] text-rose-600/80 font-medium">
+                              On {new Date(user.deletedAt).toLocaleDateString('en-US', {
+                                year: 'numeric', month: 'short', day: 'numeric'
+                              })}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${user.isActive
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-red-100 text-red-700'
+                          }`}>
+                          {user.isActive ? 'Active' : 'Blocked'}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-[10px] text-gray-600 font-medium">
@@ -179,24 +199,32 @@ const AllUsers = () => {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <div className="flex justify-end gap-1.5">
-                        <button
-                          onClick={() => handleStatusToggle(user._id, user.isActive)}
-                          className={`p-1.5 rounded-lg transition-colors ${user.isActive
-                            ? 'text-red-500 hover:bg-red-50'
-                            : 'text-green-500 hover:bg-green-50'
-                            }`}
-                          title={user.isActive ? 'Block User' : 'Activate User'}
-                        >
-                          {user.isActive ? <FiSlash className="w-3.5 h-3.5" /> : <FiCheck className="w-3.5 h-3.5" />}
-                        </button>
-                        {/* <button
-                          onClick={() => handleDeleteUser(user._id)}
-                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Delete User"
-                        >
-                          <FiTrash2 className="w-3.5 h-3.5" />
-                        </button> */}
+                      <div className="flex justify-end gap-1.5 items-center">
+                        {user.isDeleted ? (
+                          <span className="text-[10px] text-gray-400 font-mono italic">
+                            History Preserved
+                          </span>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleStatusToggle(user._id, user.isActive)}
+                              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${user.isActive
+                                ? 'text-red-500 hover:bg-red-50'
+                                : 'text-green-500 hover:bg-green-50'
+                                }`}
+                              title={user.isActive ? 'Block User' : 'Activate User'}
+                            >
+                              {user.isActive ? <FiSlash className="w-3.5 h-3.5" /> : <FiCheck className="w-3.5 h-3.5" />}
+                            </button>
+                            <button
+                              onClick={() => handleDeleteUser(user._id)}
+                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                              title="Delete User (Soft Delete)"
+                            >
+                              <FiTrash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>

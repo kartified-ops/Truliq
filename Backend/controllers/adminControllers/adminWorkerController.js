@@ -5,13 +5,14 @@ const { WORKER_STATUS, BOOKING_STATUS, VENDOR_STATUS } = require('../../utils/co
 const { createNotification } = require('../notificationControllers/notificationController');
 
 /**
- * Get all workers with filters and pagination
+ * Get all workers with filters and pagination (including Deleted Workers)
  */
 const getAllWorkers = async (req, res) => {
   try {
     const {
       search,
-      approvalStatus,
+      approvalStatus, // 'all', 'pending', 'approved', 'rejected', 'deleted'
+      isDeleted,
       isActive,
       page = 1,
       limit = 20
@@ -20,20 +21,27 @@ const getAllWorkers = async (req, res) => {
     // Build query
     const query = {};
 
-    if (approvalStatus) {
+    if (approvalStatus === 'deleted' || isDeleted === 'true') {
+      query.isDeleted = true;
+    } else if (approvalStatus && approvalStatus !== 'all') {
       query.approvalStatus = approvalStatus;
+      query.isDeleted = { $ne: true };
     }
-    if (isActive !== undefined) {
+
+    if (isActive !== undefined && approvalStatus !== 'deleted' && isDeleted !== 'true') {
       query.isActive = isActive === 'true';
     }
 
-    // Search by name, email, phone
+    // Search by name, email, phone, or original contacts
     if (search) {
       query.$or = [
         { name: { $regex: search, $options: 'i' } },
         { email: { $regex: search, $options: 'i' } },
+        { originalEmail: { $regex: search, $options: 'i' } },
         { phone: { $regex: search, $options: 'i' } },
-        { serviceCategory: { $regex: search, $options: 'i' } }
+        { originalPhone: { $regex: search, $options: 'i' } },
+        { serviceCategory: { $regex: search, $options: 'i' } },
+        { serviceCategories: { $in: [new RegExp(search, 'i')] } }
       ];
     }
 
@@ -45,14 +53,24 @@ const getAllWorkers = async (req, res) => {
       .select('-password')
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(parseInt(limit))
+      .lean();
+
+    // Format clean display phone and email
+    const formattedWorkers = workers.map((w) => ({
+      ...w,
+      displayPhone: w.originalPhone || (w.phone?.startsWith('deleted_') ? w.phone.split('_').slice(2).join('_') : w.phone),
+      displayEmail: w.originalEmail || (w.email?.startsWith('deleted_') ? w.email.split('_').slice(2).join('_') : w.email),
+      phone: w.originalPhone || (w.phone?.startsWith('deleted_') ? w.phone.split('_').slice(2).join('_') : w.phone),
+      email: w.originalEmail || (w.email?.startsWith('deleted_') ? w.email.split('_').slice(2).join('_') : w.email),
+    }));
 
     // Get total count
     const total = await Worker.countDocuments(query);
 
     res.status(200).json({
       success: true,
-      data: workers,
+      data: formattedWorkers,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -536,7 +554,7 @@ const toggleWorkerStatus = async (req, res) => {
 };
 
 /**
- * Delete worker details
+ * Delete worker details (Soft delete - preserves data & history for admin)
  */
 const deleteWorker = async (req, res) => {
   try {
@@ -551,7 +569,7 @@ const deleteWorker = async (req, res) => {
       });
     }
 
-    // Send push notification to worker before deleting record
+    // Send push notification to worker before clearing tokens
     try {
       const { sendPushNotification } = require('../../services/firebaseAdmin');
       await sendPushNotification(worker, {
@@ -567,11 +585,32 @@ const deleteWorker = async (req, res) => {
       console.error('[AdminWorkerDelete] Push notification failed:', pushErr);
     }
 
-    await Worker.findByIdAndDelete(id);
+    const now = new Date();
+    const originalPhone = worker.originalPhone || worker.phone;
+    const originalEmail = worker.originalEmail || worker.email;
+
+    // Soft delete
+    worker.isDeleted = true;
+    worker.deletedAt = now;
+    worker.deleteReason = req.body?.reason || 'Deleted by admin';
+    worker.isActive = false;
+    worker.isOnline = false;
+    worker.status = WORKER_STATUS.OFFLINE;
+    worker.originalPhone = originalPhone;
+    worker.originalEmail = originalEmail || null;
+    worker.phone = `deleted_${now.getTime()}_${originalPhone}`;
+    if (worker.email) {
+      worker.email = `deleted_${now.getTime()}_${originalEmail}`;
+    }
+    worker.fcmTokens = [];
+    worker.fcmTokenMobile = [];
+    worker.loginSessionId = null;
+
+    await worker.save();
 
     res.status(200).json({
       success: true,
-      message: 'Worker deleted successfully'
+      message: 'Worker deleted successfully (history preserved)'
     });
   } catch (error) {
     console.error('Delete worker error:', error);

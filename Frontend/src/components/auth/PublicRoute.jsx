@@ -2,115 +2,84 @@ import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 
 /**
+ * Storage keys by userType
+ */
+const getStorageKeys = (userType) => {
+  switch (userType) {
+    case 'vendor':
+      return { tokenKey: 'vendorAccessToken', refreshTokenKey: 'vendorRefreshToken', dataKey: 'vendorData' };
+    case 'worker':
+      return { tokenKey: 'workerAccessToken', refreshTokenKey: 'workerRefreshToken', dataKey: 'workerData' };
+    case 'admin':
+      return { tokenKey: 'adminAccessToken', refreshTokenKey: 'adminRefreshToken', dataKey: 'adminData' };
+    case 'user':
+    default:
+      return { tokenKey: 'accessToken', refreshTokenKey: 'refreshToken', dataKey: 'userData' };
+  }
+};
+
+/**
+ * Synchronous authentication check
+ * Evaluates whether valid accessToken or valid refreshToken exists
+ */
+const checkIsAuthenticatedSync = (userType) => {
+  try {
+    const { tokenKey, refreshTokenKey, dataKey } = getStorageKeys(userType);
+    const token = sessionStorage.getItem(tokenKey) || localStorage.getItem(tokenKey);
+    const refreshToken = sessionStorage.getItem(refreshTokenKey) || localStorage.getItem(refreshTokenKey);
+    const userData = sessionStorage.getItem(dataKey) || localStorage.getItem(dataKey);
+
+    if (!userData || (!token && !refreshToken)) {
+      return false;
+    }
+
+    const currentTime = Date.now() / 1000;
+
+    // 1. Check access token
+    if (token) {
+      const parts = token.split('.');
+      if (parts.length === 3) {
+        const payload = JSON.parse(atob(parts[1]));
+        if (payload.exp && payload.exp > currentTime) {
+          return true;
+        }
+      }
+    }
+
+    // 2. Access token expired or missing, but refreshToken exists.
+    // The axios interceptor in api.js will seamlessly refresh on the first API call.
+    if (refreshToken) {
+      const refParts = refreshToken.split('.');
+      if (refParts.length === 3) {
+        const refPayload = JSON.parse(atob(refParts[1]));
+        if (!refPayload.exp || refPayload.exp > currentTime) {
+          return true;
+        }
+      } else {
+        return true;
+      }
+    }
+
+    return false;
+  } catch (err) {
+    return false;
+  }
+};
+
+/**
  * Public Route Component
- * Redirects to dashboard if user is already authenticated
+ * Redirects to dashboard if user is already authenticated without flashing login screen
  */
 const PublicRoute = ({ children, userType = 'user', redirectTo = null }) => {
   const location = useLocation();
-  const [isAuthenticated, setIsAuthenticated] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => checkIsAuthenticatedSync(userType));
 
   useEffect(() => {
-    const checkAuth = () => {
-      let tokenKey = 'accessToken';
-      let refreshTokenKey = 'refreshToken';
-      let dataKey = 'userData';
-
-      // Determine keys based on userType
-      switch (userType) {
-        case 'vendor':
-          tokenKey = 'vendorAccessToken';
-          refreshTokenKey = 'vendorRefreshToken';
-          dataKey = 'vendorData';
-          break;
-        case 'worker':
-          tokenKey = 'workerAccessToken';
-          refreshTokenKey = 'workerRefreshToken';
-          dataKey = 'workerData';
-          break;
-        case 'admin':
-          tokenKey = 'adminAccessToken';
-          refreshTokenKey = 'adminRefreshToken';
-          dataKey = 'adminData';
-          break;
-        case 'user':
-        default:
-          tokenKey = 'accessToken';
-          refreshTokenKey = 'refreshToken';
-          dataKey = 'userData';
-          break;
-      }
-
-      const token = localStorage.getItem(tokenKey);
-      const userData = localStorage.getItem(dataKey);
-
-      if (token && userData) {
-        try {
-          // Decode JWT token to check expiry and role
-          const parts = token.split('.');
-          if (parts.length === 3) {
-            const payload = JSON.parse(atob(parts[1]));
-            const currentTime = Date.now() / 1000;
-
-            // Check if token is expired
-            if (!payload.exp || payload.exp <= currentTime) {
-              // Clear expired tokens
-              localStorage.removeItem(tokenKey);
-              localStorage.removeItem(refreshTokenKey);
-              localStorage.removeItem(dataKey);
-              sessionStorage.removeItem(tokenKey);
-              sessionStorage.removeItem(refreshTokenKey);
-              sessionStorage.removeItem(dataKey);
-              setIsAuthenticated(false);
-              return;
-            }
-
-            // Check if token role matches expected userType
-            const roleMap = {
-              user: 'user',
-              vendor: 'vendor',
-              worker: 'worker',
-              admin: 'admin'
-            };
-
-            if (payload.role === roleMap[userType]) {
-              setIsAuthenticated(true);
-            } else {
-              // Role mismatch
-              setIsAuthenticated(false);
-            }
-          } else {
-            // Invalid token format
-            setIsAuthenticated(false);
-          }
-        } catch (error) {
-          // Invalid token
-          console.error('Token validation error:', error);
-          setIsAuthenticated(false);
-        }
-      } else {
-        setIsAuthenticated(false);
-      }
-
-      setIsLoading(false);
-    };
-
-    checkAuth();
+    const isAuth = checkIsAuthenticatedSync(userType);
+    setIsAuthenticated(isAuth);
   }, [userType, location.pathname]);
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-white">
-        <div className="flex flex-col items-center gap-3">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2" style={{ borderColor: '#00a6a6' }}></div>
-          <p className="text-gray-600 text-sm">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
   if (isAuthenticated) {
-    // Determine redirect path
     const defaultRedirects = {
       user: '/user',
       vendor: '/vendor/dashboard',
@@ -126,5 +95,3 @@ const PublicRoute = ({ children, userType = 'user', redirectTo = null }) => {
 };
 
 export default PublicRoute;
-
-

@@ -51,14 +51,14 @@ const WorkerReport = () => {
             <FiTrendingUp className="text-primary-600" />
             Top 10 Workers by Bookings
           </h3>
-          <div className="h-[350px]">
+          <div className="h-[350px] select-none [&_*]:outline-none [&_svg]:outline-none">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data?.topWorkers} layout="vertical">
+              <BarChart data={data?.topWorkers} layout="vertical" className="select-none">
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
-                <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
-                <YAxis dataKey="fullName" type="category" axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 10 }} width={100} />
-                <Tooltip />
-                <Bar dataKey="totalBookings" name="Bookings" fill="#2874F0" radius={[0, 4, 4, 0]} />
+                <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 11, userSelect: 'none' }} />
+                <YAxis dataKey="fullName" type="category" axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 10, userSelect: 'none' }} width={100} />
+                <Tooltip cursor={{ fill: 'transparent' }} />
+                <Bar dataKey="totalBookings" name="Bookings" fill="#2874F0" radius={[0, 4, 4, 0]} isAnimationActive={false} />
               </BarChart>
             </ResponsiveContainer>
           </div>

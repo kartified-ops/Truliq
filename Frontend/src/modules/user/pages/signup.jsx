@@ -232,7 +232,7 @@ const Signup = () => {
   const brandColor = themeColors.brand?.teal || '#347989';
 
   return (
-    <div className="min-h-[100dvh] bg-gray-50 flex flex-col justify-between py-6 sm:py-10 px-4 sm:px-6 lg:px-8 relative overflow-x-hidden overflow-y-auto">
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-start py-6 sm:py-10 px-4 sm:px-6 lg:px-8 relative overflow-x-hidden overflow-y-auto pb-28 sm:pb-32">
       {/* Decorative Background Elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[#347989] opacity-[0.03] rounded-full blur-3xl animate-floating" />
@@ -240,7 +240,7 @@ const Signup = () => {
       </div>
 
       <div className="w-full max-w-md mx-auto relative z-10 flex-1 flex flex-col justify-center my-auto">
-        <div className="text-center mb-6 animate-fade-in">
+        <div className="text-center mb-5 animate-fade-in">
           <Logo className="h-14 sm:h-16 w-auto transform hover:scale-110 transition-transform duration-500 mx-auto" />
           <h2 className="mt-3 sm:mt-4 text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
             {step === 'details' ? 'Create Account' : 'Verify Phone'}
@@ -251,11 +251,11 @@ const Signup = () => {
 
           {/* Premium Team Illustration */}
           {step === 'details' && (
-            <div className="mt-4 sm:mt-6 flex justify-center">
+            <div className="mt-3 sm:mt-5 flex justify-center">
               <img 
                 src={signupTeamImg} 
                 alt="Our Team" 
-                className="w-40 sm:w-56 h-auto rounded-2xl shadow-lg border border-gray-100 max-h-40 sm:max-h-52 object-cover"
+                className="w-36 sm:w-52 h-auto rounded-2xl shadow-lg border border-gray-100 max-h-36 sm:max-h-48 object-cover"
               />
             </div>
           )}
@@ -465,17 +465,22 @@ const Signup = () => {
           )}
         </div>
 
-        <p className="mt-6 text-center text-sm text-gray-500 animate-fade-in animate-stagger-5">
-          Already have an account?{' '}
-          <Link to="/user/login" className="font-semibold text-[#347989] hover:text-[#D68F35] transition-colors duration-300">
-            Sign in
-          </Link>
-        </p>
       </div>
 
-      <div className="w-full text-center text-xs text-gray-400 mt-6 pb-2">
-        &copy; {new Date().getFullYear()} Truliq. All rights reserved.
-      </div>
+      {/* Fixed Bottom Footer */}
+      <footer className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t border-gray-200/80 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] py-3 px-4">
+        <div className="max-w-md mx-auto flex flex-col items-center justify-center text-center">
+          <p className="text-sm font-medium text-gray-600">
+            Already have an account?{' '}
+            <Link to="/user/login" className="font-bold text-[#347989] hover:text-[#D68F35] transition-colors duration-300">
+              Sign in
+            </Link>
+          </p>
+          <p className="text-[11px] text-gray-400 mt-0.5">
+            &copy; {new Date().getFullYear()} Truliq. All rights reserved.
+          </p>
+        </div>
+      </footer>
     </div>
   );
 };

@@ -35,6 +35,30 @@ const CategoryModal = React.memo(({ isOpen, onClose, category, location, cartCou
     setMounted(true);
   }, []);
 
+  // Lock background scroll when CategoryModal is open
+  useEffect(() => {
+    if (isOpen) {
+      const originalOverflow = document.body.style.overflow;
+      const originalPosition = document.body.style.position;
+      const originalTop = document.body.style.top;
+      const originalWidth = document.body.style.width;
+      const scrollY = window.scrollY;
+
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+      document.body.style.overflow = 'hidden';
+
+      return () => {
+        document.body.style.position = originalPosition;
+        document.body.style.top = originalTop;
+        document.body.style.width = originalWidth;
+        document.body.style.overflow = originalOverflow;
+        window.scrollTo(0, scrollY);
+      };
+    }
+  }, [isOpen]);
+
   useEffect(() => {
     if (!isOpen) {
       setIsClosing(false);
@@ -197,8 +221,9 @@ const CategoryModal = React.memo(({ isOpen, onClose, category, location, cartCou
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[9998]"
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[9998] touch-none"
             onClick={onClose}
+            onTouchMove={(e) => e.preventDefault()}
             style={{
               position: 'fixed',
               willChange: 'opacity',
@@ -232,7 +257,7 @@ const CategoryModal = React.memo(({ isOpen, onClose, category, location, cartCou
               </button>
             </div>
 
-            <div className="bg-white rounded-t-3xl max-h-[90vh] overflow-y-auto min-h-[50vh]">
+            <div className="bg-white rounded-t-3xl max-h-[90vh] overflow-y-auto min-h-[50vh] overscroll-contain">
               {isRedirecting ? (
                 <div className="flex flex-col items-center justify-center min-h-[40vh] py-12">
                   <motion.div

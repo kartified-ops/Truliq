@@ -44,9 +44,37 @@ const authenticate = async (req, res, next) => {
     switch (decoded.role) {
       case USER_ROLES.USER:
         user = await User.findById(decoded.userId).select('-password').lean();
+        if (user && user.isDeleted) {
+          return res.status(403).json({
+            success: false,
+            message: 'Your account has been deleted.',
+            isDeleted: true
+          });
+        }
+        if (user && user.isActive === false) {
+          return res.status(403).json({
+            success: false,
+            message: 'Your account has been blocked by the admin. Please contact support.',
+            isBlocked: true
+          });
+        }
         break;
       case USER_ROLES.VENDOR:
         user = await Vendor.findById(decoded.userId).select('-password').lean();
+        if (user && user.isDeleted) {
+          return res.status(403).json({
+            success: false,
+            message: 'Your vendor account has been deleted.',
+            isDeleted: true
+          });
+        }
+        if (user && user.isActive === false) {
+          return res.status(403).json({
+            success: false,
+            message: 'Your vendor account has been blocked by the admin.',
+            isBlocked: true
+          });
+        }
         if (user && user.approvalStatus !== 'approved') {
           return res.status(403).json({
             success: false,
@@ -56,12 +84,39 @@ const authenticate = async (req, res, next) => {
         break;
       case USER_ROLES.WORKER:
         user = await Worker.findById(decoded.userId).select('-password').lean();
+        if (user && user.isDeleted) {
+          return res.status(403).json({
+            success: false,
+            message: 'Your worker account has been deleted.',
+            isDeleted: true
+          });
+        }
+        if (user && user.isActive === false) {
+          return res.status(403).json({
+            success: false,
+            message: 'Your worker account has been blocked by the admin.',
+            isBlocked: true
+          });
+        }
+        if (user && user.approvalStatus !== 'approved') {
+          return res.status(403).json({
+            success: false,
+            message: 'Your worker account is pending approval or has been rejected.'
+          });
+        }
         break;
       case USER_ROLES.ADMIN:
       case 'super_admin':
       case 'admin':
       case 'ADMIN':
         user = await Admin.findById(decoded.userId).select('-password').lean();
+        if (user && user.isActive === false) {
+          return res.status(403).json({
+            success: false,
+            message: 'Your admin account has been deactivated.',
+            isBlocked: true
+          });
+        }
         break;
       default:
         console.error('Role mismatch in middleware:', decoded.role);

@@ -1,9 +1,10 @@
-import React, { lazy, Suspense } from 'react';
+import React, { Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import AdminLayout from '../components/layout/AdminLayout';
 import ProtectedRoute from '../../../components/auth/ProtectedRoute';
 import PublicRoute from '../../../components/auth/PublicRoute';
 import useAppNotifications from '../../../hooks/useAppNotifications.jsx';
+import { lazyWithRetry as lazy } from '../../../utils/lazyWithRetry';
 
 // Login page (not lazy loaded for faster initial access)
 import Login from '../pages/login';

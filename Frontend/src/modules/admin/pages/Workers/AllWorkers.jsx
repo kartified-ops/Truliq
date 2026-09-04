@@ -57,6 +57,13 @@ const AllWorkers = () => {
           address: worker.address || {},
           serviceCategory: worker.serviceCategories?.length ? worker.serviceCategories.join(', ') : worker.serviceCategory || worker.service || 'N/A',
           approvalStatus: worker.approvalStatus,
+          isDeleted: worker.isDeleted || false,
+          deletedAt: worker.deletedAt || null,
+          deleteReason: worker.deleteReason || null,
+          totalJobs: worker.totalJobs || 0,
+          completedJobs: worker.completedJobs || 0,
+          rating: worker.rating || 0,
+          wallet: worker.wallet || {},
           aadhar: worker.aadhar?.number,
           pan: worker.pan?.number,
           documents: {
@@ -83,7 +90,15 @@ const AllWorkers = () => {
 
   const filteredWorkers = useMemo(() => {
     return workers.filter(worker => {
-      const matchesStatus = filterStatus === 'all' || worker.approvalStatus === filterStatus;
+      let matchesStatus = true;
+      if (filterStatus === 'deleted') {
+        matchesStatus = worker.isDeleted === true;
+      } else if (filterStatus === 'all') {
+        matchesStatus = true;
+      } else {
+        matchesStatus = worker.approvalStatus === filterStatus && !worker.isDeleted;
+      }
+
       const searchTerms = searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
       
       const matchesSearch = searchTerms.length === 0 || searchTerms.every(term => 
@@ -221,9 +236,10 @@ const AllWorkers = () => {
     );
   };
 
-  const pendingCount = workers.filter(w => w.approvalStatus === 'pending').length;
-  const approvedCount = workers.filter(w => w.approvalStatus === 'approved').length;
-  const rejectedCount = workers.filter(w => w.approvalStatus === 'rejected').length;
+  const pendingCount = workers.filter(w => w.approvalStatus === 'pending' && !w.isDeleted).length;
+  const approvedCount = workers.filter(w => w.approvalStatus === 'approved' && !w.isDeleted).length;
+  const rejectedCount = workers.filter(w => w.approvalStatus === 'rejected' && !w.isDeleted).length;
+  const deletedCount = workers.filter(w => w.isDeleted).length;
 
   return (
     <div className="space-y-4">
@@ -233,7 +249,7 @@ const AllWorkers = () => {
         subtitle="Manage and verify platform workers"
       >
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3">
             <div className="text-[10px] font-bold text-yellow-700 uppercase tracking-wider mb-1">Pending</div>
             <div className="text-xl font-bold text-yellow-900">{pendingCount}</div>
@@ -246,6 +262,10 @@ const AllWorkers = () => {
             <div className="text-[10px] font-bold text-red-700 uppercase tracking-wider mb-1">Rejected</div>
             <div className="text-xl font-bold text-red-900">{rejectedCount}</div>
           </div>
+          <div className="bg-rose-50 border border-rose-200 rounded-xl p-3">
+            <div className="text-[10px] font-bold text-rose-700 uppercase tracking-wider mb-1">Deleted</div>
+            <div className="text-xl font-bold text-rose-900">{deletedCount}</div>
+          </div>
         </div>
 
         {/* Search and Filter */}
@@ -254,23 +274,29 @@ const AllWorkers = () => {
             <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
             <input
               type="text"
-              placeholder="Search workers..."
+              placeholder="Search workers by name, phone, email, category..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all text-xs"
             />
           </div>
           <div className="flex gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-            {['all', 'pending', 'approved', 'rejected'].map((status) => (
+            {[
+              { key: 'all', label: 'All Workers' },
+              { key: 'pending', label: 'Pending' },
+              { key: 'approved', label: 'Approved' },
+              { key: 'rejected', label: 'Rejected' },
+              { key: 'deleted', label: 'Deleted Accounts' },
+            ].map(({ key, label }) => (
               <button
-                key={status}
-                onClick={() => setFilterStatus(status)}
-                className={`px-3 py-2 rounded-lg text-xs font-bold capitalize transition-all whitespace-nowrap ${filterStatus === status
+                key={key}
+                onClick={() => setFilterStatus(key)}
+                className={`px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${filterStatus === key
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
               >
-                {status}
+                {label}
               </button>
             ))}
           </div>
@@ -301,12 +327,19 @@ const AllWorkers = () => {
                   </tr>
                 ) : (
                   filteredWorkers.map((worker) => (
-                    <tr key={worker.id} className="hover:bg-gray-50 transition-colors">
+                    <tr key={worker.id} className={`hover:bg-gray-50 transition-colors ${worker.isDeleted ? 'bg-rose-50/20' : ''}`}>
                       <td className="px-4 py-3">
                         <div>
-                          <p className="font-bold text-gray-900 text-xs">{worker.name}</p>
-                          <p className="text-[10px] text-gray-500">{worker.phone}</p>
-                          <p className="text-[10px] text-gray-400">{worker.email}</p>
+                          <p className="font-bold text-gray-900 text-xs flex items-center gap-1.5">
+                            {worker.name}
+                            {worker.isDeleted && (
+                              <span className="text-[9px] font-extrabold px-1.5 py-0.2 bg-rose-100 text-rose-700 rounded border border-rose-200">
+                                DELETED
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-[10px] text-gray-600 font-medium">{worker.phone}</p>
+                          <p className="text-[10px] text-gray-400">{worker.email || 'No email'}</p>
                         </div>
                       </td>
                       <td className="px-4 py-3">
@@ -333,12 +366,27 @@ const AllWorkers = () => {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${worker.approvalStatus === 'approved' ? 'bg-green-50 text-green-700 border-green-100' :
-                          worker.approvalStatus === 'rejected' ? 'bg-red-50 text-red-700 border-red-100' :
-                            'bg-yellow-50 text-yellow-700 border-yellow-100'
-                          }`}>
-                          {worker.approvalStatus}
-                        </span>
+                        {worker.isDeleted ? (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-100 text-rose-700 border border-rose-200 w-fit">
+                              Account Deleted
+                            </span>
+                            {worker.deletedAt && (
+                              <span className="text-[10px] text-rose-600/80 font-medium">
+                                On {new Date(worker.deletedAt).toLocaleDateString('en-US', {
+                                  year: 'numeric', month: 'short', day: 'numeric'
+                                })}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${worker.approvalStatus === 'approved' ? 'bg-green-50 text-green-700 border-green-100' :
+                            worker.approvalStatus === 'rejected' ? 'bg-red-50 text-red-700 border-red-100' :
+                              'bg-yellow-50 text-yellow-700 border-yellow-100'
+                            }`}>
+                            {worker.approvalStatus}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         {worker.subscription?.isActive && worker.subscription?.expiryDate && new Date(worker.subscription.expiryDate) > new Date() ? (
@@ -363,51 +411,57 @@ const AllWorkers = () => {
                           {/* View Details */}
                           <button
                             onClick={() => handleViewDetails(worker)}
-                            className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
-                            title="View Details"
+                            className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                            title="View Details & History"
                           >
                             <FiEye className="w-3.5 h-3.5" />
                           </button>
 
-                          {/* Toggle Active Status */}
-                          <button
-                            onClick={() => handleToggleStatus(worker.id, worker.isActive)}
-                            className={`p-1.5 rounded-lg transition-colors ${worker.isActive ? 'text-green-600 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-100'}`}
-                            title={worker.isActive ? "Disable Login" : "Enable Login"}
-                          >
-                            <FiPower className={`w-3.5 h-3.5 ${worker.isActive ? 'fill-current' : ''}`} />
-                          </button>
-
-
-
-                          {/* Approve/Reject (Only for pending) */}
-                          {worker.approvalStatus === 'pending' && (
+                          {worker.isDeleted ? (
+                            <span className="text-[10px] text-gray-400 font-mono italic">
+                              History Preserved
+                            </span>
+                          ) : (
                             <>
+                              {/* Toggle Active Status */}
                               <button
-                                onClick={() => handleApprove(worker.id)}
-                                className="p-1.5 text-green-500 hover:bg-green-50 rounded-lg transition-colors"
-                                title="Approve"
+                                onClick={() => handleToggleStatus(worker.id, worker.isActive)}
+                                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${worker.isActive ? 'text-green-600 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-100'}`}
+                                title={worker.isActive ? "Disable Login" : "Enable Login"}
                               >
-                                <FiCheck className="w-3.5 h-3.5" />
+                                <FiPower className={`w-3.5 h-3.5 ${worker.isActive ? 'fill-current' : ''}`} />
                               </button>
+
+                              {/* Approve/Reject (Only for pending) */}
+                              {worker.approvalStatus === 'pending' && (
+                                <>
+                                  <button
+                                    onClick={() => handleApprove(worker.id)}
+                                    className="p-1.5 text-green-500 hover:bg-green-50 rounded-lg transition-colors cursor-pointer"
+                                    title="Approve"
+                                  >
+                                    <FiCheck className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleReject(worker.id)}
+                                    className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                    title="Reject"
+                                  >
+                                    <FiX className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
+                              )}
+
+                              {/* Delete Worker */}
                               <button
-                                onClick={() => handleReject(worker.id)}
-                                className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                title="Reject"
+                                onClick={() => handleDelete(worker.id)}
+                                className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                title="Delete Worker (Soft Delete)"
                               >
-                                <FiX className="w-3.5 h-3.5" />
+                                <FiTrash2 className="w-3.5 h-3.5" />
                               </button>
                             </>
                           )}
-
-                          {/* Delete Worker */}
-                          <button
-                            onClick={() => handleDelete(worker.id)}
-                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Delete Worker"
-                          >
-                            <FiTrash2 className="w-3.5 h-3.5" />
-                          </button>
                         </div>
                       </td>
                     </tr>
@@ -431,10 +485,43 @@ const AllWorkers = () => {
       >
         {selectedWorker && (
           <div className="space-y-6">
+            {/* Deletion Warning Banner */}
+            {selectedWorker.isDeleted && (
+              <div className="p-4 bg-rose-50 rounded-2xl border border-rose-200 flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-rose-100 flex items-center justify-center text-rose-700 shrink-0 mt-0.5">
+                  ⚠️
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-rose-900">
+                    Account Deleted {selectedWorker.deletedAt ? `on ${new Date(selectedWorker.deletedAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}` : ''}
+                  </h4>
+                  <p className="text-xs text-rose-700 mt-0.5">
+                    {selectedWorker.deleteReason ? `Reason: ${selectedWorker.deleteReason}` : 'This worker deleted their account. All previous job history, ratings, and records are retained for auditing.'}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Historical Job & Performance Stats */}
+            <div className="grid grid-cols-3 gap-3 p-3 bg-gray-50 rounded-2xl border border-gray-100 text-center">
+              <div>
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Total Jobs</span>
+                <p className="text-base font-black text-gray-900">{selectedWorker.totalJobs || 0}</p>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Completed</span>
+                <p className="text-base font-black text-emerald-600">{selectedWorker.completedJobs || 0}</p>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Rating</span>
+                <p className="text-base font-black text-amber-500">★ {selectedWorker.rating || '0.0'}</p>
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Name</label>
-                <div className="text-gray-900">{selectedWorker.name}</div>
+                <div className="text-gray-900 font-medium">{selectedWorker.name}</div>
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Email</label>

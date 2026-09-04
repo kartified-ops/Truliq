@@ -7,51 +7,7 @@ import ErrorBoundary from '../components/common/ErrorBoundary';
 import ProtectedRoute from '../../../components/auth/ProtectedRoute';
 import PublicRoute from '../../../components/auth/PublicRoute';
 import useAppNotifications from '../../../hooks/useAppNotifications.jsx';
-
-// Lazy load wrapper with error handling
-const lazyLoad = (importFunc) => {
-  return lazy(() => {
-    return Promise.resolve(importFunc()).catch((error) => {
-      console.error('User Module - Lazy Load Error:', error);
-      // Failed to load user page
-      // Return a fallback component wrapped in a Promise
-      return Promise.resolve({
-        default: () => (
-          <div className="flex items-center justify-center min-h-screen bg-gray-50 p-4">
-            <div className="text-center p-8 bg-white rounded-3xl shadow-xl max-w-lg w-full border border-red-100">
-              <div className="text-5xl mb-4">🚫</div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">Failed to load page</h2>
-              <p className="text-gray-600 mb-6">Something went wrong while loading this section.</p>
-              
-              <div className="bg-red-50 p-4 rounded-xl text-left border border-red-100 mb-6 max-h-40 overflow-auto">
-                <p className="text-xs font-mono text-red-600 underline mb-2">Error Details:</p>
-                <code className="text-xs text-red-700 whitespace-pre-wrap">
-                  {error?.message || 'Unknown loading error'}
-                </code>
-              </div>
-
-              <div className="flex flex-col gap-3">
-                <button
-                  onClick={() => window.location.reload()}
-                  className="px-6 py-3 rounded-xl text-white font-bold transition-all duration-300 hover:opacity-90 active:scale-95 shadow-lg shadow-teal-500/20"
-                  style={{ backgroundColor: '#00a6a6' }}
-                >
-                  Refresh Page
-                </button>
-                <button
-                  onClick={() => window.history.back()}
-                  className="px-6 py-2 text-gray-400 hover:text-gray-600 font-medium transition-colors"
-                >
-                  Go Back
-                </button>
-              </div>
-            </div>
-          </div>
-        ),
-      });
-    });
-  });
-};
+import { lazyWithRetry as lazyLoad } from '../../../utils/lazyWithRetry';
 
 // Lazy load all user pages for code splitting with error handling
 const Home = lazyLoad(() => import('../pages/Home'));

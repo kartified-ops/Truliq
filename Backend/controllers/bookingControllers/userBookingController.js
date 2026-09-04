@@ -84,7 +84,7 @@ const createBooking = async (req, res) => {
     // 1. Parallel Fetching: Service and User
     const [service, user] = await Promise.all([
       Service.findById(serviceId).select('title basePrice discountPrice description images iconUrl categoryId category categoryIds').lean(),
-      User.findById(userId).select('name phone wallet plans')
+      User.findById(userId).select('name phone wallet plans isActive')
     ]);
 
     if (!service) {
@@ -98,6 +98,14 @@ const createBooking = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'User not found'
+      });
+    }
+
+    if (user.isActive === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been blocked by the admin. You cannot make bookings.',
+        isBlocked: true
       });
     }
 
