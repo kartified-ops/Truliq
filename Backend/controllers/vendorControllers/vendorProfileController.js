@@ -117,10 +117,12 @@ const updateProfile = async (req, res) => {
         };
 
         // Sync GeoJSON geoLocation for fast geo queries
-        if (vendor.address.lat && vendor.address.lng) {
+        const latNum = Number(vendor.address.lat);
+        const lngNum = Number(vendor.address.lng);
+        if (!isNaN(latNum) && !isNaN(lngNum)) {
           vendor.geoLocation = {
             type: 'Point',
-            coordinates: [vendor.address.lng, vendor.address.lat] // [lng, lat]
+            coordinates: [lngNum, latNum] // [lng, lat]
           };
         }
       }
@@ -222,9 +224,16 @@ const updateProfile = async (req, res) => {
     });
   } catch (error) {
     console.error('Update vendor profile error:', error);
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern || {})[0] || 'Field';
+      return res.status(400).json({
+        success: false,
+        message: `${field.charAt(0).toUpperCase() + field.slice(1)} is already registered with another account.`
+      });
+    }
     res.status(500).json({
       success: false,
-      message: 'Failed to update profile. Please try again.'
+      message: error.message || 'Failed to update profile. Please try again.'
     });
   }
 };

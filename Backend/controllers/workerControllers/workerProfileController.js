@@ -70,7 +70,7 @@ const updateProfile = async (req, res) => {
     }
 
     const workerId = req.user.id;
-    const { name, serviceCategories, serviceCategory, skills, address, status, profilePhoto } = req.body;
+    const { name, email, serviceCategories, serviceCategory, skills, address, status, profilePhoto } = req.body;
 
     const worker = await Worker.findById(workerId);
 
@@ -84,10 +84,25 @@ const updateProfile = async (req, res) => {
     // Update fields
     if (name) worker.name = name.trim();
 
+    // Handle email safely (convert empty strings to null for sparse index)
+    if (email !== undefined) {
+      const cleanEmail = email ? String(email).trim().toLowerCase() : null;
+      if (cleanEmail && cleanEmail !== worker.email) {
+        const existingWorker = await Worker.findOne({ email: cleanEmail, _id: { $ne: worker._id } });
+        if (existingWorker) {
+          return res.status(400).json({
+            success: false,
+            message: 'Email is already registered with another account'
+          });
+        }
+      }
+      worker.email = cleanEmail || null;
+    }
+
     // Handle categories: prefer array, fallback to single legacy string
     if (serviceCategories && Array.isArray(serviceCategories)) {
-      worker.serviceCategories = serviceCategories;
-    } else if (serviceCategory) {
+      worker.serviceCategories = serviceCategories.filter(c => typeof c === 'string' && c.trim());
+    } else if (serviceCategory && typeof serviceCategory === 'string') {
       worker.serviceCategories = [serviceCategory.trim()];
     }
 
@@ -101,6 +116,11 @@ const updateProfile = async (req, res) => {
         address.pincode || worker.address?.pincode
       ].filter(Boolean).join(', ') || worker.address?.fullAddress || '';
 
+      const locObj = (address.location && typeof address.location === 'object') ? address.location : worker.address?.location;
+      const hasLat = locObj && locObj.lat !== undefined && locObj.lat !== null && locObj.lat !== '' && !isNaN(Number(locObj.lat));
+      const hasLng = locObj && locObj.lng !== undefined && locObj.lng !== null && locObj.lng !== '' && !isNaN(Number(locObj.lng));
+      const hasValidCoords = hasLat && hasLng;
+
       worker.address = {
         addressLine1: address.addressLine1 !== undefined ? address.addressLine1 : (worker.address?.addressLine1 || ''),
         addressLine2: address.addressLine2 !== undefined ? address.addressLine2 : (worker.address?.addressLine2 || ''),
@@ -110,18 +130,20 @@ const updateProfile = async (req, res) => {
         pincode: address.pincode !== undefined ? address.pincode : (worker.address?.pincode || ''),
         landmark: address.landmark !== undefined ? address.landmark : (worker.address?.landmark || ''),
         fullAddress: fullAddr,
-        location: address.location || worker.address?.location || undefined
+        location: hasValidCoords ? { lat: Number(locObj.lat), lng: Number(locObj.lng) } : (worker.address?.location || undefined)
       };
 
-      if (address.location && address.location.lat && address.location.lng) {
+      if (hasValidCoords) {
+        const latNum = Number(locObj.lat);
+        const lngNum = Number(locObj.lng);
         worker.location = {
-          lat: address.location.lat,
-          lng: address.location.lng,
+          lat: latNum,
+          lng: lngNum,
           updatedAt: new Date()
         };
         worker.geoLocation = {
           type: 'Point',
-          coordinates: [address.location.lng, address.location.lat]
+          coordinates: [lngNum, latNum]
         };
       }
     }
@@ -172,9 +194,16 @@ const updateProfile = async (req, res) => {
     });
   } catch (error) {
     console.error('Update worker profile error:', error);
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern || {})[0] || 'Field';
+      return res.status(400).json({
+        success: false,
+        message: `${field.charAt(0).toUpperCase() + field.slice(1)} is already registered with another account.`
+      });
+    }
     res.status(500).json({
       success: false,
-      message: 'Failed to update profile. Please try again.'
+      message: error.message || 'Failed to update profile. Please try again.'
     });
   }
 };

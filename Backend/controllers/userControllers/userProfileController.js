@@ -170,9 +170,16 @@ const updateProfile = async (req, res) => {
     });
   } catch (error) {
     console.error('Update profile error:', error);
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern || {})[0] || 'Field';
+      return res.status(400).json({
+        success: false,
+        message: `${field.charAt(0).toUpperCase() + field.slice(1)} is already registered with another account.`
+      });
+    }
     res.status(500).json({
       success: false,
-      message: 'Failed to update profile. Please try again.'
+      message: error.message || 'Failed to update profile. Please try again.'
     });
   }
 };
