@@ -12,6 +12,7 @@ const Subscription = () => {
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activating, setActivating] = useState(null);
+  const [isPaymentGatewayEnabled, setIsPaymentGatewayEnabled] = useState(true);
 
   useEffect(() => {
     fetchData();
@@ -24,8 +25,18 @@ const Subscription = () => {
         api.get('/workers/subscription/plans'),
         api.get('/workers/subscription/status')
       ]);
-      if (plansRes.data.success) setPlans(plansRes.data.data);
-      if (statusRes.data.success) setStatus(statusRes.data.data);
+      if (plansRes.data.success) {
+        setPlans(plansRes.data.data);
+        if (plansRes.data.isPaymentGatewayEnabled !== undefined) {
+          setIsPaymentGatewayEnabled(plansRes.data.isPaymentGatewayEnabled !== false);
+        }
+      }
+      if (statusRes.data.success) {
+        setStatus(statusRes.data.data);
+        if (statusRes.data.isPaymentGatewayEnabled !== undefined) {
+          setIsPaymentGatewayEnabled(statusRes.data.isPaymentGatewayEnabled !== false);
+        }
+      }
     } catch (error) {
       console.error('Failed to load subscription data:', error);
       toast.error('Could not load plans');
@@ -47,6 +58,11 @@ const Subscription = () => {
   };
 
   const handleSubscribe = async (plan) => {
+    if (!isPaymentGatewayEnabled) {
+      toast.error('Subscription payment gateway is currently disabled by administrator.');
+      return;
+    }
+
     setActivating(plan._id);
     try {
       // Step 1: Load Razorpay script
@@ -60,7 +76,7 @@ const Subscription = () => {
       // Step 2: Create order on backend
       const orderRes = await api.post('/workers/subscription/create-order', { planId: plan._id });
       if (!orderRes.data.success) {
-        toast.error('Could not create payment order');
+        toast.error(orderRes.data.message || 'Could not create payment order');
         setActivating(null);
         return;
       }
@@ -293,6 +309,21 @@ const Subscription = () => {
         </div>
       )}
 
+      {/* Payment Gateway Disabled Banner */}
+      {!isPaymentGatewayEnabled && (
+        <div className="mx-4 mb-6 rounded-2xl p-4 border border-rose-500/40 bg-rose-500/15">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl shrink-0">🚫</span>
+            <div>
+              <p className="text-rose-300 font-bold text-sm">Online Payments Currently Disabled</p>
+              <p className="text-white/80 text-xs mt-1 leading-relaxed">
+                Subscription purchases via online payment gateway are currently turned off by the platform administrator. You will not be able to purchase or extend subscriptions at this time. Please check back later.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Plans */}
       <div className="px-4 pb-6">
         <p className="text-white/60 text-xs font-bold uppercase tracking-widest mb-4">Available Plans</p>
@@ -364,9 +395,12 @@ const Subscription = () => {
 
                   {(() => {
                     const isExtensionDisabled = status?.isActive && plan.allowExtension === false;
+                    const isGatewayDisabled = !isPaymentGatewayEnabled;
                     let buttonText = `Subscribe – ₹${plan.price}`;
                     if (isActivating) {
                       buttonText = 'Activating...';
+                    } else if (isGatewayDisabled) {
+                      buttonText = 'Payment Gateway Offline';
                     } else if (isExtensionDisabled) {
                       buttonText = 'Extension Not Allowed for Active Plan';
                     } else if (status?.isActive) {
@@ -376,16 +410,16 @@ const Subscription = () => {
                     return (
                       <button
                         onClick={() => handleSubscribe(plan)}
-                        disabled={isActivating || isExtensionDisabled}
+                        disabled={isActivating || isExtensionDisabled || isGatewayDisabled}
                         className="w-full py-3.5 rounded-xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                         style={{
-                          background: isExtensionDisabled
+                          background: (isExtensionDisabled || isGatewayDisabled)
                             ? 'rgba(255,255,255,0.05)'
                             : isPopular
                             ? 'linear-gradient(135deg, #6c63ff, #a855f7)'
                             : 'rgba(255,255,255,0.1)',
-                          color: isExtensionDisabled ? 'rgba(255,255,255,0.4)' : 'white',
-                          border: isPopular && !isExtensionDisabled ? 'none' : '1px solid rgba(255,255,255,0.2)'
+                          color: (isExtensionDisabled || isGatewayDisabled) ? 'rgba(255,255,255,0.4)' : 'white',
+                          border: isPopular && !isExtensionDisabled && !isGatewayDisabled ? 'none' : '1px solid rgba(255,255,255,0.2)'
                         }}
                       >
                         {isActivating ? (

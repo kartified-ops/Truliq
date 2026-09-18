@@ -1,6 +1,7 @@
 const { createOrder, verifyPayment } = require('../../services/razorpayService');
 const Worker = require('../../models/Worker');
 const WorkerSubscriptionPlan = require('../../models/WorkerSubscriptionPlan');
+const Settings = require('../../models/Settings');
 const { withTransaction, abort } = require('../../utils/withTransaction');
 const { confirmGatewayPayment } = require('../../utils/confirmGatewayPayment');
 const { isSubscriptionCurrentlyActive, applyPaidSubscription, PLAN_TYPES } = require('../../utils/workerSubscriptionUtil');
@@ -15,6 +16,15 @@ exports.createSubscriptionOrder = async (req, res) => {
     const { planId } = req.body;
     const workerId = req.user.id;
     console.log(`[SubscriptionPayment] Creating order for Plan: ${planId}, Worker: ${workerId}`);
+
+    const settings = await Settings.findOne({ type: 'global' }).select('isSubscriptionPaymentEnabled');
+    if (settings && settings.isSubscriptionPaymentEnabled === false) {
+      console.warn(`[SubscriptionPayment] Blocked order creation: subscription payment gateway is disabled.`);
+      return res.status(403).json({
+        success: false,
+        message: 'Subscription payment gateway is currently disabled by administrator'
+      });
+    }
 
     const plan = await WorkerSubscriptionPlan.findById(planId);
     if (!plan) {
@@ -90,6 +100,15 @@ exports.verifySubscriptionPayment = async (req, res) => {
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
     const workerId = req.user.id;
+
+    const settings = await Settings.findOne({ type: 'global' }).select('isSubscriptionPaymentEnabled');
+    if (settings && settings.isSubscriptionPaymentEnabled === false) {
+      console.warn(`[SubscriptionPayment] Blocked verification: subscription payment gateway is disabled.`);
+      return res.status(403).json({
+        success: false,
+        message: 'Subscription payment gateway is currently disabled by administrator'
+      });
+    }
 
     if (!razorpay_order_id || !razorpay_payment_id) {
       return res.status(400).json({ success: false, message: 'Missing payment details' });

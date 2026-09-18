@@ -173,6 +173,10 @@ const settingsSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  isSubscriptionPaymentEnabled: {
+    type: Boolean,
+    default: true
+  },
   bookingModel: {
     type: String,
     enum: ['vendor', 'worker'],

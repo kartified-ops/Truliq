@@ -25,7 +25,8 @@ const AdminSettings = ({ defaultView = 'main' }) => {
     maxSearchTime: 5,
     waveDuration: 60,
     searchRadius: 10,
-    isOnlinePaymentEnabled: true
+    isOnlinePaymentEnabled: true,
+    isSubscriptionPaymentEnabled: true
   });
 
   // Free Trial & Subscription Settings State
@@ -141,6 +142,7 @@ const AdminSettings = ({ defaultView = 'main' }) => {
             cancellationPenalty: res.settings.cancellationPenalty !== undefined ? res.settings.cancellationPenalty : 49,
             searchRadius: res.settings.searchRadius || 10,
             isOnlinePaymentEnabled: res.settings.isOnlinePaymentEnabled !== undefined ? res.settings.isOnlinePaymentEnabled : true,
+            isSubscriptionPaymentEnabled: res.settings.isSubscriptionPaymentEnabled !== undefined ? res.settings.isSubscriptionPaymentEnabled : true,
             bookingModel: res.settings.bookingModel || 'worker'
           });
           if (res.settings.workerFreeTrial) {
@@ -965,6 +967,29 @@ const AdminSettings = ({ defaultView = 'main' }) => {
                     }}
                       className={`relative w-12 h-7 rounded-full transition-all duration-300 ${financialSettings.isOnlinePaymentEnabled ? 'bg-green-600' : 'bg-gray-200'}`}>
                       <div className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-300 ${financialSettings.isOnlinePaymentEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-gray-800">Subscription Payment Gateway</p>
+                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                          financialSettings.isSubscriptionPaymentEnabled ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                        }`}>
+                          {financialSettings.isSubscriptionPaymentEnabled ? 'Razorpay ON' : 'Banned / OFF'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">Enable Razorpay payment gateway for worker subscription purchases. When disabled, subscription checkout is banned.</p>
+                    </div>
+                    <button onClick={() => {
+                      const newValue = !financialSettings.isSubscriptionPaymentEnabled;
+                      setFinancialSettings(prev => ({ ...prev, isSubscriptionPaymentEnabled: newValue }));
+                      updateSettings({ isSubscriptionPaymentEnabled: newValue });
+                      toast.success(newValue ? 'Subscription payment gateway enabled' : 'Subscription payment gateway disabled');
+                    }}
+                      className={`relative w-12 h-7 rounded-full transition-all duration-300 ${financialSettings.isSubscriptionPaymentEnabled ? 'bg-green-600' : 'bg-gray-200'}`}>
+                      <div className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-300 ${financialSettings.isSubscriptionPaymentEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
                     </button>
                   </div>
 

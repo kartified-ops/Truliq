@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../../../services/api';
 import { serviceService } from '../../../../services/catalogService';
-import { FiPlus, FiEdit2, FiTrash2, FiX, FiInfo, FiGift, FiSave, FiTag, FiClock, FiCalendar, FiBell, FiCheck, FiImage } from 'react-icons/fi';
+import { FiPlus, FiEdit2, FiTrash2, FiX, FiInfo, FiGift, FiSave, FiTag, FiClock, FiCalendar, FiBell, FiCheck, FiImage, FiCreditCard, FiAlertCircle, FiCheckCircle } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 
 const toLocalDatetimeString = (dateInput) => {
@@ -57,11 +57,49 @@ const WorkerPlans = () => {
   const [bannerForm, setBannerForm] = useState({ imageUrl: '', text: '', isActive: true });
   const [bannerUploading, setBannerUploading] = useState(false);
 
+  // Subscription Payment Gateway (Razorpay) State
+  const [isSubscriptionPaymentEnabled, setIsSubscriptionPaymentEnabled] = useState(true);
+  const [gatewayLoading, setGatewayLoading] = useState(true);
+  const [gatewaySaving, setGatewaySaving] = useState(false);
+
   useEffect(() => {
     fetchPlans();
+    fetchPaymentGatewaySettings();
     fetchTrialSettings();
     fetchDashboardBanners();
   }, []);
+
+  const fetchPaymentGatewaySettings = async () => {
+    setGatewayLoading(true);
+    try {
+      const res = await api.get('/admin/worker-plans/payment-gateway');
+      if (res.data.success && res.data.data) {
+        setIsSubscriptionPaymentEnabled(res.data.data.isSubscriptionPaymentEnabled !== false);
+      }
+    } catch (error) {
+      console.error('Fetch subscription payment gateway settings failed', error);
+    } finally {
+      setGatewayLoading(false);
+    }
+  };
+
+  const handleTogglePaymentGateway = async (newValue) => {
+    setGatewaySaving(true);
+    try {
+      const res = await api.put('/admin/worker-plans/payment-gateway', {
+        isSubscriptionPaymentEnabled: newValue
+      });
+      if (res.data.success) {
+        setIsSubscriptionPaymentEnabled(res.data.data.isSubscriptionPaymentEnabled !== false);
+        toast.success(res.data.message || (newValue ? 'Subscription payment gateway enabled' : 'Subscription payment gateway disabled'));
+      }
+    } catch (error) {
+      console.error('Update subscription payment gateway failed', error);
+      toast.error(error.response?.data?.message || 'Failed to update subscription payment gateway');
+    } finally {
+      setGatewaySaving(false);
+    }
+  };
 
   const fetchTrialSettings = async () => {
     setTrialLoading(true);
@@ -329,11 +367,82 @@ const WorkerPlans = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
         <div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">Worker Plans</h1>
-          <p className="text-sm text-slate-500 mt-1 font-medium">Manage worker subscription plans and FREE trial settings</p>
+          <p className="text-sm text-slate-500 mt-1 font-medium">Manage worker subscription plans, payment gateway status, and FREE trial settings</p>
         </div>
       </div>
 
-      {/* Section 1: New Worker FREE Period Settings Card */}
+      {/* Section 1: Subscription Payment Gateway (Razorpay) Toggle Card */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 p-6 md:p-7 shadow-[0_2px_12px_rgba(0,0,0,0.03)]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+              isSubscriptionPaymentEnabled ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
+            }`}>
+              <FiCreditCard className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-slate-900">Subscription Payment Gateway (Razorpay)</h2>
+                {!gatewayLoading && (
+                  <span className={`px-2.5 py-0.5 text-[10px] font-extrabold tracking-wider rounded-full uppercase ${
+                    isSubscriptionPaymentEnabled
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : 'bg-rose-50 text-rose-700 border border-rose-200'
+                  }`}>
+                    {isSubscriptionPaymentEnabled ? 'ONLINE / ALLOWED' : 'DISABLED / BANNED'}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 mt-1 max-w-2xl">
+                Control worker subscription checkout. When <strong>ON (Allowed)</strong>, workers can purchase subscription plans online via Razorpay. When <strong>OFF (Disabled)</strong>, subscription payment gateway is banned/offline and workers cannot make payments.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 shrink-0">
+            {gatewayLoading ? (
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div>
+            ) : (
+              <button
+                type="button"
+                disabled={gatewaySaving}
+                onClick={() => handleTogglePaymentGateway(!isSubscriptionPaymentEnabled)}
+                className={`py-2.5 px-4 rounded-xl font-bold text-xs border transition-all flex items-center gap-3 active:scale-95 disabled:opacity-60 ${
+                  isSubscriptionPaymentEnabled
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                    : 'bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100'
+                }`}
+              >
+                <span>{isSubscriptionPaymentEnabled ? 'Payment Gateway Allowed' : 'Payment Gateway Disabled'}</span>
+                <div className={`w-10 h-6 rounded-full p-0.5 transition-colors ${isSubscriptionPaymentEnabled ? 'bg-emerald-600' : 'bg-slate-300'}`}>
+                  <div className={`w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${isSubscriptionPaymentEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
+                </div>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Status notification ribbon */}
+        <div className={`mt-4 p-3 rounded-xl text-xs flex items-center gap-2.5 border ${
+          isSubscriptionPaymentEnabled
+            ? 'bg-emerald-50/50 border-emerald-100 text-emerald-800'
+            : 'bg-rose-50/60 border-rose-100 text-rose-800'
+        }`}>
+          {isSubscriptionPaymentEnabled ? (
+            <>
+              <FiCheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span><strong>Razorpay Gateway Active:</strong> Workers can browse, pay for, and activate subscription plans seamlessly.</span>
+            </>
+          ) : (
+            <>
+              <FiAlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span><strong>Payment Gateway Disabled:</strong> Worker subscription checkout is banned. Workers will see a notice on the app that online payments are unavailable.</span>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Section 2: New Worker FREE Period Settings Card */}
       <div className="bg-white rounded-2xl border border-slate-200/80 p-6 md:p-7 shadow-[0_2px_12px_rgba(0,0,0,0.03)]">
         <div className="flex items-start justify-between gap-4 mb-6">
           <div className="flex items-center gap-3.5">

@@ -1,4 +1,5 @@
 const WorkerSubscriptionPlan = require('../../models/WorkerSubscriptionPlan');
+const Settings = require('../../models/Settings');
 const {
   getFreeTrialConfig,
   saveFreeTrialConfig,
@@ -233,6 +234,72 @@ exports.updateWorkerDashboardBanners = async (req, res) => {
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to update worker dashboard banners'
+    });
+  }
+};
+
+/**
+ * GET subscription payment gateway settings
+ */
+exports.getSubscriptionPaymentGatewaySettings = async (req, res) => {
+  try {
+    let settings = await Settings.findOne({ type: 'global' }).select('isSubscriptionPaymentEnabled');
+    if (!settings) {
+      settings = await Settings.create({ type: 'global' });
+    }
+    res.status(200).json({
+      success: true,
+      data: {
+        isSubscriptionPaymentEnabled: settings.isSubscriptionPaymentEnabled !== false
+      }
+    });
+  } catch (error) {
+    console.error('[Admin] Get subscription payment gateway settings error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch subscription payment gateway settings'
+    });
+  }
+};
+
+/**
+ * PUT subscription payment gateway settings
+ */
+exports.updateSubscriptionPaymentGatewaySettings = async (req, res) => {
+  try {
+    const { isSubscriptionPaymentEnabled } = req.body;
+    if (isSubscriptionPaymentEnabled === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'isSubscriptionPaymentEnabled is required'
+      });
+    }
+
+    let settings = await Settings.findOne({ type: 'global' });
+    if (!settings) {
+      settings = await Settings.create({
+        type: 'global',
+        isSubscriptionPaymentEnabled: Boolean(isSubscriptionPaymentEnabled)
+      });
+    } else {
+      settings.isSubscriptionPaymentEnabled = Boolean(isSubscriptionPaymentEnabled);
+      await settings.save();
+    }
+
+    res.status(200).json({
+      success: true,
+      message: settings.isSubscriptionPaymentEnabled
+        ? 'Subscription payment gateway enabled successfully.'
+        : 'Subscription payment gateway disabled successfully.',
+      data: {
+        isSubscriptionPaymentEnabled: settings.isSubscriptionPaymentEnabled
+      }
+    });
+  } catch (error) {
+    console.error('[Admin] Update subscription payment gateway settings error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to update subscription payment gateway settings'
     });
   }
 };

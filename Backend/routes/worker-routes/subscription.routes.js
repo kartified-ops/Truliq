@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const WorkerSubscriptionPlan = require('../../models/WorkerSubscriptionPlan');
 const Worker = require('../../models/Worker');
+const Settings = require('../../models/Settings');
 const { authenticate } = require('../../middleware/authMiddleware');
 const { isWorker } = require('../../middleware/roleMiddleware');
 const { createSubscriptionOrder, verifySubscriptionPayment } = require('../../controllers/paymentControllers/subscriptionPaymentController');
@@ -77,7 +78,13 @@ router.post('/verify-payment', authenticate, isWorker, verifySubscriptionPayment
 router.get('/plans', authenticate, isWorker, async (req, res) => {
   try {
     const plans = await WorkerSubscriptionPlan.find({ isActive: true }).sort({ price: 1 });
-    res.status(200).json({ success: true, data: plans });
+    const settings = await Settings.findOne({ type: 'global' }).select('isSubscriptionPaymentEnabled');
+    const isPaymentGatewayEnabled = settings ? settings.isSubscriptionPaymentEnabled !== false : true;
+    res.status(200).json({
+      success: true,
+      data: plans,
+      isPaymentGatewayEnabled
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server Error' });
   }
@@ -130,6 +137,9 @@ router.get('/status', authenticate, isWorker, async (req, res) => {
       payload.promotionalOffer = { isActive: false, isPausedToday: false, platformFee: null };
     }
 
+    const settings = await Settings.findOne({ type: 'global' }).select('isSubscriptionPaymentEnabled');
+    payload.isPaymentGatewayEnabled = settings ? settings.isSubscriptionPaymentEnabled !== false : true;
+
     if ((payload.amountPaid === undefined || payload.amountPaid === null) && (payload.isActive || payload.expiryDate)) {
       try {
         const Transaction = require('../../models/Transaction');
@@ -149,7 +159,8 @@ router.get('/status', authenticate, isWorker, async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: payload
+      data: payload,
+      isPaymentGatewayEnabled: payload.isPaymentGatewayEnabled
     });
   } catch (error) {
     console.error('[Subscription Routes] Status error:', error);

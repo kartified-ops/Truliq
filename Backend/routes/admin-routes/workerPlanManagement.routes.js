@@ -9,7 +9,9 @@ const {
   getFreeTrialSettings,
   updateFreeTrialSettings,
   getWorkerDashboardBanners,
-  updateWorkerDashboardBanners
+  updateWorkerDashboardBanners,
+  getSubscriptionPaymentGatewaySettings,
+  updateSubscriptionPaymentGatewaySettings
 } = require('../../controllers/adminControllers/workerPlanController');
 const { authenticate } = require('../../middleware/authMiddleware');
 const { isAdmin } = require('../../middleware/roleMiddleware');
@@ -18,6 +20,8 @@ const { isAdmin } = require('../../middleware/roleMiddleware');
 router.use(authenticate);
 router.use(isAdmin);
 
+router.get('/payment-gateway', getSubscriptionPaymentGatewaySettings);
+router.put('/payment-gateway', updateSubscriptionPaymentGatewaySettings);
 router.get('/free-trial', getFreeTrialSettings);
 router.put('/free-trial', updateFreeTrialSettings);
 router.get('/dashboard-banners', getWorkerDashboardBanners);

@@ -908,6 +908,14 @@ const getUpgradeDetails = async (req, res) => {
 
 const createPlanOrder = async (req, res) => {
   try {
+    const settings = await Settings.findOne({ type: 'global' }).select('isSubscriptionPaymentEnabled');
+    if (settings && settings.isSubscriptionPaymentEnabled === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'Subscription payment gateway is currently disabled by administrator'
+      });
+    }
+
     const { planId } = req.body;
     const plan = await Plan.findById(planId);
     if (!plan) return res.status(404).json({ success: false, message: 'Plan not found' });
@@ -946,6 +954,14 @@ const createPlanOrder = async (req, res) => {
 
 const verifyPlanPayment = async (req, res) => {
   try {
+    const settings = await Settings.findOne({ type: 'global' }).select('isSubscriptionPaymentEnabled');
+    if (settings && settings.isSubscriptionPaymentEnabled === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'Subscription payment gateway is currently disabled by administrator'
+      });
+    }
+
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
     const userId = req.user.id;
 
