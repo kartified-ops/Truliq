@@ -39,6 +39,7 @@ const Profile = () => {
       try {
         const response = await workerAuthService.getProfile();
         if (response.success) {
+          const workerData = response.worker || response.data || {};
           // Format address
           const addressString = workerData.address?.fullAddress || (
             workerData.address
