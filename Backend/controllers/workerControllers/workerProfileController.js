@@ -116,12 +116,14 @@ const updateProfile = async (req, res) => {
         address.pincode || worker.address?.pincode
       ].filter(Boolean).join(', ') || worker.address?.fullAddress || '';
 
-      const locObj = (address.location && typeof address.location === 'object') ? address.location : worker.address?.location;
-      const hasLat = locObj && locObj.lat !== undefined && locObj.lat !== null && locObj.lat !== '' && !isNaN(Number(locObj.lat));
-      const hasLng = locObj && locObj.lng !== undefined && locObj.lng !== null && locObj.lng !== '' && !isNaN(Number(locObj.lng));
+      const rawLoc = (address.location && typeof address.location === 'object') ? address.location : (worker.address?.location || null);
+      const latVal = rawLoc ? (rawLoc.lat !== undefined ? rawLoc.lat : rawLoc.latitude) : null;
+      const lngVal = rawLoc ? (rawLoc.lng !== undefined ? rawLoc.lng : rawLoc.longitude) : null;
+      const hasLat = latVal !== null && latVal !== undefined && latVal !== '' && !isNaN(Number(latVal));
+      const hasLng = lngVal !== null && lngVal !== undefined && lngVal !== '' && !isNaN(Number(lngVal));
       const hasValidCoords = hasLat && hasLng;
 
-      worker.address = {
+      const newAddress = {
         addressLine1: address.addressLine1 !== undefined ? address.addressLine1 : (worker.address?.addressLine1 || ''),
         addressLine2: address.addressLine2 !== undefined ? address.addressLine2 : (worker.address?.addressLine2 || ''),
         city: address.city !== undefined ? address.city : (worker.address?.city || ''),
@@ -129,13 +131,20 @@ const updateProfile = async (req, res) => {
         country: address.country || worker.address?.country || 'India',
         pincode: address.pincode !== undefined ? address.pincode : (worker.address?.pincode || ''),
         landmark: address.landmark !== undefined ? address.landmark : (worker.address?.landmark || ''),
-        fullAddress: fullAddr,
-        location: hasValidCoords ? { lat: Number(locObj.lat), lng: Number(locObj.lng) } : (worker.address?.location || undefined)
+        fullAddress: fullAddr
       };
 
       if (hasValidCoords) {
-        const latNum = Number(locObj.lat);
-        const lngNum = Number(locObj.lng);
+        newAddress.location = { lat: Number(latVal), lng: Number(lngVal) };
+      } else if (worker.address?.location?.lat !== undefined && worker.address?.location?.lng !== undefined && !isNaN(Number(worker.address.location.lat)) && !isNaN(Number(worker.address.location.lng))) {
+        newAddress.location = { lat: Number(worker.address.location.lat), lng: Number(worker.address.location.lng) };
+      }
+
+      worker.address = newAddress;
+
+      if (hasValidCoords) {
+        const latNum = Number(latVal);
+        const lngNum = Number(lngVal);
         worker.location = {
           lat: latNum,
           lng: lngNum,
