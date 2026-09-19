@@ -37,19 +37,24 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
+            if (
+              id.includes('/react/') ||
+              id.includes('/react-dom/') ||
+              id.includes('/react-router/') ||
+              id.includes('/react-router-dom/') ||
+              id.includes('/scheduler/')
+            ) {
               return 'vendor-react';
             }
-            if (id.includes('leaflet') || id.includes('@react-google-maps')) {
-              return 'vendor-maps';
-            }
-            if (id.includes('firebase')) {
+            if (id.includes('/firebase/') || id.includes('/@firebase/')) {
               return 'vendor-firebase';
             }
-            if (id.includes('framer-motion') || id.includes('recharts') || id.includes('gsap')) {
+            if (id.includes('/leaflet/') || id.includes('/react-leaflet/') || id.includes('/@react-google-maps/')) {
+              return 'vendor-maps';
+            }
+            if (id.includes('/framer-motion/') || id.includes('/recharts/') || id.includes('/gsap/')) {
               return 'vendor-ui';
             }
-            return 'vendor';
           }
         },
         chunkFileNames: 'assets/[name]-[hash].js',
