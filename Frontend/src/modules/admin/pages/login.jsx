@@ -67,7 +67,7 @@ const AdminLogin = () => {
         <div className="bg-white rounded-2xl shadow-2xl p-8">
           {/* Icon */}
           <div className="flex justify-center mb-6">
-            <Logo className="h-16 w-auto" />
+            <Logo className="h-24 sm:h-28 w-auto" />
           </div>
 
           {/* Title */}

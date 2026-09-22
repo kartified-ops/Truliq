@@ -12,7 +12,12 @@ const getAllCategories = async (req, res) => {
 
     // Build query
     const query = {};
-    if (status) query.status = status;
+    if (status) {
+      query.status = status;
+    } else {
+      // Exclude deleted categories by default if status not explicitly specified
+      query.status = { $ne: SERVICE_STATUS.DELETED };
+    }
     if (showOnHome !== undefined) query.showOnHome = showOnHome === 'true';
     if (isPopular !== undefined) query.isPopular = isPopular === 'true';
     if (cityId) {

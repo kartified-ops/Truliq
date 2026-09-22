@@ -6,19 +6,25 @@ const COLORS = {
   ACCEPTED: '#3B82F6',
   ASSIGNED: '#F59E0B',
   VISITED: '#06B6D4',
+  'WORK DONE': '#10B981',
   WORK_DONE: '#10B981',
+  'FINAL SETTLEMENT': '#8B5CF6',
   FINAL_SETTLEMENT: '#8B5CF6',
   COMPLETED: '#22C55E',
   CANCELLED: '#EF4444',
   CANCELED: '#EF4444',
   REJECTED: '#EF4444',
+  'NO WORKERS': '#F97316',
+  NO_WORKERS: '#F97316',
+  NO_VENDORS: '#F97316',
   OTHER: '#6B7280',
 };
 
 const normalizeStatus = (s) => {
-  const v = (s || 'OTHER').toString().toUpperCase();
+  const v = (s || 'OTHER').toString().toUpperCase().trim();
   if (v === 'CANCELED' || v === 'CANCELLED' || v === 'CANCEL') return 'CANCELLED';
-  return v;
+  if (v === 'NO_VENDORS' || v === 'NO_WORKERS' || v === 'NO VENDORS' || v === 'NO WORKERS') return 'NO WORKERS';
+  return v.replace(/_/g, ' ');
 };
 
 const BookingStatusPieChart = ({ bookings = [] }) => {

@@ -30,7 +30,7 @@ const VendorServicesPage = () => {
 
   const loadCategories = async () => {
     try {
-      const response = await categoryService.getAll();
+      const response = await categoryService.getAll({ status: 'active' });
       if (response.success) {
         setCategories(response.categories || []);
       }

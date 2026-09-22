@@ -12,7 +12,12 @@ const getAllServices = async (req, res) => {
     const { status, brandId } = req.query;
 
     const query = {};
-    if (status) query.status = status;
+    if (status) {
+      query.status = status;
+    } else {
+      // Exclude deleted services by default if status not explicitly specified
+      query.status = { $ne: SERVICE_STATUS.DELETED };
+    }
     if (brandId) query.brandId = brandId;
 
     const services = await Service.find(query)

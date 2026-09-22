@@ -15,7 +15,8 @@ const Tracking = () => {
 
   // Debounce search
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search), 500);
+    const trimmed = search.trim();
+    const timer = setTimeout(() => setDebouncedSearch(trimmed), 400);
     return () => clearTimeout(timer);
   }, [search]);
 
@@ -27,8 +28,10 @@ const Tracking = () => {
         const params = {
           page: 1,
           limit: 20, // get more for tracking list
-          search: debouncedSearch,
         };
+        if (debouncedSearch) {
+          params.search = debouncedSearch;
+        }
         const res = await adminBookingService.getAllBookings(params);
         if (res.success) {
           setBookings(res.data);
@@ -37,7 +40,7 @@ const Tracking = () => {
         }
       } catch (error) {
         console.error('Error fetching bookings:', error);
-        toast.error('Failed to load orders');
+        toast.error('Failed to load bookings');
       } finally {
         setLoading(false);
       }
@@ -97,7 +100,7 @@ const Tracking = () => {
             type="text"
             placeholder="Search by Booking ID or customer name..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => setSearch(e.target.value.replace(/^\s+/, ''))}
             className="w-full pl-12 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
           />
         </div>
@@ -120,11 +123,11 @@ const Tracking = () => {
               <tbody className="divide-y divide-gray-50">
                 {loading ? (
                   <tr>
-                    <td colSpan="5" className="p-8 text-center text-gray-500">Loading orders...</td>
+                    <td colSpan="5" className="p-8 text-center text-gray-500">Loading bookings...</td>
                   </tr>
                 ) : bookings.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="p-8 text-center text-gray-500">No orders found</td>
+                    <td colSpan="5" className="p-8 text-center text-gray-500">No bookings found</td>
                   </tr>
                 ) : (
                   bookings.map((booking) => (
@@ -184,7 +187,7 @@ const Tracking = () => {
               <h2 className="text-lg font-bold text-gray-900 mb-6">Tracking Details</h2>
 
               <div className="mb-6">
-                <p className="text-sm text-gray-500 mb-1">Order ID</p>
+                <p className="text-sm text-gray-500 mb-1">Booking ID</p>
                 <p className="text-lg font-bold text-gray-900">#{selectedOrder.bookingNumber || selectedOrder._id.slice(-6).toUpperCase()}</p>
               </div>
 
@@ -235,7 +238,7 @@ const Tracking = () => {
           ) : (
             <div className="w-full lg:w-96 bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col items-center justify-center h-full text-center text-gray-500">
               <FiSearch className="w-12 h-12 text-gray-300 mb-4" />
-              <p>Select an order to view tracking details</p>
+              <p>Select a booking to view tracking details</p>
             </div>
           )}
         </AnimatePresence>

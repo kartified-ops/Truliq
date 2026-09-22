@@ -80,8 +80,8 @@ const Plans = () => {
     try {
       const [plansRes, catsRes, brandsRes, servsRes] = await Promise.all([
         getPlans(),
-        categoryService.getAll(),
-        brandService.getAll(),
+        categoryService.getAll({ status: 'active' }),
+        brandService.getAll({ status: 'active' }),
         serviceService.getAll({ status: 'active' })
       ]);
 

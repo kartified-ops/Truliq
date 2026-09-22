@@ -5,6 +5,7 @@ import { toast } from 'react-hot-toast';
 import CardShell from '../UserCategories/components/CardShell';
 import Modal from '../UserCategories/components/Modal';
 import adminVendorService from '../../../../services/adminVendorService';
+import { downloadFile } from '../../../../utils/downloadHelper';
 
 const AllVendors = () => {
   const [vendors, setVendors] = useState([]);
@@ -389,14 +390,14 @@ const AllVendors = () => {
                       alt="Aadhar Front"
                       className="w-full h-48 object-cover rounded-lg border-2 border-gray-200"
                     />
-                    <a
-                      href={selectedVendor.documents.aadhar}
-                      download
-                      className="mt-2 inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700"
+                    <button
+                      type="button"
+                      onClick={() => downloadFile(selectedVendor.documents.aadhar, `${selectedVendor.name || 'vendor'}_aadhar_front`)}
+                      className="mt-2 inline-flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700 cursor-pointer"
                     >
                       <FiDownload className="w-4 h-4" />
                       Download
-                    </a>
+                    </button>
                   </div>
                 )}
                 {selectedVendor.documents.aadharBack && (
@@ -407,14 +408,14 @@ const AllVendors = () => {
                       alt="Aadhar Back"
                       className="w-full h-48 object-cover rounded-lg border-2 border-gray-200"
                     />
-                    <a
-                      href={selectedVendor.documents.aadharBack}
-                      download
-                      className="mt-2 inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700"
+                    <button
+                      type="button"
+                      onClick={() => downloadFile(selectedVendor.documents.aadharBack, `${selectedVendor.name || 'vendor'}_aadhar_back`)}
+                      className="mt-2 inline-flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700 cursor-pointer"
                     >
                       <FiDownload className="w-4 h-4" />
                       Download
-                    </a>
+                    </button>
                   </div>
                 )}
                 {selectedVendor.documents.pan && (
@@ -425,14 +426,14 @@ const AllVendors = () => {
                       alt="PAN"
                       className="w-full h-48 object-cover rounded-lg border-2 border-gray-200"
                     />
-                    <a
-                      href={selectedVendor.documents.pan}
-                      download
-                      className="mt-2 inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700"
+                    <button
+                      type="button"
+                      onClick={() => downloadFile(selectedVendor.documents.pan, `${selectedVendor.name || 'vendor'}_pan`)}
+                      className="mt-2 inline-flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700 cursor-pointer"
                     >
                       <FiDownload className="w-4 h-4" />
                       Download
-                    </a>
+                    </button>
                   </div>
                 )}
               </div>

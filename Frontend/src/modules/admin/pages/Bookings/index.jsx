@@ -8,19 +8,6 @@ import { toast } from 'react-hot-toast';
 import { adminBookingService } from '../../../../services/adminBookingService';
 import { getDashboardStats } from '../../../../services/adminDashboardService';
 
-const BookingStatsCard = ({ title, count, icon: Icon, colorClass, bgClass }) => (
-  <div className={`p-3 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between ${bgClass}`}>
-    <div>
-      <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-2 ${colorClass.replace('text-', 'bg-').replace('600', '100')}`}>
-        <Icon className={`w-4 h-4 ${colorClass}`} />
-      </div>
-      <h3 className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">{title}</h3>
-      <p className="text-xl font-bold text-gray-800 mt-0.5">{count}</p>
-    </div>
-    <div className={`w-12 h-12 rounded-full opacity-10 -mr-3 -mb-3 ${colorClass.replace('text-', 'bg-')}`}></div>
-  </div>
-);
-
 const Bookings = () => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -48,7 +35,8 @@ const Bookings = () => {
   // Debounce search
   const [debouncedSearch, setDebouncedSearch] = useState('');
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search), 500);
+    const trimmed = search.trim();
+    const timer = setTimeout(() => setDebouncedSearch(trimmed), 400);
     return () => clearTimeout(timer);
   }, [search]);
 
@@ -61,10 +49,12 @@ const Bookings = () => {
       const params = {
         page,
         limit: 10,
-        search: debouncedSearch,
         startDate,
         endDate
       };
+      if (debouncedSearch) {
+        params.search = debouncedSearch;
+      }
       if (statusFilter !== 'All Status') {
         params.status = statusFilter.toUpperCase().replace(' ', '_');
       }
@@ -125,18 +115,128 @@ const Bookings = () => {
     link.click();
   };
 
+  const statsCards = [
+    {
+      title: 'Awaiting',
+      value: (stats.pending || 0).toLocaleString(),
+      icon: FiClock,
+      color: 'text-white',
+      bgColor: 'bg-gradient-to-br from-amber-500 to-yellow-600',
+      cardBg: 'bg-gradient-to-br from-amber-50 to-yellow-50',
+      iconBg: 'bg-white/20',
+      status: 'pending'
+    },
+    {
+      title: 'Confirmed',
+      value: (stats.confirmed || stats.pending || 0).toLocaleString(),
+      icon: FiCheckCircle,
+      color: 'text-white',
+      bgColor: 'bg-gradient-to-br from-blue-500 to-indigo-600',
+      cardBg: 'bg-gradient-to-br from-blue-50 to-indigo-50',
+      iconBg: 'bg-white/20',
+      status: 'confirmed'
+    },
+    {
+      title: 'In Progress',
+      value: (stats.inProgress || 0).toLocaleString(),
+      icon: FiBox,
+      color: 'text-white',
+      bgColor: 'bg-gradient-to-br from-purple-500 to-violet-600',
+      cardBg: 'bg-gradient-to-br from-purple-50 to-violet-50',
+      iconBg: 'bg-white/20',
+      status: 'in_progress'
+    },
+    {
+      title: 'Completed',
+      value: (stats.completed || 0).toLocaleString(),
+      icon: FiTruck,
+      color: 'text-white',
+      bgColor: 'bg-gradient-to-br from-emerald-500 to-green-600',
+      cardBg: 'bg-gradient-to-br from-emerald-50 to-green-50',
+      iconBg: 'bg-white/20',
+      status: 'completed'
+    },
+    {
+      title: 'Delivered',
+      value: (stats.completed || 0).toLocaleString(),
+      icon: FiCheckCircle,
+      color: 'text-white',
+      bgColor: 'bg-gradient-to-br from-teal-500 to-cyan-600',
+      cardBg: 'bg-gradient-to-br from-teal-50 to-cyan-50',
+      iconBg: 'bg-white/20',
+      status: 'completed'
+    },
+    {
+      title: 'Cancelled',
+      value: (stats.cancelled || 0).toLocaleString(),
+      icon: FiXCircle,
+      color: 'text-white',
+      bgColor: 'bg-gradient-to-br from-rose-500 to-red-600',
+      cardBg: 'bg-gradient-to-br from-rose-50 to-red-50',
+      iconBg: 'bg-white/20',
+      status: 'cancelled'
+    },
+    {
+      title: 'Total Bookings',
+      value: (stats.total || 0).toLocaleString(),
+      icon: FiShoppingBag,
+      color: 'text-white',
+      bgColor: 'bg-gradient-to-br from-slate-600 to-gray-700',
+      cardBg: 'bg-gradient-to-br from-slate-50 to-gray-100',
+      iconBg: 'bg-white/20',
+      status: 'All Status'
+    },
+  ];
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <BookingStatsCard title="Awaiting" count={stats.pending} icon={FiClock} bgClass="bg-yellow-50" colorClass="text-yellow-600" />
-        <BookingStatsCard title="Confirmed" count={stats.pending} icon={FiCheckCircle} bgClass="bg-blue-50" colorClass="text-blue-600" />
-        <BookingStatsCard title="In Progress" count={stats.inProgress} icon={FiBox} bgClass="bg-purple-50" colorClass="text-purple-600" />
-        <BookingStatsCard title="Completed" count={stats.completed} icon={FiTruck} bgClass="bg-green-50" colorClass="text-green-600" />
-        <BookingStatsCard title="Delivered" count={stats.completed} icon={FiCheckCircle} bgClass="bg-emerald-50" colorClass="text-emerald-600" />
-        <BookingStatsCard title="Cancelled" count={stats.cancelled} icon={FiXCircle} bgClass="bg-red-50" colorClass="text-red-600" />
-        {/* <BookingStatsCard title="Returned" count={0} icon={FiRefreshCw} bgClass="bg-orange-50" colorClass="text-orange-600" /> */}
-        <BookingStatsCard title="Total Orders" count={stats.total} icon={FiShoppingBag} bgClass="bg-gray-50" colorClass="text-gray-600" />
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+        {statsCards.map((card, index) => {
+          const Icon = card.icon;
+          const isSelected =
+            statusFilter.toLowerCase() === card.status.toLowerCase() ||
+            (card.status === 'All Status' && statusFilter === 'All Status');
+
+          return (
+            <motion.div
+              key={card.title}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              whileHover={{ scale: 1.025, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              transition={{ delay: index * 0.05 }}
+              onClick={() => {
+                setStatusFilter(card.status === 'All Status' ? 'All Status' : card.status);
+                setPage(1);
+              }}
+              className={`${card.cardBg} rounded-xl p-3 sm:p-4 shadow-sm hover:shadow-md border ${
+                isSelected
+                  ? 'border-gray-800/80 ring-2 ring-gray-800/10'
+                  : 'border-transparent hover:border-black/5'
+              } transition-all duration-300 relative overflow-hidden group cursor-pointer select-none`}
+            >
+              <div
+                className={`absolute top-0 right-0 w-24 h-24 ${card.bgColor} opacity-10 rounded-full -mr-12 -mt-12 group-hover:scale-125 transition-transform duration-500`}
+              />
+
+              <div className="flex items-center justify-between mb-2 sm:mb-3 relative z-10">
+                <div
+                  className={`${card.bgColor} ${card.iconBg} p-1.5 sm:p-2 rounded-lg shadow-sm group-hover:scale-110 transition-transform`}
+                >
+                  <Icon className={`${card.color} text-base sm:text-lg`} />
+                </div>
+              </div>
+
+              <div className="relative z-10">
+                <h3 className="text-gray-600 text-[10px] sm:text-xs font-medium mb-0.5 group-hover:text-gray-900 transition-colors">
+                  {card.title}
+                </h3>
+                <p className="text-gray-800 text-lg sm:text-xl font-bold">{card.value}</p>
+              </div>
+            </motion.div>
+          );
+        })}
       </div>
 
       {/* Filter Bar */}
@@ -147,7 +247,7 @@ const Bookings = () => {
             type="text"
             placeholder="Search bookings..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => setSearch(e.target.value.replace(/^\s+/, ''))}
             className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all text-xs"
           />
         </div>
@@ -198,13 +298,13 @@ const Bookings = () => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/50">
-                <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Order ID</th>
+                <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Booking ID</th>
                 <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Customer</th>
                 <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Items</th>
                 <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Total (₹)</th>
                 <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Status</th>
                 <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Payment</th>
-                <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Order Date</th>
+                <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Booking Date</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">

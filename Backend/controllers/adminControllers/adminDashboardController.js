@@ -5,6 +5,8 @@ const Booking = require('../../models/Booking');
 const Withdrawal = require('../../models/Withdrawal');
 const Settlement = require('../../models/Settlement');
 const Scrap = require('../../models/Scrap');
+const Transaction = require('../../models/Transaction');
+const UserService = require('../../models/UserService');
 const { BOOKING_STATUS, PAYMENT_STATUS, VENDOR_STATUS } = require('../../utils/constants');
 const { getCommissionRates } = require('../../utils/commission');
 
@@ -37,66 +39,152 @@ const getDashboardStats = async (req, res) => {
       }
     }
 
-    // Total counts (filtered by creation date if provided)
-    const totalUsers = await User.countDocuments({ role: 'user', isActive: true, ...dateFilter });
-    const totalVendors = await Vendor.countDocuments({ isActive: true, ...dateFilter });
-    const totalWorkers = await Worker.countDocuments({ isActive: true, ...dateFilter });
-    const totalBookings = await Booking.countDocuments(dateFilter);
-
-    // Booking stats
-    const pendingBookings = await Booking.countDocuments({
-      ...dateFilter,
-      status: { $nin: [BOOKING_STATUS.COMPLETED, BOOKING_STATUS.CANCELLED] }
-    });
-    const completedBookings = await Booking.countDocuments({
-      ...dateFilter,
-      status: BOOKING_STATUS.COMPLETED
-    });
-    const cancelledBookings = await Booking.countDocuments({
-      ...dateFilter,
-      status: BOOKING_STATUS.CANCELLED
-    });
-
-    // Revenue stats
-    const revenueResult = await Booking.aggregate([
-      {
-        $match: {
-          status: BOOKING_STATUS.COMPLETED,
-          paymentStatus: { $in: [PAYMENT_STATUS.SUCCESS, PAYMENT_STATUS.COLLECTED_BY_VENDOR, 'success', 'collected_by_vendor', 'collected_by_worker', 'paid'] },
-          ...revenueDateFilter
+    const [
+      bookingStatsResult,
+      totalUsers,
+      totalVendors,
+      totalWorkers,
+      revenueResult,
+      commissionData,
+      pendingVendors,
+      approvedVendors,
+      pendingWithdrawals,
+      pendingSettlementsCount,
+      pendingScraps,
+      recentActivityDocs,
+      subscriptionRevenueResult
+    ] = await Promise.all([
+      // 1. Total & Status Counts in 1 Aggregate
+      Booking.aggregate([
+        { $match: dateFilter },
+        {
+          $group: {
+            _id: null,
+            totalBookings: { $sum: 1 },
+            pendingBookings: {
+              $sum: {
+                $cond: [
+                  {
+                    $in: [
+                      '$status',
+                      [
+                        BOOKING_STATUS.COMPLETED,
+                        BOOKING_STATUS.CANCELLED,
+                        'completed',
+                        'cancelled',
+                        'canceled'
+                      ]
+                    ]
+                  },
+                  0,
+                  1
+                ]
+              }
+            },
+            completedBookings: {
+              $sum: {
+                $cond: [
+                  { $in: ['$status', [BOOKING_STATUS.COMPLETED, 'completed']] },
+                  1,
+                  0
+                ]
+              }
+            },
+            cancelledBookings: {
+              $sum: {
+                $cond: [
+                  { $in: ['$status', [BOOKING_STATUS.CANCELLED, 'cancelled', 'canceled']] },
+                  1,
+                  0
+                ]
+              }
+            }
+          }
         }
-      },
-      {
-        $group: {
-          _id: null,
-          totalRevenue: { $sum: '$finalAmount' },
-          totalBookings: { $sum: 1 }
+      ]),
+      // 2. Total Users
+      User.countDocuments({ role: 'user', isActive: true, ...dateFilter }),
+      // 3. Total Vendors
+      Vendor.countDocuments({ isActive: true, ...dateFilter }),
+      // 4. Total Workers
+      Worker.countDocuments({ isActive: true, ...dateFilter }),
+      // 5. Booking Revenue
+      Booking.aggregate([
+        {
+          $match: {
+            status: { $in: [BOOKING_STATUS.COMPLETED, 'completed'] },
+            paymentStatus: {
+              $in: [
+                PAYMENT_STATUS.SUCCESS,
+                PAYMENT_STATUS.COLLECTED_BY_VENDOR,
+                'success',
+                'collected_by_vendor',
+                'collected_by_worker',
+                'paid'
+              ]
+            },
+            ...revenueDateFilter
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalRevenue: { $sum: { $ifNull: ['$finalAmount', { $ifNull: ['$basePrice', 0] }] } },
+            totalBookings: { $sum: 1 }
+          }
         }
-      }
+      ]),
+      // 6. Commission rates
+      getCommissionRates(),
+      // 7. Pending Vendors
+      Vendor.countDocuments({ approvalStatus: VENDOR_STATUS.PENDING, ...dateFilter }),
+      // 8. Approved Vendors
+      Vendor.countDocuments({ approvalStatus: VENDOR_STATUS.APPROVED, ...dateFilter }),
+      // 9. Pending Withdrawals
+      Withdrawal.countDocuments({ status: 'pending', ...dateFilter }),
+      // 10. Pending Settlements
+      Settlement.countDocuments({ status: 'pending', ...dateFilter }),
+      // 11. Pending Scraps
+      Scrap.countDocuments({ status: 'pending', ...dateFilter }),
+      // 12. Recent Activities
+      Booking.find(dateFilter)
+        .populate('userId', 'name phone')
+        .populate('vendorId', 'name businessName')
+        .populate('serviceId', 'title')
+        .sort({ createdAt: -1 })
+        .limit(20)
+        .lean(),
+      // 13. Subscription Revenue
+      Transaction.aggregate([
+        {
+          $match: {
+            type: 'worker_subscription',
+            status: 'completed',
+            ...dateFilter
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: '$amount' }
+          }
+        }
+      ])
     ]);
 
+    const bookingStats = bookingStatsResult[0] || {
+      totalBookings: 0,
+      pendingBookings: 0,
+      completedBookings: 0,
+      cancelledBookings: 0
+    };
+
     const revenue = revenueResult[0] || { totalRevenue: 0, totalBookings: 0 };
-    const { platformShare } = await getCommissionRates();
+    const { platformShare } = commissionData || { platformShare: 0.1 };
     const platformCommission = revenue.totalRevenue * platformShare;
+    const workerSubscriptionRevenue = subscriptionRevenueResult[0]?.total || 0;
 
-    // Vendor approval stats
-    const pendingVendors = await Vendor.countDocuments({ approvalStatus: VENDOR_STATUS.PENDING, ...dateFilter });
-    const approvedVendors = await Vendor.countDocuments({ approvalStatus: VENDOR_STATUS.APPROVED, ...dateFilter });
-
-    // Withdrawal & Settlement stats
-    const pendingWithdrawals = await Withdrawal.countDocuments({ status: 'pending', ...dateFilter });
-    const pendingSettlementsCount = await Settlement.countDocuments({ status: 'pending', ...dateFilter });
-    const pendingScraps = await Scrap.countDocuments({ status: 'pending', ...dateFilter });
-
-    // Recent activities (filtered by period)
-    const recentActivityDocs = await Booking.find(dateFilter)
-      .populate('userId', 'name phone')
-      .populate('vendorId', 'name businessName')
-      .populate('serviceId', 'title')
-      .sort({ createdAt: -1 })
-      .limit(20);
-
-    const recentBookings = recentActivityDocs.map(b => ({
+    const recentBookings = (recentActivityDocs || []).map(b => ({
       id: b.bookingNumber || b._id,
       _id: b._id,
       status: b.status,
@@ -111,24 +199,6 @@ const getDashboardStats = async (req, res) => {
       workerPaymentStatus: b.workerPaymentStatus
     }));
 
-    const Transaction = require('../../models/Transaction');
-    const subscriptionRevenueResult = await Transaction.aggregate([
-      {
-        $match: {
-          type: 'worker_subscription',
-          status: 'completed',
-          ...dateFilter
-        }
-      },
-      {
-        $group: {
-          _id: null,
-          total: { $sum: '$amount' }
-        }
-      }
-    ]);
-    const workerSubscriptionRevenue = subscriptionRevenueResult[0]?.total || 0;
-
     res.status(200).json({
       success: true,
       data: {
@@ -136,10 +206,10 @@ const getDashboardStats = async (req, res) => {
           totalUsers,
           totalVendors,
           totalWorkers,
-          totalBookings,
-          pendingBookings,
-          completedBookings,
-          cancelledBookings,
+          totalBookings: bookingStats.totalBookings,
+          pendingBookings: bookingStats.pendingBookings,
+          completedBookings: bookingStats.completedBookings,
+          cancelledBookings: bookingStats.cancelledBookings,
           totalRevenue: revenue.totalRevenue + workerSubscriptionRevenue,
           bookingRevenue: revenue.totalRevenue,
           workerSubscriptionRevenue,
@@ -184,79 +254,85 @@ const getRevenueAnalytics = async (req, res) => {
       if (endDate) dateFilter.completedAt.$lte = new Date(endDate);
     }
 
-    const { platformShare } = await getCommissionRates();
-
-    // Revenue analytics
-    const revenueData = await Booking.aggregate([
-      {
-        $match: {
-          status: BOOKING_STATUS.COMPLETED,
-          paymentStatus: { $in: [PAYMENT_STATUS.SUCCESS, PAYMENT_STATUS.COLLECTED_BY_VENDOR, 'success', 'collected_by_vendor', 'collected_by_worker', 'paid'] },
-          ...dateFilter
-        }
-      },
-      {
-        $group: {
-          _id: {
-            $dateToString: {
-              format: groupFormat,
-              date: '$completedAt'
-            }
-          },
-          revenue: { $sum: '$finalAmount' },
-          bookings: { $sum: 1 },
-          platformCommission: { $sum: { $multiply: ['$finalAmount', platformShare] } }
-        }
-      },
-      { $sort: { _id: 1 } }
+    const [commissionData, revenueData, subscriptionData] = await Promise.all([
+      getCommissionRates(),
+      Booking.aggregate([
+        {
+          $match: {
+            status: { $in: [BOOKING_STATUS.COMPLETED, 'completed'] },
+            paymentStatus: {
+              $in: [
+                PAYMENT_STATUS.SUCCESS,
+                PAYMENT_STATUS.COLLECTED_BY_VENDOR,
+                'success',
+                'collected_by_vendor',
+                'collected_by_worker',
+                'paid'
+              ]
+            },
+            ...dateFilter
+          }
+        },
+        {
+          $group: {
+            _id: {
+              $dateToString: {
+                format: groupFormat,
+                date: '$completedAt'
+              }
+            },
+            revenue: { $sum: '$finalAmount' },
+            bookings: { $sum: 1 }
+          }
+        },
+        { $sort: { _id: 1 } }
+      ]),
+      Transaction.aggregate([
+        {
+          $match: {
+            type: 'worker_subscription',
+            status: 'completed',
+            ...(dateFilter.completedAt ? { createdAt: dateFilter.completedAt } : {})
+          }
+        },
+        {
+          $group: {
+            _id: {
+              $dateToString: {
+                format: groupFormat,
+                date: '$createdAt'
+              }
+            },
+            revenue: { $sum: '$amount' },
+            bookings: { $sum: 1 }
+          }
+        },
+        { $sort: { _id: 1 } }
+      ])
     ]);
 
-    // 2. Transaction (Subscription) analytics
-    const subscriptionData = await Transaction.aggregate([
-      {
-        $match: {
-          type: 'worker_subscription',
-          status: 'completed',
-          createdAt: dateFilter.completedAt || {}
-        }
-      },
-      {
-        $group: {
-          _id: {
-            $dateToString: {
-              format: groupFormat,
-              date: '$createdAt'
-            }
-          },
-          revenue: { $sum: '$amount' },
-          bookings: { $sum: 1 }
-        }
-      }
-    ]);
+    const { platformShare } = commissionData || { platformShare: 0.1 };
 
-    // 3. Merge data
+    // Merge data
     const mergedData = {};
-    
-    revenueData.forEach(item => {
+    (revenueData || []).forEach(item => {
       mergedData[item._id] = {
         date: item._id,
-        revenue: item.revenue,
-        bookings: item.bookings,
-        platformCommission: item.platformCommission
+        revenue: item.revenue || 0,
+        bookings: item.bookings || 0,
+        platformCommission: (item.revenue || 0) * platformShare
       };
     });
 
-    subscriptionData.forEach(item => {
+    (subscriptionData || []).forEach(item => {
       if (mergedData[item._id]) {
-        mergedData[item._id].revenue += item.revenue;
-        // We don't necessarily want to count subscriptions as "bookings" for the booking chart,
-        // but we can add them to total revenue.
+        mergedData[item._id].revenue += (item.revenue || 0);
       } else {
         mergedData[item._id] = {
           date: item._id,
-          revenue: item.revenue,
+          revenue: item.revenue || 0,
           bookings: 0,
-          platformCommission: item.revenue // For subscriptions, platform takes 100% of it
+          platformCommission: item.revenue || 0
         };
       }
     });

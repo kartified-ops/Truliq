@@ -14,6 +14,32 @@ import TopServices from '../../components/dashboard/TopServices';
 import RecentBookings from '../../components/dashboard/RecentBookings';
 import { getDashboardStats, getRevenueAnalytics } from '../../../../services/adminDashboardService';
 
+const getCachedStats = (p) => {
+  try {
+    const raw = sessionStorage.getItem(`admin_dashboard_stats_${p}`);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return {
+    totalUsers: 0,
+    totalVendors: 0,
+    totalWorkers: 0,
+    activeBookings: 0,
+    completedBookings: 0,
+    totalRevenue: 0,
+    bookingRevenue: 0,
+    workerSubscriptionRevenue: 0,
+    todayRevenue: 0,
+  };
+};
+
+const getCachedRecentBookings = (p) => {
+  try {
+    const raw = sessionStorage.getItem(`admin_dashboard_bookings_${p}`);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return [];
+};
+
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const [period, setPeriod] = useState(() => {
@@ -37,20 +63,22 @@ const AdminDashboard = () => {
   useEffect(() => {
     localStorage.setItem('adminDashboardCustomDates', JSON.stringify(customDates));
   }, [customDates]);
+
   const [revenueData, setRevenueData] = useState([]);
-  const [recentBookingsList, setRecentBookingsList] = useState([]);
-  const [stats, setStats] = useState({
-    totalUsers: 0,
-    totalVendors: 0,
-    totalWorkers: 0,
-    activeBookings: 0,
-    completedBookings: 0,
-    totalRevenue: 0,
-    todayRevenue: 0,
-  });
+  const [recentBookingsList, setRecentBookingsList] = useState(() => getCachedRecentBookings(period));
+  const [stats, setStats] = useState(() => getCachedStats(period));
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
+    // Show cached data immediately for the selected period if available
+    const cached = getCachedStats(period);
+    if (cached && (cached.totalUsers > 0 || cached.totalRevenue > 0 || cached.activeBookings > 0 || cached.totalWorkers > 0)) {
+      setStats(cached);
+      setRecentBookingsList(getCachedRecentBookings(period));
+    }
+
     const fetchData = async () => {
+      setIsLoading(true);
       try {
         // 1. Calculate Period Dates
         let apiPeriod = 'monthly';
@@ -83,38 +111,41 @@ const AdminDashboard = () => {
 
         const startIso = startDate.toISOString();
 
-        // 2. Fetch Stats & Recent Bookings (Filtered)
-        const statsRes = await getDashboardStats({
-          startDate: startIso,
-          endDate
-        });
+        // 2. Fetch Stats & Revenue Analytics in parallel
+        const [statsRes, revRes] = await Promise.all([
+          getDashboardStats({ startDate: startIso, endDate }),
+          getRevenueAnalytics({ period: apiPeriod, startDate: startIso, endDate }).catch(err => {
+            console.warn('Revenue analytics fetch failed:', err);
+            return { success: false };
+          })
+        ]);
         
-        if (statsRes.success) {
+        if (statsRes && statsRes.success) {
           const s = statsRes.data.stats;
-          setStats({
-            totalUsers: s.totalUsers,
-            totalVendors: s.totalVendors,
-            totalWorkers: s.totalWorkers,
-            activeBookings: s.pendingBookings,
-            completedBookings: s.completedBookings,
-            totalRevenue: s.totalRevenue,
-            bookingRevenue: s.bookingRevenue,
-            workerSubscriptionRevenue: s.workerSubscriptionRevenue,
+          const newStats = {
+            totalUsers: s.totalUsers || 0,
+            totalVendors: s.totalVendors || 0,
+            totalWorkers: s.totalWorkers || 0,
+            activeBookings: s.pendingBookings || 0,
+            completedBookings: s.completedBookings || 0,
+            totalRevenue: s.totalRevenue || 0,
+            bookingRevenue: s.bookingRevenue || 0,
+            workerSubscriptionRevenue: s.workerSubscriptionRevenue || 0,
             todayRevenue: 0,
-          });
-          setRecentBookingsList(statsRes.data.recentBookings || []);
+          };
+          setStats(newStats);
+          const bookings = statsRes.data.recentBookings || [];
+          setRecentBookingsList(bookings);
+
+          try {
+            sessionStorage.setItem(`admin_dashboard_stats_${period}`, JSON.stringify(newStats));
+            sessionStorage.setItem(`admin_dashboard_bookings_${period}`, JSON.stringify(bookings));
+          } catch (e) {}
         }
 
-        // 3. Fetch Revenue Analytics based on Period
-        const revRes = await getRevenueAnalytics({
-          period: apiPeriod,
-          startDate: startIso,
-          endDate
-        });
-
-        if (revRes.success) {
+        if (revRes && revRes.success && revRes.data?.revenueData) {
           const mapped = revRes.data.revenueData.map(item => ({
-            date: item._id,
+            date: item.date || item._id,
             revenue: item.revenue,
             orders: item.bookings
           }));
@@ -123,6 +154,8 @@ const AdminDashboard = () => {
         }
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -172,7 +205,7 @@ const AdminDashboard = () => {
       bgColor: 'bg-gradient-to-br from-green-500 to-emerald-600',
       cardBg: 'bg-gradient-to-br from-green-50 to-emerald-50',
       iconBg: 'bg-white/20',
-      link: '/admin/reports/revenue'
+      link: '/admin/payments'
     },
     {
       title: 'Worker Plan Revenue',
@@ -183,7 +216,7 @@ const AdminDashboard = () => {
       bgColor: 'bg-gradient-to-br from-purple-500 to-fuchsia-600',
       cardBg: 'bg-gradient-to-br from-purple-50 to-fuchsia-50',
       iconBg: 'bg-white/20',
-      link: '/admin/workers/analytics'
+      link: '/admin/worker-plans'
     },
     {
       title: 'Pending Bookings',
@@ -194,7 +227,7 @@ const AdminDashboard = () => {
       bgColor: 'bg-gradient-to-br from-blue-500 to-indigo-600',
       cardBg: 'bg-gradient-to-br from-blue-50 to-indigo-50',
       iconBg: 'bg-white/20',
-      link: '/admin/reports/bookings'
+      link: '/admin/bookings'
     },
     {
       title: 'Completed Bookings',
@@ -205,7 +238,7 @@ const AdminDashboard = () => {
       bgColor: 'bg-gradient-to-br from-purple-500 to-violet-600',
       cardBg: 'bg-gradient-to-br from-purple-50 to-violet-50',
       iconBg: 'bg-white/20',
-      link: '/admin/reports/bookings'
+      link: '/admin/bookings'
     },
     {
       title: 'New Users',
@@ -216,18 +249,7 @@ const AdminDashboard = () => {
       bgColor: 'bg-gradient-to-br from-orange-500 to-amber-600',
       cardBg: 'bg-gradient-to-br from-orange-50 to-amber-50',
       iconBg: 'bg-white/20',
-      link: '/admin/users/analytics'
-    },
-    {
-      title: 'New Vendors',
-      value: (stats.totalVendors || 0).toLocaleString(),
-      change: 0,
-      icon: FiBriefcase,
-      color: 'text-white',
-      bgColor: 'bg-gradient-to-br from-teal-500 to-cyan-600',
-      cardBg: 'bg-gradient-to-br from-teal-50 to-cyan-50',
-      iconBg: 'bg-white/20',
-      link: '/admin/vendors/analytics'
+      link: '/admin/users'
     },
     {
       title: 'New Workers',
@@ -238,7 +260,7 @@ const AdminDashboard = () => {
       bgColor: 'bg-gradient-to-br from-rose-500 to-pink-600',
       cardBg: 'bg-gradient-to-br from-rose-50 to-pink-50',
       iconBg: 'bg-white/20',
-      link: '/admin/workers/analytics'
+      link: '/admin/workers'
     },
   ];
 
@@ -260,7 +282,7 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-3 sm:gap-4">
         {statsCards.map((card, index) => {
           const Icon = card.icon;
           const isPositive = (card.change || 0) >= 0;
@@ -270,13 +292,16 @@ const AdminDashboard = () => {
               key={card.title}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
+              whileHover={{ scale: 1.025, y: -2 }}
+              whileTap={{ scale: 0.98 }}
               transition={{ delay: index * 0.08 }}
-              className={`${card.cardBg} rounded-xl p-3 sm:p-4 shadow-sm border border-transparent transition-all duration-300 relative overflow-hidden group`}
+              onClick={() => card.link && navigate(card.link)}
+              className={`${card.cardBg} rounded-xl p-3 sm:p-4 shadow-sm hover:shadow-md border border-transparent hover:border-black/5 transition-all duration-300 relative overflow-hidden group cursor-pointer select-none`}
             >
-              <div className={`absolute top-0 right-0 w-24 h-24 ${card.bgColor} opacity-10 rounded-full -mr-12 -mt-12 group-hover:scale-110 transition-transform`} />
+              <div className={`absolute top-0 right-0 w-24 h-24 ${card.bgColor} opacity-10 rounded-full -mr-12 -mt-12 group-hover:scale-125 transition-transform duration-500`} />
 
               <div className="flex items-center justify-between mb-2 sm:mb-3 relative z-10">
-                <div className={`${card.bgColor} ${card.iconBg} p-1.5 sm:p-2 rounded-lg shadow-sm`}>
+                <div className={`${card.bgColor} ${card.iconBg} p-1.5 sm:p-2 rounded-lg shadow-sm group-hover:scale-110 transition-transform`}>
                   <Icon className={`${card.color} text-base sm:text-lg`} />
                 </div>
                 {card.change !== 0 && (
@@ -291,8 +316,12 @@ const AdminDashboard = () => {
               </div>
 
               <div className="relative z-10">
-                <h3 className="text-gray-600 text-[10px] sm:text-xs font-medium mb-0.5">{card.title}</h3>
-                <p className="text-gray-800 text-lg sm:text-xl font-bold">{card.value}</p>
+                <h3 className="text-gray-600 text-[10px] sm:text-xs font-medium mb-0.5 group-hover:text-gray-900 transition-colors">{card.title}</h3>
+                {isLoading && stats.totalRevenue === 0 && stats.totalUsers === 0 && stats.totalWorkers === 0 ? (
+                  <div className="h-6 w-24 bg-black/10 animate-pulse rounded mt-1" />
+                ) : (
+                  <p className="text-gray-800 text-lg sm:text-xl font-bold">{card.value}</p>
+                )}
               </div>
             </motion.div>
           );

@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FiCheck, FiX, FiEye, FiSearch, FiFilter, FiDownload, FiLoader, FiDollarSign, FiPower, FiTrash2, FiMapPin } from 'react-icons/fi';
+import { FiCheck, FiX, FiEye, FiSearch, FiFilter, FiDownload, FiLoader, FiDollarSign, FiPower, FiTrash2, FiMapPin, FiChevronLeft, FiChevronRight, FiUsers, FiClock } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 import CardShell from '../UserCategories/components/CardShell';
 import Modal from '../UserCategories/components/Modal';
 import adminWorkerService from '../../../../services/adminWorkerService';
+import { downloadFile } from '../../../../utils/downloadHelper';
 
 const formatWorkerLocation = (address) => {
   if (!address) return 'Not set';
@@ -36,6 +37,15 @@ const AllWorkers = () => {
   const [payAmount, setPayAmount] = useState('');
   const [payNotes, setPayNotes] = useState('');
   const [paySubmitting, setPaySubmitting] = useState(false);
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // Reset pagination on filter or search change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterStatus]);
 
   // Load workers from backend
   useEffect(() => {
@@ -111,6 +121,39 @@ const AllWorkers = () => {
       return matchesStatus && matchesSearch;
     });
   }, [workers, filterStatus, searchQuery]);
+
+  // Pagination Calculations
+  const totalItems = filteredWorkers.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
+
+  const paginatedWorkers = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredWorkers.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredWorkers, currentPage, itemsPerPage]);
+
+  const getPageNumbers = () => {
+    const pages = [];
+    const delta = 1;
+
+    for (let i = 1; i <= totalPages; i++) {
+      if (
+        i === 1 ||
+        i === totalPages ||
+        (i >= currentPage - delta && i <= currentPage + delta)
+      ) {
+        pages.push(i);
+      } else if (pages[pages.length - 1] !== '...') {
+        pages.push('...');
+      }
+    }
+    return pages;
+  };
 
   const handleApprove = async (workerId) => {
     try {
@@ -236,10 +279,64 @@ const AllWorkers = () => {
     );
   };
 
+  const totalActiveWorkers = workers.filter(w => !w.isDeleted).length;
   const pendingCount = workers.filter(w => w.approvalStatus === 'pending' && !w.isDeleted).length;
   const approvedCount = workers.filter(w => w.approvalStatus === 'approved' && !w.isDeleted).length;
   const rejectedCount = workers.filter(w => w.approvalStatus === 'rejected' && !w.isDeleted).length;
   const deletedCount = workers.filter(w => w.isDeleted).length;
+
+  const statsCards = [
+    {
+      title: 'Total Workers',
+      value: totalActiveWorkers.toLocaleString(),
+      icon: FiUsers,
+      color: 'text-white',
+      bgColor: 'bg-gradient-to-br from-rose-500 to-pink-600',
+      cardBg: 'bg-gradient-to-br from-rose-50 to-pink-50',
+      iconBg: 'bg-white/20',
+      status: 'all'
+    },
+    {
+      title: 'Pending Approval',
+      value: pendingCount.toLocaleString(),
+      icon: FiClock,
+      color: 'text-white',
+      bgColor: 'bg-gradient-to-br from-amber-500 to-yellow-600',
+      cardBg: 'bg-gradient-to-br from-amber-50 to-yellow-50',
+      iconBg: 'bg-white/20',
+      status: 'pending'
+    },
+    {
+      title: 'Approved Workers',
+      value: approvedCount.toLocaleString(),
+      icon: FiCheck,
+      color: 'text-white',
+      bgColor: 'bg-gradient-to-br from-emerald-500 to-green-600',
+      cardBg: 'bg-gradient-to-br from-emerald-50 to-green-50',
+      iconBg: 'bg-white/20',
+      status: 'approved'
+    },
+    {
+      title: 'Rejected',
+      value: rejectedCount.toLocaleString(),
+      icon: FiX,
+      color: 'text-white',
+      bgColor: 'bg-gradient-to-br from-red-500 to-rose-600',
+      cardBg: 'bg-gradient-to-br from-red-50 to-rose-50',
+      iconBg: 'bg-white/20',
+      status: 'rejected'
+    },
+    {
+      title: 'Deleted Accounts',
+      value: deletedCount.toLocaleString(),
+      icon: FiTrash2,
+      color: 'text-white',
+      bgColor: 'bg-gradient-to-br from-slate-600 to-gray-700',
+      cardBg: 'bg-gradient-to-br from-slate-50 to-gray-100',
+      iconBg: 'bg-white/20',
+      status: 'deleted'
+    },
+  ];
 
   return (
     <div className="space-y-4">
@@ -249,23 +346,47 @@ const AllWorkers = () => {
         subtitle="Manage and verify platform workers"
       >
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3">
-            <div className="text-[10px] font-bold text-yellow-700 uppercase tracking-wider mb-1">Pending</div>
-            <div className="text-xl font-bold text-yellow-900">{pendingCount}</div>
-          </div>
-          <div className="bg-green-50 border border-green-200 rounded-xl p-3">
-            <div className="text-[10px] font-bold text-green-700 uppercase tracking-wider mb-1">Approved</div>
-            <div className="text-xl font-bold text-green-900">{approvedCount}</div>
-          </div>
-          <div className="bg-red-50 border border-red-200 rounded-xl p-3">
-            <div className="text-[10px] font-bold text-red-700 uppercase tracking-wider mb-1">Rejected</div>
-            <div className="text-xl font-bold text-red-900">{rejectedCount}</div>
-          </div>
-          <div className="bg-rose-50 border border-rose-200 rounded-xl p-3">
-            <div className="text-[10px] font-bold text-rose-700 uppercase tracking-wider mb-1">Deleted</div>
-            <div className="text-xl font-bold text-rose-900">{deletedCount}</div>
-          </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-4">
+          {statsCards.map((card, index) => {
+            const Icon = card.icon;
+            const isSelected = filterStatus === card.status;
+
+            return (
+              <motion.div
+                key={card.title}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                whileHover={{ scale: 1.025, y: -2 }}
+                whileTap={{ scale: 0.98 }}
+                transition={{ delay: index * 0.05 }}
+                onClick={() => setFilterStatus(card.status)}
+                className={`${card.cardBg} rounded-xl p-3 sm:p-4 shadow-sm hover:shadow-md border ${
+                  isSelected
+                    ? 'border-gray-800/80 ring-2 ring-gray-800/10'
+                    : 'border-transparent hover:border-black/5'
+                } transition-all duration-300 relative overflow-hidden group cursor-pointer select-none`}
+              >
+                <div
+                  className={`absolute top-0 right-0 w-24 h-24 ${card.bgColor} opacity-10 rounded-full -mr-12 -mt-12 group-hover:scale-125 transition-transform duration-500`}
+                />
+
+                <div className="flex items-center justify-between mb-2 sm:mb-3 relative z-10">
+                  <div
+                    className={`${card.bgColor} ${card.iconBg} p-1.5 sm:p-2 rounded-lg shadow-sm group-hover:scale-110 transition-transform`}
+                  >
+                    <Icon className={`${card.color} text-base sm:text-lg`} />
+                  </div>
+                </div>
+
+                <div className="relative z-10">
+                  <h3 className="text-gray-600 text-[10px] sm:text-xs font-medium mb-0.5 group-hover:text-gray-900 transition-colors">
+                    {card.title}
+                  </h3>
+                  <p className="text-gray-800 text-lg sm:text-xl font-bold">{card.value}</p>
+                </div>
+              </motion.div>
+            );
+          })}
         </div>
 
         {/* Search and Filter */}
@@ -276,7 +397,7 @@ const AllWorkers = () => {
               type="text"
               placeholder="Search workers by name, phone, email, category..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => setSearchQuery(e.target.value.replace(/^\s+/, ''))}
               className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all text-xs"
             />
           </div>
@@ -326,7 +447,7 @@ const AllWorkers = () => {
                     <td colSpan="6" className="px-4 py-8 text-center text-xs text-gray-500">No workers found</td>
                   </tr>
                 ) : (
-                  filteredWorkers.map((worker) => (
+                  paginatedWorkers.map((worker) => (
                     <tr key={worker.id} className={`hover:bg-gray-50 transition-colors ${worker.isDeleted ? 'bg-rose-50/20' : ''}`}>
                       <td className="px-4 py-3">
                         <div>
@@ -470,6 +591,82 @@ const AllWorkers = () => {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Footer */}
+          {!loading && totalItems > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-gray-50/70 border-t border-gray-100">
+              <div className="flex items-center gap-3 text-xs text-gray-600">
+                <span>
+                  Showing <strong>{(currentPage - 1) * itemsPerPage + 1}</strong> to <strong>{Math.min(currentPage * itemsPerPage, totalItems)}</strong> of <strong>{totalItems}</strong> workers
+                </span>
+                <div className="flex items-center gap-1.5 ml-2">
+                  <span className="text-gray-500">Per page:</span>
+                  <select
+                    value={itemsPerPage}
+                    onChange={(e) => {
+                      setItemsPerPage(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="px-2 py-1 bg-white border border-gray-200 rounded-md text-xs font-semibold text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                  >
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1 cursor-pointer shadow-sm"
+                >
+                  <FiChevronLeft className="w-3.5 h-3.5" />
+                  <span>Prev</span>
+                </button>
+
+                <div className="flex items-center gap-1 mx-1">
+                  {getPageNumbers().map((pageItem, idx) => {
+                    if (pageItem === '...') {
+                      return (
+                        <span key={`dots-${idx}`} className="px-2 py-1 text-xs text-gray-400">
+                          ...
+                        </span>
+                      );
+                    }
+                    const isCurrent = pageItem === currentPage;
+                    return (
+                      <button
+                        key={`page-${pageItem}`}
+                        type="button"
+                        onClick={() => setCurrentPage(pageItem)}
+                        className={`min-w-[28px] h-7 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          isCurrent
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-100'
+                        }`}
+                      >
+                        {pageItem}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1 cursor-pointer shadow-sm"
+                >
+                  <span>Next</span>
+                  <FiChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </CardShell>
 
@@ -618,14 +815,14 @@ const AllWorkers = () => {
                       alt="Aadhar Front"
                       className="w-full h-48 object-cover rounded-lg border-2 border-gray-200"
                     />
-                    <a
-                      href={selectedWorker.documents.aadhar}
-                      download
-                      className="mt-2 inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700"
+                    <button
+                      type="button"
+                      onClick={() => downloadFile(selectedWorker.documents.aadhar, `${selectedWorker.name || 'worker'}_aadhar_front`)}
+                      className="mt-2 inline-flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700 cursor-pointer"
                     >
                       <FiDownload className="w-4 h-4" />
                       Download
-                    </a>
+                    </button>
                   </div>
                 )}
                 {selectedWorker.documents.aadharBack && (
@@ -636,14 +833,14 @@ const AllWorkers = () => {
                       alt="Aadhar Back"
                       className="w-full h-48 object-cover rounded-lg border-2 border-gray-200"
                     />
-                    <a
-                      href={selectedWorker.documents.aadharBack}
-                      download
-                      className="mt-2 inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700"
+                    <button
+                      type="button"
+                      onClick={() => downloadFile(selectedWorker.documents.aadharBack, `${selectedWorker.name || 'worker'}_aadhar_back`)}
+                      className="mt-2 inline-flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700 cursor-pointer"
                     >
                       <FiDownload className="w-4 h-4" />
                       Download
-                    </a>
+                    </button>
                   </div>
                 )}
                 {selectedWorker.documents.pan && (
@@ -654,14 +851,14 @@ const AllWorkers = () => {
                       alt="PAN"
                       className="w-full h-48 object-cover rounded-lg border-2 border-gray-200"
                     />
-                    <a
-                      href={selectedWorker.documents.pan}
-                      download
-                      className="mt-2 inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700"
+                    <button
+                      type="button"
+                      onClick={() => downloadFile(selectedWorker.documents.pan, `${selectedWorker.name || 'worker'}_pan`)}
+                      className="mt-2 inline-flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700 cursor-pointer"
                     >
                       <FiDownload className="w-4 h-4" />
                       Download
-                    </a>
+                    </button>
                   </div>
                 )}
               </div>

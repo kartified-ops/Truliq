@@ -3,6 +3,7 @@ import { FiGrid, FiPlus, FiEdit2, FiTrash2, FiImage } from "react-icons/fi";
 import { toast } from "react-hot-toast";
 import CardShell from "../components/CardShell";
 import Modal from "../components/Modal";
+import CategorySelect from "../components/CategorySelect";
 import BrandServicesModal from "../components/BrandServicesModal";
 import { ensureIds, saveCatalog, slugify, toAssetUrl } from "../utils";
 import { brandService, categoryService } from "../../../../../services/catalogService";
@@ -12,8 +13,8 @@ import { z } from "zod";
 const brandSchema = z.object({
   title: z.string().min(2, "Brand title must be at least 2 characters"),
   categoryIds: z.array(z.string()).min(1, "Select at least one category"),
-  iconUrl: z.string().optional(),
-  badge: z.string().optional(),
+  iconUrl: z.string().optional().nullable(),
+  badge: z.string().optional().nullable(),
 });
 
 const BrandsPage = ({ catalog, setCatalog, selectedCity }) => {
@@ -80,10 +81,10 @@ const BrandsPage = ({ catalog, setCatalog, selectedCity }) => {
       const params = { status: 'active' };
       if (selectedCity) params.cityId = selectedCity;
 
-      // Fetch ALL categories for reliable resolution, but filtered services
+      // Fetch ALL active categories for reliable resolution, but filtered services
       const [servicesRes, categoriesRes] = await Promise.all([
         brandService.getAll(params),
-        categoryService.getAll()
+        categoryService.getAll(params)
       ]);
 
       let mappedBrands = [];
@@ -116,11 +117,20 @@ const BrandsPage = ({ catalog, setCatalog, selectedCity }) => {
       }
 
       if (categoriesRes.success) {
-        mappedCategories = categoriesRes.categories.map(cat => ({
-          id: getStrId(cat.id || cat._id) || "",
-          title: cat.title,
-          slug: cat.slug
-        }));
+        const seenIds = new Set();
+        mappedCategories = (categoriesRes.categories || []).reduce((acc, cat) => {
+          const id = getStrId(cat.id || cat._id) || "";
+          if (id && !seenIds.has(id)) {
+            seenIds.add(id);
+            acc.push({
+              id,
+              title: cat.title,
+              slug: cat.slug,
+              status: cat.status
+            });
+          }
+          return acc;
+        }, []);
       }
 
       setCatalog(prev => {
@@ -211,25 +221,31 @@ const BrandsPage = ({ catalog, setCatalog, selectedCity }) => {
     if (loading || isSubmitting.current) return;
     isSubmitting.current = true;
 
-    // Validate inputs
-    const validationResult = brandSchema.safeParse({
-      title: form.title.trim(),
-      categoryIds: form.categoryIds,
-      iconUrl: form.iconUrl.trim(),
-      badge: form.badge.trim(),
-    });
-
-    if (!validationResult.success) {
-      toast.error(validationResult.error.errors[0].message);
-      isSubmitting.current = false;
-      return;
-    }
-
-    const { title, categoryIds, iconUrl, badge } = validationResult.data;
-    const slug = slugify(title);
-
     try {
+      const trimmedTitle = (form.title || "").trim();
+      const trimmedIconUrl = (form.iconUrl || "").trim();
+      const trimmedBadge = (form.badge || "").trim();
+      const categoryIds = Array.isArray(form.categoryIds)
+        ? form.categoryIds.map(String).filter(Boolean)
+        : [];
+
+      // Validate inputs
+      const validationResult = brandSchema.safeParse({
+        title: trimmedTitle,
+        categoryIds,
+        iconUrl: trimmedIconUrl || undefined,
+        badge: trimmedBadge || undefined,
+      });
+
+      if (!validationResult.success) {
+        toast.error(validationResult.error.errors[0]?.message || "Validation failed");
+        return;
+      }
+
       setLoading(true);
+
+      const { title, iconUrl, badge } = validationResult.data;
+      const slug = slugify(title);
 
       const serviceData = {
         title,
@@ -238,15 +254,11 @@ const BrandsPage = ({ catalog, setCatalog, selectedCity }) => {
         iconUrl: iconUrl || null,
         badge: badge || null,
         // Add cityId if selected, using form state which is synchronized
-        cityIds: form.cityIds,
+        cityIds: form.cityIds || (selectedCity ? [selectedCity] : []),
         // Default empty structures for legacy compatibility
         page: { banners: [], paymentOffers: [], serviceCategoriesGrid: [] },
         sections: []
       };
-
-      let savedBrand; // kept for legacy if needed, but unused here
-      // well, savedBrand is assigned but not used now.
-      // I should remove 'let savedBrand' and the assignments.
 
       if (editingId) {
         // Update
@@ -265,11 +277,12 @@ const BrandsPage = ({ catalog, setCatalog, selectedCity }) => {
       // Refresh data from server to ensure consistency
       await refreshData();
 
-      toast.success(editingId ? "Brand updated" : "Brand created");
+      toast.success(editingId ? "Brand updated successfully" : "Brand created successfully");
       reset();
     } catch (error) {
       console.error('Upsert brand error:', error);
-      toast.error(error.message || 'Failed to save brand.');
+      const msg = error.response?.data?.message || error.message || 'Failed to save brand.';
+      toast.error(msg);
     } finally {
       setLoading(false);
       isSubmitting.current = false;
@@ -336,19 +349,14 @@ const BrandsPage = ({ catalog, setCatalog, selectedCity }) => {
         <div className="mb-6 bg-gray-50 p-4 rounded-xl border border-gray-200">
           <label className="block text-sm font-bold text-gray-700 mb-2">Filter by Category</label>
           <div className="flex gap-2 items-center">
-            <div className="relative flex-1">
-              <select
+            <div className="flex-1">
+              <CategorySelect
                 value={selectedCategoryFilter}
-                onChange={(e) => setSelectedCategoryFilter(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm font-medium text-gray-700 shadow-sm cursor-pointer"
-              >
-                <option value="all">All Categories</option>
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.title}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => setSelectedCategoryFilter(val)}
+                categories={categories}
+                includeAllOption={true}
+                allLabel="All Categories"
+              />
             </div>
             <div className="text-sm text-gray-500 whitespace-nowrap px-2">
               <strong>{filteredBrands.length}</strong> brands
@@ -499,7 +507,9 @@ const BrandsPage = ({ catalog, setCatalog, selectedCity }) => {
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-1">Categories (Select Logic)</label>
             <div className="max-h-40 overflow-y-auto border border-gray-300 rounded-lg p-2 bg-gray-50">
-              {categories.map((cat) => (
+              {categories
+                .filter((cat) => cat && cat.status !== "deleted")
+                .map((cat) => (
                 <label key={cat.id} className="flex items-center space-x-2 p-1.5 hover:bg-gray-100 rounded cursor-pointer">
                   <input
                     type="checkbox"

@@ -422,6 +422,11 @@ bookingSchema.index({ scheduledDate: 1, status: 1 });
 bookingSchema.index({ paymentStatus: 1, status: 1 });
 
 // ── PERFORMANCE INDEXES (added for wave-scheduler & dashboard queries) ──
+bookingSchema.index({ createdAt: -1 });
+bookingSchema.index({ completedAt: -1 });
+bookingSchema.index({ status: 1, createdAt: -1 });
+bookingSchema.index({ status: 1, completedAt: -1 });
+bookingSchema.index({ status: 1, paymentStatus: 1, completedAt: -1 });
 // Scheduler: Booking.find({ status: 'searching', waveStartedAt: { $ne: null } })
 bookingSchema.index({ status: 1, waveStartedAt: 1 });
 // Reject/Accept: Booking.findOne({ notifiedVendors: vendorId, status: ... })

@@ -15,8 +15,19 @@ const statusBadge = (status) => {
     CANCELLED: 'bg-red-100 text-red-700',
     CANCELED: 'bg-red-100 text-red-700',
     REJECTED: 'bg-red-100 text-red-700',
+    NO_VENDORS: 'bg-orange-100 text-orange-700',
+    NO_WORKERS: 'bg-orange-100 text-orange-700',
   };
   return map[s] || 'bg-gray-100 text-gray-700';
+};
+
+const formatStatus = (status) => {
+  if (!status) return 'OTHER';
+  const s = status.toString().toLowerCase();
+  if (s === 'no_vendors' || s === 'no_workers' || s === 'no vendors' || s === 'no workers') {
+    return 'no workers';
+  }
+  return status.toString().replace(/_/g, ' ');
 };
 
 const RecentBookings = ({ bookings = [], onViewBooking }) => {
@@ -56,7 +67,7 @@ const RecentBookings = ({ bookings = [], onViewBooking }) => {
               <div className="flex items-center gap-3 mb-2">
                 <h4 className="font-semibold text-gray-800 truncate">{b.id}</h4>
                 <span className={`text-xs font-semibold px-2 py-1 rounded-full ${statusBadge(b.status)}`}>
-                  {(b.status || 'OTHER').toString().replace('_', ' ')}
+                  {formatStatus(b.status)}
                 </span>
               </div>
               <p className="text-sm text-gray-600 truncate">{b.user?.name || 'Customer'}</p>

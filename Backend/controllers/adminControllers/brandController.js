@@ -13,7 +13,12 @@ const getAllBrands = async (req, res) => {
 
     // Build query
     const query = {};
-    if (status) query.status = status;
+    if (status) {
+      query.status = status;
+    } else {
+      // Exclude deleted brands by default if status not explicitly specified
+      query.status = { $ne: SERVICE_STATUS.DELETED };
+    }
     if (categoryId) query.categoryIds = categoryId;
     if (cityId) {
       query.$or = [

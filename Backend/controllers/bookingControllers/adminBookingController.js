@@ -37,13 +37,14 @@ const getAllBookings = async (req, res) => {
     }
 
     // Search by booking number, service name, or customer name
-    if (search) {
-      const matchingUsers = await User.find({ name: { $regex: search, $options: 'i' } }).select('_id');
+    const trimmedSearch = typeof search === 'string' ? search.trim() : '';
+    if (trimmedSearch) {
+      const matchingUsers = await User.find({ name: { $regex: trimmedSearch, $options: 'i' } }).select('_id');
       const userIds = matchingUsers.map(u => u._id);
 
       query.$or = [
-        { bookingNumber: { $regex: search, $options: 'i' } },
-        { serviceName: { $regex: search, $options: 'i' } },
+        { bookingNumber: { $regex: trimmedSearch, $options: 'i' } },
+        { serviceName: { $regex: trimmedSearch, $options: 'i' } },
         { userId: { $in: userIds } }
       ];
     }
