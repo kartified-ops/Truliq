@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { FiBriefcase, FiClock, FiCheckCircle, FiXCircle, FiMapPin, FiChevronRight, FiUser, FiSearch } from 'react-icons/fi';
 import { workerTheme as themeColors } from '../../../../theme';
 import Header from '../../components/layout/Header';
@@ -9,11 +9,33 @@ import { SkeletonList } from '../../../../components/common/SkeletonLoaders';
 const AssignedJobs = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const getInitialFilter = () => {
+    const urlFilter = searchParams.get('filter');
+    if (urlFilter) return urlFilter;
+    if (location.state?.filter) return location.state.filter;
+    const storedFilter = sessionStorage.getItem('workerJobsFilter');
+    if (storedFilter) return storedFilter;
+    return 'all';
+  };
+
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [filter, setFilter] = useState(location.state?.filter || 'all'); // all, confirmed, in_progress, completed
+  const [filter, setFilter] = useState(getInitialFilter); // all, confirmed, in_progress, completed
   const [searchQuery, setSearchQuery] = useState('');
+
+  const handleFilterChange = (newFilterId) => {
+    setFilter(newFilterId);
+    sessionStorage.setItem('workerJobsFilter', newFilterId);
+    if (newFilterId === 'all') {
+      searchParams.delete('filter');
+      setSearchParams(searchParams, { replace: true });
+    } else {
+      setSearchParams({ ...Object.fromEntries(searchParams.entries()), filter: newFilterId }, { replace: true });
+    }
+  };
 
   useLayoutEffect(() => {
     const html = document.documentElement;
@@ -51,6 +73,7 @@ const AssignedJobs = () => {
   };
 
   useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     // 1. Instantly load from cache for blazing fast navigation
     const cachedJobs = sessionStorage.getItem('workerJobsCache');
     if (cachedJobs) {
@@ -158,7 +181,7 @@ const AssignedJobs = () => {
           ].map((filterOption) => (
             <button
               key={filterOption.id}
-              onClick={() => setFilter(filterOption.id)}
+              onClick={() => handleFilterChange(filterOption.id)}
               className={`px-4 py-2 rounded-full font-semibold text-sm whitespace-nowrap transition-all ${filter === filterOption.id
                 ? 'text-white'
                 : 'bg-white text-gray-700'

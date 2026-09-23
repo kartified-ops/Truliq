@@ -201,7 +201,7 @@ const Dashboard = () => {
   const isMountedRef = React.useRef(true);
 
   try {
-    const cached = sessionStorage.getItem('workerDashboardCache');
+    const cached = localStorage.getItem('workerDashboardCache') || sessionStorage.getItem('workerDashboardCache');
     if (cached) {
       cachedData.current = JSON.parse(cached);
     }
@@ -350,18 +350,10 @@ const Dashboard = () => {
     return () => stopLocationTracking();
   }, [locationWatchId]);
 
-  // Fetch Dashboard Data Function
+  // Fetch Dashboard Data Function (Fast Progressive Streaming)
   const fetchDashboardData = async (isBackground = false) => {
     try {
       if (!isBackground && !cachedData.current) setLoading(true);
-
-      // Fetch Profile, Stats and Recent Jobs in parallel (Stats also includes recent jobs but let's be robust)
-      const [profileRes, statsRes, subRes, bannersRes] = await Promise.all([
-        workerService.getProfile(),
-        workerService.getDashboardStats(),
-        workerService.getSubscriptionStatus(),
-        workerService.getDashboardBanners().catch(() => ({ success: false }))
-      ]);
 
       let newWorkerProfile = { ...workerProfile };
       let newStats = { ...stats };
@@ -370,78 +362,97 @@ const Dashboard = () => {
       let newDashboardBanners = [...dashboardBanners];
       let newIsBannersVisible = isBannersVisible;
 
-      if (profileRes.success) {
-        const profile = profileRes.worker;
-        newWorkerProfile = {
-          name: profile.name || 'Worker Name',
-          phone: profile.phone || '',
-          photo: profile.profilePhoto || null,
-          categories: profile.serviceCategories || (profile.serviceCategory ? [profile.serviceCategory] : []),
-          address: profile.address,
-        };
-        setWorkerProfile(newWorkerProfile);
-        // Sync online status from DB
-        setIsOnline(profile.isOnline || false);
-      }
+      const persistCache = () => {
+        try {
+          const snapshot = JSON.stringify({
+            workerProfile: newWorkerProfile,
+            stats: newStats,
+            subscriptionStatus: newSubscriptionStatus,
+            dashboardBanners: newDashboardBanners,
+            isBannersVisible: newIsBannersVisible,
+            recentJobs: newRecentJobs,
+            isOnline
+          });
+          localStorage.setItem('workerDashboardCache', snapshot);
+          sessionStorage.setItem('workerDashboardCache', snapshot);
+        } catch (e) { /* ignore storage errors */ }
+      };
 
-      if (statsRes.success) {
-        const { totalEarnings, activeJobs, pendingJobs, completedJobs, rating, recentJobs: apiRecentJobs } = statsRes.data;
-        newStats = {
-          ...newStats,
-          totalEarnings: totalEarnings || 0,
-          thisMonthEarnings: totalEarnings || 0,
-          pendingJobs: pendingJobs || 0,
-          acceptedJobs: activeJobs || 0,
-          completedJobs: completedJobs || 0,
-          rating: rating || 0
-        };
-        setStats(newStats);
-
-        if (apiRecentJobs && apiRecentJobs.length > 0) {
-          newRecentJobs = apiRecentJobs.map(job => ({
-            id: job._id,
-            serviceType: job.serviceId?.title || job.serviceName || 'Service',
-            customerName: job.userId?.name || 'Customer',
-            location: job.address?.city || 'Location N/A',
-            time: job.scheduledTime || 'N/A',
-            status: job.status,
-            price: job.finalAmount,
-            workerResponse: job.workerResponse,
-            cancellationReason: job.cancellationReason,
-          }));
-          setRecentJobs(newRecentJobs);
+      // Run calls concurrently with independent early resolution
+      const profilePromise = workerService.getProfile().then((profileRes) => {
+        if (profileRes?.success) {
+          const profile = profileRes.worker;
+          newWorkerProfile = {
+            name: profile.name || 'Worker Name',
+            phone: profile.phone || '',
+            photo: profile.profilePhoto || null,
+            categories: profile.serviceCategories || (profile.serviceCategory ? [profile.serviceCategory] : []),
+            address: profile.address,
+          };
+          setWorkerProfile(newWorkerProfile);
+          setIsOnline(profile.isOnline || false);
+          setLoading(false);
+          persistCache();
         }
-      }
+      }).catch((e) => console.warn('Profile fetch skipped:', e.message));
 
-      if (subRes && subRes.success) {
-        newSubscriptionStatus = subRes.data;
-        setSubscriptionStatus(newSubscriptionStatus);
-      }
+      const statsPromise = workerService.getDashboardStats().then((statsRes) => {
+        if (statsRes?.success) {
+          const { totalEarnings, activeJobs, pendingJobs, completedJobs, rating, recentJobs: apiRecentJobs } = statsRes.data;
+          newStats = {
+            ...newStats,
+            totalEarnings: totalEarnings || 0,
+            thisMonthEarnings: totalEarnings || 0,
+            pendingJobs: pendingJobs || 0,
+            acceptedJobs: activeJobs || 0,
+            completedJobs: completedJobs || 0,
+            rating: rating || 0
+          };
+          setStats(newStats);
 
-      if (bannersRes && bannersRes.success) {
-        newDashboardBanners = Array.isArray(bannersRes.data?.banners) ? bannersRes.data.banners : [];
-        newIsBannersVisible = bannersRes.data?.isVisible !== false;
-        setDashboardBanners(newDashboardBanners);
-        setIsBannersVisible(newIsBannersVisible);
-      }
+          if (apiRecentJobs && apiRecentJobs.length > 0) {
+            newRecentJobs = apiRecentJobs.map(job => ({
+              id: job._id,
+              serviceType: job.serviceId?.title || job.serviceName || 'Service',
+              customerName: job.userId?.name || 'Customer',
+              location: job.address?.city || 'Location N/A',
+              time: job.scheduledTime || 'N/A',
+              status: job.status,
+              price: job.finalAmount,
+              workerResponse: job.workerResponse,
+              cancellationReason: job.cancellationReason,
+            }));
+            setRecentJobs(newRecentJobs);
+          }
+          setLoading(false);
+          persistCache();
+        }
+      }).catch((e) => console.warn('Stats fetch skipped:', e.message));
 
-      // Save to cache
-      try {
-        sessionStorage.setItem('workerDashboardCache', JSON.stringify({
-          workerProfile: newWorkerProfile,
-          stats: newStats,
-          subscriptionStatus: newSubscriptionStatus,
-          dashboardBanners: newDashboardBanners,
-          isBannersVisible: newIsBannersVisible,
-          recentJobs: newRecentJobs,
-          isOnline: profileRes.success ? profileRes.worker.isOnline : isOnline
-        }));
-      } catch (e) { /* ignore quota errors */ }
+      const subPromise = workerService.getSubscriptionStatus().then((subRes) => {
+        if (subRes?.success) {
+          newSubscriptionStatus = subRes.data;
+          setSubscriptionStatus(newSubscriptionStatus);
+          setLoading(false);
+          persistCache();
+        }
+      }).catch((e) => console.warn('Sub status fetch skipped:', e.message));
 
+      const bannersPromise = workerService.getDashboardBanners().then((bannersRes) => {
+        if (bannersRes?.success) {
+          newDashboardBanners = Array.isArray(bannersRes.data?.banners) ? bannersRes.data.banners : [];
+          newIsBannersVisible = bannersRes.data?.isVisible !== false;
+          setDashboardBanners(newDashboardBanners);
+          setIsBannersVisible(newIsBannersVisible);
+          setLoading(false);
+          persistCache();
+        }
+      }).catch(() => {});
+
+      await Promise.allSettled([profilePromise, statsPromise, subPromise, bannersPromise]);
       setLoading(false);
     } catch (err) {
       console.error('Dashboard fetch error:', err);
-      setError('Failed to load dashboard data');
       setLoading(false);
     }
   };
@@ -1030,7 +1041,10 @@ const Dashboard = () => {
             <h2 className="text-lg font-bold text-gray-800">Recent Jobs</h2>
             {recentJobs.length > 0 && (
               <button
-                onClick={() => navigate('/worker/jobs')}
+                onClick={() => {
+                  window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+                  navigate('/worker/jobs');
+                }}
                 className="px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-300 active:scale-95"
                 style={{
                   background: hexToRgba(themeColors.button, 0.05),

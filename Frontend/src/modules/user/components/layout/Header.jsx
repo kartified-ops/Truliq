@@ -57,7 +57,7 @@ const Header = ({ location, onLocationClick, isGpsOff = false }) => {
             >
               <Logo
                 ref={logoRef}
-                className="h-10 sm:h-12 w-auto"
+                className="h-12 sm:h-14 w-auto max-w-[130px] sm:max-w-[150px]"
               />
             </Link>
 
@@ -87,11 +87,14 @@ const Header = ({ location, onLocationClick, isGpsOff = false }) => {
                     className={`w-4 h-4 shrink-0 ${isGpsOff ? 'text-orange-500 animate-pulse' : ''}`}
                     style={isGpsOff ? { fill: '#f97316' } : { fill: 'url(#Truliq-location-gradient)' }}
                   />
-                  <span className="text-sm font-bold truncate max-w-[160px]" style={{
-                    background: isGpsOff ? '#f97316' : themeColors.gradient,
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                  }}>
+                  <span
+                    className={`text-sm font-bold truncate max-w-[160px] ${isGpsOff ? 'text-orange-500' : ''}`}
+                    style={!isGpsOff ? {
+                      background: themeColors.gradient,
+                      WebkitBackgroundClip: 'text',
+                      WebkitTextFillColor: 'transparent',
+                    } : {}}
+                  >
                     {isGpsOff ? 'GPS is Off' : (() => {
                       if (!location || location === '...') return 'Select Location';
                       const parts = location.split(/[,|-]/).map(p => p.trim()).filter(p => p);

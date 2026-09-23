@@ -11,6 +11,7 @@ import { initializePushNotifications, setupForegroundNotificationHandler } from 
 import { LocationPermissionChecker } from './components/common';
 import GlobalErrorBoundary from './components/common/GlobalErrorBoundary';
 import NetworkStatusOverlay from './components/common/NetworkStatusOverlay';
+import ScrollToTop from './components/common/ScrollToTop';
 
 function App() {
   // Initialize push notifications on app load
@@ -35,6 +36,7 @@ function App() {
     <GlobalErrorBoundary>
       <NetworkProvider>
         <BrowserRouter>
+          <ScrollToTop />
           <SocketProvider>
             <CityProvider>
               <CartProvider>
