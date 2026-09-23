@@ -24,8 +24,14 @@ const SettingsRouter = () => (
       <Route path="mail" element={<MailSettings />} />
       <Route path="storage" element={<StorageSettings />} />
     </Route>
+    <Route path="business" element={<AdminSettings defaultView="financial" />} />
     <Route path="app" element={<AdminSettings defaultView="system" />} />
-    <Route path="*" element={<AdminSettings />} />
+    <Route path="system" element={<AdminSettings defaultView="system" />} />
+    <Route path="profile" element={<AdminSettings defaultView="profile" />} />
+    <Route path="cities" element={<AdminSettings defaultView="cities" />} />
+    <Route path="admins" element={<AdminSettings defaultView="admins" />} />
+    <Route index element={<Navigate to="/admin/settings/business" replace />} />
+    <Route path="*" element={<AdminSettings defaultView="financial" />} />
   </Routes>
 );
 

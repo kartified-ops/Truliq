@@ -98,14 +98,6 @@ const deleteAdmin = async (req, res) => {
       });
     }
 
-    // Protect primary super admin
-    if (admin.email === 'admin@admin.com') {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot delete the primary super admin account'
-      });
-    }
-
     await Admin.findByIdAndDelete(id);
 
     res.status(200).json({
@@ -247,11 +239,6 @@ module.exports = {
       const admin = await Admin.findById(id);
       if (!admin) {
         return res.status(404).json({ success: false, message: 'Admin not found' });
-      }
-
-      // Protect primary super admin
-      if (admin.email === 'admin@admin.com') {
-        return res.status(400).json({ success: false, message: 'Cannot block primary super admin' });
       }
 
       admin.isActive = !admin.isActive;

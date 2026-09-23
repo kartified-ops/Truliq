@@ -5,6 +5,7 @@ const User = require('../../models/User');
 const Service = require('../../models/UserService');
 const { BOOKING_STATUS, PAYMENT_STATUS, VENDOR_STATUS } = require('../../utils/constants');
 const { getCommissionRates } = require('../../utils/commission');
+const { getAdminCityScope, getCityQueryFilter } = require('../../utils/adminScope');
 
 /**
  * Get Booking Report Data
@@ -13,6 +14,9 @@ exports.getBookingReport = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     const filter = {};
+    const cityFilter = getCityQueryFilter(req, 'address.city');
+    Object.assign(filter, cityFilter);
+
     if (startDate && endDate) {
       filter.createdAt = { $gte: new Date(startDate), $lte: new Date(endDate) };
     }
@@ -76,9 +80,11 @@ exports.getBookingReport = async (req, res) => {
  */
 exports.getVendorReport = async (req, res) => {
   try {
+    const cityFilter = getCityQueryFilter(req, 'address.city');
+
     // Top vendors by revenue
     const topVendors = await Booking.aggregate([
-      { $match: { status: BOOKING_STATUS.COMPLETED } },
+      { $match: { status: BOOKING_STATUS.COMPLETED, ...cityFilter } },
       {
         $group: {
           _id: '$vendorId',
@@ -109,11 +115,13 @@ exports.getVendorReport = async (req, res) => {
 
     // Vendor status distribution
     const statusDistribution = await Vendor.aggregate([
+      { $match: cityFilter },
       { $group: { _id: '$approvalStatus', count: { $sum: 1 } } }
     ]);
 
     // Vendors by service category
     const categoryDistribution = await Vendor.aggregate([
+      { $match: cityFilter },
       { $group: { _id: '$service', count: { $sum: 1 } } },
       { $sort: { count: -1 } }
     ]);
@@ -137,9 +145,11 @@ exports.getVendorReport = async (req, res) => {
  */
 exports.getWorkerReport = async (req, res) => {
   try {
+    const cityFilter = getCityQueryFilter(req, 'address.city');
+
     // Top workers by jobs completed
     const topWorkers = await Booking.aggregate([
-      { $match: { status: BOOKING_STATUS.COMPLETED, workerId: { $ne: null } } },
+      { $match: { status: BOOKING_STATUS.COMPLETED, workerId: { $ne: null }, ...cityFilter } },
       {
         $group: {
           _id: '$workerId',
@@ -170,6 +180,7 @@ exports.getWorkerReport = async (req, res) => {
 
     // Worker availability distribution
     const availabilityDistribution = await Worker.aggregate([
+      { $match: cityFilter },
       { $group: { _id: '$isAvailable', count: { $sum: 1 } } }
     ]);
 
@@ -191,12 +202,19 @@ exports.getWorkerReport = async (req, res) => {
  */
 exports.getCustomerReport = async (req, res) => {
   try {
-    const totalUsers = await User.countDocuments({ role: 'user' });
-    const totalBookings = await Booking.countDocuments();
+    const cityFilter = getCityQueryFilter(req, 'address.city');
+    const userCityFilter = {};
+    const city = getAdminCityScope(req);
+    if (city) {
+      userCityFilter['addresses.city'] = new RegExp(`^${city}$`, 'i');
+    }
+
+    const totalUsers = await User.countDocuments({ role: 'user', ...userCityFilter });
+    const totalBookings = await Booking.countDocuments(cityFilter);
 
     // User verification status distribution
     const verificationStatus = await User.aggregate([
-      { $match: { role: 'user' } },
+      { $match: { role: 'user', ...userCityFilter } },
       {
         $group: {
           _id: {
@@ -219,6 +237,7 @@ exports.getCustomerReport = async (req, res) => {
 
     // Top users by bookings
     const topUsers = await Booking.aggregate([
+      { $match: cityFilter },
       { $group: { _id: '$userId', bookingCount: { $sum: 1 }, totalSpent: { $sum: '$finalAmount' } } },
       { $sort: { bookingCount: -1 } },
       { $limit: 10 },
@@ -242,7 +261,7 @@ exports.getCustomerReport = async (req, res) => {
 
     // Monthly registration trend
     const monthlyTrend = await User.aggregate([
-      { $match: { role: 'user' } },
+      { $match: { role: 'user', ...userCityFilter } },
       {
         $group: {
           _id: { $dateToString: { format: '%Y-%m', date: '$createdAt' } },
@@ -278,10 +297,11 @@ exports.getRevenueReport = async (req, res) => {
     let groupFormat = '%Y-%m';
     if (period === 'daily') groupFormat = '%Y-%m-%d';
 
+    const cityFilter = getCityQueryFilter(req, 'address.city');
     const { platformShare } = await getCommissionRates();
 
     const revenueTrends = await Booking.aggregate([
-      { $match: { status: BOOKING_STATUS.COMPLETED, paymentStatus: PAYMENT_STATUS.SUCCESS } },
+      { $match: { status: BOOKING_STATUS.COMPLETED, paymentStatus: PAYMENT_STATUS.SUCCESS, ...cityFilter } },
       {
         $group: {
           _id: { $dateToString: { format: groupFormat, date: '$completedAt' } },
@@ -294,7 +314,7 @@ exports.getRevenueReport = async (req, res) => {
 
     // Revenue by service
     const revenueByService = await Booking.aggregate([
-      { $match: { status: BOOKING_STATUS.COMPLETED } },
+      { $match: { status: BOOKING_STATUS.COMPLETED, ...cityFilter } },
       {
         $lookup: {
           from: 'userservices',

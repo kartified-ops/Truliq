@@ -2,6 +2,7 @@ const Booking = require('../../models/Booking');
 const User = require('../../models/User');
 const { validationResult } = require('express-validator');
 const { BOOKING_STATUS } = require('../../utils/constants');
+const { getAdminCityScope, getCityQueryFilter } = require('../../utils/adminScope');
 
 /**
  * Get all bookings with filters and search
@@ -24,16 +25,91 @@ const getAllBookings = async (req, res) => {
     // Build query
     const query = {};
 
-    if (status) query.status = status;
+    // Role-based city filter for non-super_admin
+    const cityFilter = getCityQueryFilter(req, 'address.city');
+    Object.assign(query, cityFilter);
+
+    if (status && status !== 'all' && status !== 'All Status' && status !== 'ALL_STATUS') {
+      const s = String(status).trim().toLowerCase();
+      if (s === 'pending' || s === 'awaiting') {
+        query.status = {
+          $in: [
+            BOOKING_STATUS.PENDING,
+            BOOKING_STATUS.SEARCHING,
+            BOOKING_STATUS.REQUESTED,
+            BOOKING_STATUS.AWAITING_PAYMENT,
+            'pending',
+            'searching',
+            'requested',
+            'awaiting_payment'
+          ]
+        };
+      } else if (s === 'confirmed') {
+        query.status = {
+          $in: [
+            BOOKING_STATUS.CONFIRMED,
+            BOOKING_STATUS.ACCEPTED,
+            BOOKING_STATUS.ASSIGNED,
+            'confirmed',
+            'accepted',
+            'assigned'
+          ]
+        };
+      } else if (s === 'in_progress' || s === 'inprogress' || s === 'ongoing') {
+        query.status = {
+          $in: [
+            BOOKING_STATUS.IN_PROGRESS,
+            BOOKING_STATUS.JOURNEY_STARTED,
+            BOOKING_STATUS.VISITED,
+            BOOKING_STATUS.WORK_DONE,
+            'in_progress',
+            'journey_started',
+            'visited',
+            'work_done'
+          ]
+        };
+      } else if (s === 'completed' || s === 'delivered') {
+        query.status = {
+          $in: [
+            BOOKING_STATUS.COMPLETED,
+            'completed'
+          ]
+        };
+      } else if (s === 'cancelled' || s === 'canceled') {
+        query.status = {
+          $in: [
+            BOOKING_STATUS.CANCELLED,
+            BOOKING_STATUS.REJECTED,
+            BOOKING_STATUS.NO_VENDORS,
+            'cancelled',
+            'canceled',
+            'rejected',
+            'no_vendors'
+          ]
+        };
+      } else {
+        query.status = { $regex: new RegExp(`^${s}$`, 'i') };
+      }
+    }
+
     if (paymentStatus) query.paymentStatus = paymentStatus;
     if (userId) query.userId = userId;
     if (vendorId) query.vendorId = vendorId;
     if (workerId) query.workerId = workerId;
 
     if (startDate || endDate) {
-      query.scheduledDate = {};
-      if (startDate) query.scheduledDate.$gte = new Date(startDate);
-      if (endDate) query.scheduledDate.$lte = new Date(endDate);
+      const dateCondition = {};
+      if (startDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        dateCondition.$gte = start;
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        dateCondition.$lte = end;
+      }
+      query.createdAt = dateCondition;
     }
 
     // Search by booking number, service name, or customer name
@@ -106,6 +182,15 @@ const getBookingById = async (req, res) => {
       });
     }
 
+    // Role-based city check
+    const city = getAdminCityScope(req);
+    if (city && booking.address?.city && booking.address.city.toLowerCase() !== city.toLowerCase()) {
+      return res.status(403).json({
+        success: false,
+        message: `Access denied. You only have access to bookings in ${city}.`
+      });
+    }
+
     res.status(200).json({
       success: true,
       data: booking
@@ -142,6 +227,15 @@ const cancelBooking = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Booking not found'
+      });
+    }
+
+    // Role-based city check
+    const city = getAdminCityScope(req);
+    if (city && booking.address?.city && booking.address.city.toLowerCase() !== city.toLowerCase()) {
+      return res.status(403).json({
+        success: false,
+        message: `Access denied. You cannot cancel bookings outside ${city}.`
       });
     }
 
@@ -190,10 +284,21 @@ const getBookingAnalytics = async (req, res) => {
 
     // Build date filter
     const dateFilter = {};
+    const cityFilter = getCityQueryFilter(req, 'address.city');
+    Object.assign(dateFilter, cityFilter);
+
     if (startDate || endDate) {
       dateFilter.createdAt = {};
-      if (startDate) dateFilter.createdAt.$gte = new Date(startDate);
-      if (endDate) dateFilter.createdAt.$lte = new Date(endDate);
+      if (startDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        dateFilter.createdAt.$gte = start;
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        dateFilter.createdAt.$lte = end;
+      }
     }
 
     // Total bookings

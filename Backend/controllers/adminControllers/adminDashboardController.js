@@ -9,6 +9,7 @@ const Transaction = require('../../models/Transaction');
 const UserService = require('../../models/UserService');
 const { BOOKING_STATUS, PAYMENT_STATUS, VENDOR_STATUS } = require('../../utils/constants');
 const { getCommissionRates } = require('../../utils/commission');
+const { getAdminCityScope, getCityQueryFilter } = require('../../utils/adminScope');
 
 /**
  * Get overall dashboard stats
@@ -27,6 +28,18 @@ const getDashboardStats = async (req, res) => {
       }
     }
 
+    // Role-based city filter for non-super_admin
+    const cityFilter = getCityQueryFilter(req, 'address.city');
+    const bookingMatchFilter = { ...dateFilter, ...cityFilter };
+    const vendorMatchFilter = { ...dateFilter, ...cityFilter };
+    const workerMatchFilter = { ...dateFilter, ...cityFilter };
+
+    const userMatchFilter = { role: 'user', isActive: true, ...dateFilter };
+    const city = getAdminCityScope(req);
+    if (city) {
+      userMatchFilter['addresses.city'] = new RegExp(`^${city}$`, 'i');
+    }
+
     // Revenue date filter (use completedAt for revenue consistency)
     const revenueDateFilter = {};
     if (startDate || endDate) {
@@ -38,6 +51,7 @@ const getDashboardStats = async (req, res) => {
         revenueDateFilter.completedAt.$lte = end;
       }
     }
+    const revenueMatchFilter = { ...revenueDateFilter, ...cityFilter };
 
     const [
       bookingStatsResult,
@@ -56,7 +70,7 @@ const getDashboardStats = async (req, res) => {
     ] = await Promise.all([
       // 1. Total & Status Counts in 1 Aggregate
       Booking.aggregate([
-        { $match: dateFilter },
+        { $match: bookingMatchFilter },
         {
           $group: {
             _id: null,
@@ -68,16 +82,63 @@ const getDashboardStats = async (req, res) => {
                     $in: [
                       '$status',
                       [
-                        BOOKING_STATUS.COMPLETED,
-                        BOOKING_STATUS.CANCELLED,
-                        'completed',
-                        'cancelled',
-                        'canceled'
+                        BOOKING_STATUS.PENDING,
+                        BOOKING_STATUS.SEARCHING,
+                        BOOKING_STATUS.REQUESTED,
+                        BOOKING_STATUS.AWAITING_PAYMENT,
+                        'pending',
+                        'searching',
+                        'requested',
+                        'awaiting_payment'
                       ]
                     ]
                   },
-                  0,
-                  1
+                  1,
+                  0
+                ]
+              }
+            },
+            confirmedBookings: {
+              $sum: {
+                $cond: [
+                  {
+                    $in: [
+                      '$status',
+                      [
+                        BOOKING_STATUS.CONFIRMED,
+                        BOOKING_STATUS.ACCEPTED,
+                        BOOKING_STATUS.ASSIGNED,
+                        'confirmed',
+                        'accepted',
+                        'assigned'
+                      ]
+                    ]
+                  },
+                  1,
+                  0
+                ]
+              }
+            },
+            inProgressBookings: {
+              $sum: {
+                $cond: [
+                  {
+                    $in: [
+                      '$status',
+                      [
+                        BOOKING_STATUS.IN_PROGRESS,
+                        BOOKING_STATUS.JOURNEY_STARTED,
+                        BOOKING_STATUS.VISITED,
+                        BOOKING_STATUS.WORK_DONE,
+                        'in_progress',
+                        'journey_started',
+                        'visited',
+                        'work_done'
+                      ]
+                    ]
+                  },
+                  1,
+                  0
                 ]
               }
             },
@@ -93,7 +154,7 @@ const getDashboardStats = async (req, res) => {
             cancelledBookings: {
               $sum: {
                 $cond: [
-                  { $in: ['$status', [BOOKING_STATUS.CANCELLED, 'cancelled', 'canceled']] },
+                  { $in: ['$status', [BOOKING_STATUS.CANCELLED, BOOKING_STATUS.REJECTED, BOOKING_STATUS.NO_VENDORS, 'cancelled', 'canceled', 'rejected', 'no_vendors']] },
                   1,
                   0
                 ]
@@ -103,11 +164,11 @@ const getDashboardStats = async (req, res) => {
         }
       ]),
       // 2. Total Users
-      User.countDocuments({ role: 'user', isActive: true, ...dateFilter }),
+      User.countDocuments(userMatchFilter),
       // 3. Total Vendors
-      Vendor.countDocuments({ isActive: true, ...dateFilter }),
+      Vendor.countDocuments({ isActive: true, ...vendorMatchFilter }),
       // 4. Total Workers
-      Worker.countDocuments({ isActive: true, ...dateFilter }),
+      Worker.countDocuments({ isActive: true, ...workerMatchFilter }),
       // 5. Booking Revenue
       Booking.aggregate([
         {
@@ -123,7 +184,7 @@ const getDashboardStats = async (req, res) => {
                 'paid'
               ]
             },
-            ...revenueDateFilter
+            ...revenueMatchFilter
           }
         },
         {
@@ -137,9 +198,9 @@ const getDashboardStats = async (req, res) => {
       // 6. Commission rates
       getCommissionRates(),
       // 7. Pending Vendors
-      Vendor.countDocuments({ approvalStatus: VENDOR_STATUS.PENDING, ...dateFilter }),
+      Vendor.countDocuments({ approvalStatus: VENDOR_STATUS.PENDING, ...vendorMatchFilter }),
       // 8. Approved Vendors
-      Vendor.countDocuments({ approvalStatus: VENDOR_STATUS.APPROVED, ...dateFilter }),
+      Vendor.countDocuments({ approvalStatus: VENDOR_STATUS.APPROVED, ...vendorMatchFilter }),
       // 9. Pending Withdrawals
       Withdrawal.countDocuments({ status: 'pending', ...dateFilter }),
       // 10. Pending Settlements
@@ -147,7 +208,7 @@ const getDashboardStats = async (req, res) => {
       // 11. Pending Scraps
       Scrap.countDocuments({ status: 'pending', ...dateFilter }),
       // 12. Recent Activities
-      Booking.find(dateFilter)
+      Booking.find(bookingMatchFilter)
         .populate('userId', 'name phone')
         .populate('vendorId', 'name businessName')
         .populate('serviceId', 'title')
@@ -175,6 +236,8 @@ const getDashboardStats = async (req, res) => {
     const bookingStats = bookingStatsResult[0] || {
       totalBookings: 0,
       pendingBookings: 0,
+      confirmedBookings: 0,
+      inProgressBookings: 0,
       completedBookings: 0,
       cancelledBookings: 0
     };
@@ -208,6 +271,8 @@ const getDashboardStats = async (req, res) => {
           totalWorkers,
           totalBookings: bookingStats.totalBookings,
           pendingBookings: bookingStats.pendingBookings,
+          confirmedBookings: bookingStats.confirmedBookings,
+          inProgressBookings: bookingStats.inProgressBookings,
           completedBookings: bookingStats.completedBookings,
           cancelledBookings: bookingStats.cancelledBookings,
           totalRevenue: revenue.totalRevenue + workerSubscriptionRevenue,
@@ -248,10 +313,20 @@ const getRevenueAnalytics = async (req, res) => {
 
     // Build date filter
     const dateFilter = {};
+    const cityFilter = getCityQueryFilter(req, 'address.city');
+
     if (startDate || endDate) {
       dateFilter.completedAt = {};
-      if (startDate) dateFilter.completedAt.$gte = new Date(startDate);
-      if (endDate) dateFilter.completedAt.$lte = new Date(endDate);
+      if (startDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        dateFilter.completedAt.$gte = start;
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        dateFilter.completedAt.$lte = end;
+      }
     }
 
     const [commissionData, revenueData, subscriptionData] = await Promise.all([
@@ -270,7 +345,8 @@ const getRevenueAnalytics = async (req, res) => {
                 'paid'
               ]
             },
-            ...dateFilter
+            ...dateFilter,
+            ...cityFilter
           }
         },
         {

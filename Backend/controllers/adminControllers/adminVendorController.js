@@ -4,6 +4,7 @@ const VendorBill = require('../../models/VendorBill');
 const { validationResult } = require('express-validator');
 const { VENDOR_STATUS, BOOKING_STATUS, PAYMENT_STATUS } = require('../../utils/constants');
 const { createNotification } = require('../notificationControllers/notificationController');
+const { getAdminCityScope, getCityQueryFilter } = require('../../utils/adminScope');
 
 /**
  * Get all vendors with filters and pagination
@@ -20,6 +21,10 @@ const getAllVendors = async (req, res) => {
 
     // Build query
     const query = {};
+
+    // Role-based city filter for non-super_admin
+    const cityFilter = getCityQueryFilter(req, 'address.city');
+    Object.assign(query, cityFilter);
 
     if (approvalStatus) {
       query.approvalStatus = approvalStatus;

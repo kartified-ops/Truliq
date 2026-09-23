@@ -14,7 +14,7 @@ const THIRD_PARTY_LINKS = [
 ];
 
 const SETTINGS_LINKS = [
-  { path: '/admin/settings', label: 'Business Settings', exact: true },
+  { path: '/admin/settings/business', label: 'Business Settings' },
   { path: '/admin/settings/app', label: 'App Settings' }
 ];
 

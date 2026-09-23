@@ -91,27 +91,15 @@ export const NetworkProvider = ({ children }) => {
     };
 
     const handleConnectionChange = () => {
-      console.log('[Network] 🔄 Network connection changed (e.g. WiFi/Cellular switch).');
+      // Only update network info (e.g. 4g, wifi), DO NOT trigger reconnecting overlay on speed/jitter changes
       updateNetworkInfo();
-      setIsReconnecting(true);
-      
-      // Re-verify after network switch
-      if (checkTimeoutRef.current) clearTimeout(checkTimeoutRef.current);
-      checkTimeoutRef.current = setTimeout(async () => {
-        await checkConnectivity();
-        setIsReconnecting(false);
-      }, 800);
     };
 
-    // Custom API failure event from Axios
+    // Custom API failure event from Axios (only when real network drop happens)
     const handleApiNetworkError = () => {
-      console.warn('[Network] API Network Error detected. Checking connectivity status...');
-      setIsReconnecting(true);
-      if (checkTimeoutRef.current) clearTimeout(checkTimeoutRef.current);
-      checkTimeoutRef.current = setTimeout(async () => {
-        await checkConnectivity();
-        setIsReconnecting(false);
-      }, 600);
+      if (!navigator.onLine) {
+        setIsOnline(false);
+      }
     };
 
     window.addEventListener('online', handleOnline);

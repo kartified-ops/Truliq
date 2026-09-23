@@ -139,12 +139,12 @@ const WorkerPlans = () => {
     }
   };
 
-  const handleSaveDashboardBanners = async () => {
+  const saveBannersToBackend = async (newBanners, newVisibility = isBannersVisible) => {
     setBannerSaving(true);
     try {
       const res = await api.put('/admin/worker-plans/dashboard-banners', {
-        isBannersVisible,
-        banners: dashboardBanners.map((banner, index) => ({
+        isBannersVisible: newVisibility,
+        banners: newBanners.map((banner, index) => ({
           imageUrl: banner.imageUrl,
           text: banner.text || '',
           isActive: banner.isActive !== false,
@@ -155,13 +155,31 @@ const WorkerPlans = () => {
         setDashboardBanners(res.data.data.banners || []);
         setIsBannersVisible(res.data.data.isBannersVisible !== false);
         toast.success(res.data.message || 'Worker dashboard banners updated successfully.');
+        return true;
       }
     } catch (error) {
       console.error(error);
       toast.error(error.response?.data?.message || 'Failed to save worker dashboard banners');
+      return false;
     } finally {
       setBannerSaving(false);
     }
+  };
+
+  const handleSaveDashboardBanners = async () => {
+    await saveBannersToBackend(dashboardBanners, isBannersVisible);
+  };
+
+  const handleToggleBannersVisibility = async () => {
+    const nextVis = !isBannersVisible;
+    setIsBannersVisible(nextVis);
+    await saveBannersToBackend(dashboardBanners, nextVis);
+  };
+
+  const handleDeleteBanner = async (indexToDelete) => {
+    const nextBanners = dashboardBanners.filter((_, i) => i !== indexToDelete);
+    setDashboardBanners(nextBanners);
+    await saveBannersToBackend(nextBanners, isBannersVisible);
   };
 
   const resetBannerForm = () => {
@@ -190,19 +208,22 @@ const WorkerPlans = () => {
     }
   };
 
-  const saveBannerForm = () => {
+  const saveBannerForm = async () => {
     if (!bannerForm.imageUrl) {
       toast.error('Please upload a banner image');
       return;
     }
+    let updatedBanners = [];
     if (editingBannerIndex !== null) {
-      setDashboardBanners((prev) => prev.map((banner, index) => (
+      updatedBanners = dashboardBanners.map((banner, index) => (
         index === editingBannerIndex ? { ...banner, ...bannerForm } : banner
-      )));
+      ));
     } else {
-      setDashboardBanners((prev) => [...prev, { ...bannerForm, order: prev.length }]);
+      updatedBanners = [...dashboardBanners, { ...bannerForm, order: dashboardBanners.length }];
     }
+    setDashboardBanners(updatedBanners);
     resetBannerForm();
+    await saveBannersToBackend(updatedBanners, isBannersVisible);
   };
 
   const handleSaveTrialSettings = async (e) => {
@@ -599,7 +620,7 @@ const WorkerPlans = () => {
           <div className="flex items-center gap-3 shrink-0">
             <button
               type="button"
-              onClick={() => setIsBannersVisible((prev) => !prev)}
+              onClick={handleToggleBannersVisibility}
               className={`px-3 py-1.5 text-[11px] font-extrabold tracking-wider rounded-full uppercase border ${
                 isBannersVisible
                   ? 'bg-emerald-50 text-emerald-600 border-emerald-200/60'
@@ -658,7 +679,7 @@ const WorkerPlans = () => {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setDashboardBanners((prev) => prev.filter((_, i) => i !== index))}
+                    onClick={() => handleDeleteBanner(index)}
                     className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
                   >
                     <FiTrash2 className="w-4 h-4" />

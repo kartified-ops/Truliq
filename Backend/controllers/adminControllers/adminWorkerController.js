@@ -3,6 +3,7 @@ const Booking = require('../../models/Booking');
 const { validationResult } = require('express-validator');
 const { WORKER_STATUS, BOOKING_STATUS, VENDOR_STATUS } = require('../../utils/constants');
 const { createNotification } = require('../notificationControllers/notificationController');
+const { getAdminCityScope, getCityQueryFilter } = require('../../utils/adminScope');
 
 /**
  * Get all workers with filters and pagination (including Deleted Workers)
@@ -20,6 +21,10 @@ const getAllWorkers = async (req, res) => {
 
     // Build query
     const query = {};
+
+    // Role-based city filter for non-super_admin
+    const cityFilter = getCityQueryFilter(req, 'address.city');
+    Object.assign(query, cityFilter);
 
     if (approvalStatus === 'deleted' || isDeleted === 'true') {
       query.isDeleted = true;

@@ -109,13 +109,18 @@ const authenticate = async (req, res, next) => {
       case 'super_admin':
       case 'admin':
       case 'ADMIN':
-        user = await Admin.findById(decoded.userId).select('-password').lean();
-        if (user && user.isActive === false) {
-          return res.status(403).json({
-            success: false,
-            message: 'Your admin account has been deactivated.',
-            isBlocked: true
-          });
+        user = await Admin.findById(decoded.userId).populate('cityId', 'name').select('-password').lean();
+        if (user) {
+          if (!user.cityName && user.cityId && user.cityId.name) {
+            user.cityName = user.cityId.name;
+          }
+          if (user.isActive === false) {
+            return res.status(403).json({
+              success: false,
+              message: 'Your admin account has been deactivated.',
+              isBlocked: true
+            });
+          }
         }
         break;
       default:

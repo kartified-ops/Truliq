@@ -83,6 +83,10 @@ const AdminSettings = ({ defaultView = 'main' }) => {
   const [profileLoading, setProfileLoading] = useState(false);
   const [activeView, setActiveView] = useState(defaultView); // 'main', 'profile', 'financial', 'system', 'admins'
 
+  useEffect(() => {
+    setActiveView(defaultView);
+  }, [defaultView]);
+
   // Password visibility states
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -813,7 +817,7 @@ const AdminSettings = ({ defaultView = 'main' }) => {
               </div>
 
               {/* Billing Information - Super Admin Only */}
-              {/* isSuperAdmin && (
+              {isSuperAdmin && (
                 <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 h-fit">
                   <div className="flex items-center gap-3 mb-6">
                     <div className="p-2 bg-indigo-100 rounded-lg">
@@ -907,7 +911,7 @@ const AdminSettings = ({ defaultView = 'main' }) => {
                     </div>
                   </form>
                 </div>
-              ) */}
+              )}
             </motion.div>
           )
         }
@@ -1167,34 +1171,39 @@ const AdminSettings = ({ defaultView = 'main' }) => {
                             </span>
                           </td>
                           <td className="px-6 py-4 text-right">
-                            {admin._id !== profile.id && admin.email !== 'admin@admin.com' && (
-                              <div className="flex justify-end gap-2">
-                                <button onClick={() => handleEditClick(admin)}
-                                  className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                                  title="Edit Admin">
-                                  <FiEdit className="w-4 h-4" />
-                                </button>
+                            <div className="flex justify-end gap-2">
+                              {/* Edit Admin */}
+                              <button onClick={() => handleEditClick(admin)}
+                                className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                                title="Edit Admin">
+                                <FiEdit className="w-4 h-4" />
+                              </button>
 
+                              {/* Block / Unblock Admin */}
+                              {admin._id !== profile.id && (
                                 <button onClick={() => handleBlockAdmin(admin._id, admin.isActive !== false)}
                                   className={`p-2 text-gray-400 rounded-lg transition-all ${admin.isActive !== false ? 'hover:text-amber-600 hover:bg-amber-50' : 'hover:text-green-600 hover:bg-green-50'
                                     }`}
                                   title={admin.isActive !== false ? "Block Admin" : "Unblock Admin"}>
                                   {admin.isActive !== false ? <FiLock className="w-4 h-4" /> : <FiUnlock className="w-4 h-4" />}
                                 </button>
+                              )}
 
+                              {/* Delete Admin */}
+                              {admin._id !== profile.id && (
                                 <button onClick={() => handleDeleteAdmin(admin._id, admin.name)}
                                   className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                                   title="Delete Admin">
                                   <FiTrash2 className="w-4 h-4" />
                                 </button>
-                              </div>
-                            )}
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
                       {admins.length === 0 && (
                         <tr>
-                          <td colSpan="4" className="px-6 py-12 text-center text-gray-400">
+                          <td colSpan="5" className="px-6 py-12 text-center text-gray-400">
                             <FiUsers className="w-12 h-12 mx-auto mb-3 opacity-20" />
                             <p>No administrators found</p>
                           </td>

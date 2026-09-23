@@ -101,7 +101,7 @@ const getChildRoute = (parentRoute, childName) => {
       "Notification Settings": "/admin/notifications/history"
     },
     "/admin/settings": {
-      "Business Settings": "/admin/settings",
+      "Business Settings": "/admin/settings/business",
       "App Settings": "/admin/settings/app",
       "Third-party Settings": "/admin/settings/third-party/payment-gateway",
       "Payment Gateway": "/admin/settings/third-party/payment-gateway",
@@ -109,9 +109,9 @@ const getChildRoute = (parentRoute, childName) => {
       "Firebase Settings": "/admin/settings/third-party/firebase",
       "Map Settings": "/admin/settings/third-party/maps",
       "Mail Configuration": "/admin/settings/third-party/mail",
-      "General Settings": "/admin/settings/general",
-      "Worker Assignment": "/admin/settings/worker-assignment",
-      "Service Configuration": "/admin/settings/service-config",
+      "General Settings": "/admin/settings/business",
+      "Worker Assignment": "/admin/settings/app",
+      "Service Configuration": "/admin/settings/business",
       "System Settings": "/admin/settings/system",
     },
     "/admin/settlements": {

@@ -1,6 +1,7 @@
 const User = require('../../models/User');
 const Booking = require('../../models/Booking');
 const { validationResult } = require('express-validator');
+const { getAdminCityScope } = require('../../utils/adminScope');
 
 /**
  * Get all users with filters and pagination (including Deleted Users)
@@ -20,6 +21,12 @@ const getAllUsers = async (req, res) => {
 
     // Build query
     const query = { role: 'user' };
+
+    // Role-based city filter for non-super_admin
+    const city = getAdminCityScope(req);
+    if (city) {
+      query['addresses.city'] = new RegExp(`^${city}$`, 'i');
+    }
 
     if (status === 'deleted' || isDeleted === 'true') {
       query.isDeleted = true;

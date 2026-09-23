@@ -21,6 +21,7 @@ const Bookings = () => {
   // Pagination
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
 
   // Stats
   const [stats, setStats] = useState({
@@ -36,7 +37,10 @@ const Bookings = () => {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   useEffect(() => {
     const trimmed = search.trim();
-    const timer = setTimeout(() => setDebouncedSearch(trimmed), 400);
+    const timer = setTimeout(() => {
+      setDebouncedSearch(trimmed);
+      setPage(1);
+    }, 400);
     return () => clearTimeout(timer);
   }, [search]);
 
@@ -48,37 +52,36 @@ const Bookings = () => {
       // 1. Fetch Bookings
       const params = {
         page,
-        limit: 10,
-        startDate,
-        endDate
+        limit: 10
       };
+      if (startDate) params.startDate = startDate;
+      if (endDate) params.endDate = endDate;
       if (debouncedSearch) {
         params.search = debouncedSearch;
       }
-      if (statusFilter !== 'All Status') {
-        params.status = statusFilter.toUpperCase().replace(' ', '_');
+      if (statusFilter && statusFilter !== 'All Status') {
+        params.status = statusFilter.toLowerCase();
       }
 
       const res = await adminBookingService.getAllBookings(params);
       if (res.success) {
-        setBookings(res.data);
-        setTotalPages(res.pagination.pages);
+        setBookings(res.data || []);
+        setTotalPages(res.pagination?.pages || 1);
+        setTotalCount(res.pagination?.total || 0);
       }
 
-      // 2. Fetch Stats (only if not already fetched or if total is 0)
-      if (stats.total === 0) {
-        const statsRes = await getDashboardStats();
-        if (statsRes.success) {
-          const s = statsRes.data.stats;
-          setStats({
-            pending: s.pendingBookings || 0,
-            confirmed: 0,
-            inProgress: 0,
-            completed: s.completedBookings || 0,
-            cancelled: s.cancelledBookings || 0,
-            total: s.totalBookings || 0
-          });
-        }
+      // 2. Fetch Stats
+      const statsRes = await getDashboardStats();
+      if (statsRes.success && statsRes.data?.stats) {
+        const s = statsRes.data.stats;
+        setStats({
+          pending: s.pendingBookings || 0,
+          confirmed: s.confirmedBookings || 0,
+          inProgress: s.inProgressBookings || 0,
+          completed: s.completedBookings || 0,
+          cancelled: s.cancelledBookings || 0,
+          total: s.totalBookings || 0
+        });
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -92,7 +95,22 @@ const Bookings = () => {
     fetchData();
   }, [page, debouncedSearch, statusFilter, startDate, endDate]);
 
+  const handleClearFilters = () => {
+    setSearch('');
+    setStatusFilter('All Status');
+    setStartDate('');
+    setEndDate('');
+    setPage(1);
+  };
+
+  const isFiltered = search || (statusFilter && statusFilter !== 'All Status') || startDate || endDate;
+
   const handleExport = () => {
+    if (!bookings || bookings.length === 0) {
+      toast.error('No data to export');
+      return;
+    }
+
     const headers = ['Order ID', 'Customer', 'Service', 'Total', 'Status', 'Date'];
     const rows = bookings.map(b => [
       b.bookingNumber,
@@ -128,7 +146,7 @@ const Bookings = () => {
     },
     {
       title: 'Confirmed',
-      value: (stats.confirmed || stats.pending || 0).toLocaleString(),
+      value: (stats.confirmed || 0).toLocaleString(),
       icon: FiCheckCircle,
       color: 'text-white',
       bgColor: 'bg-gradient-to-br from-blue-500 to-indigo-600',
@@ -255,11 +273,14 @@ const Bookings = () => {
         <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPage(1);
+            }}
             className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs text-gray-600 focus:outline-none focus:border-green-500 cursor-pointer"
           >
-            <option>All Status</option>
-            <option value="pending">Pending</option>
+            <option value="All Status">All Status</option>
+            <option value="pending">Pending / Awaiting</option>
             <option value="confirmed">Confirmed</option>
             <option value="in_progress">In Progress</option>
             <option value="completed">Completed</option>
@@ -271,17 +292,33 @@ const Bookings = () => {
             <input
               type="date"
               value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                setPage(1);
+              }}
               className="bg-transparent text-[11px] text-gray-600 focus:outline-none w-28"
             />
             <span className="text-gray-400 text-[10px]">to</span>
             <input
               type="date"
               value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
+              onChange={(e) => {
+                setEndDate(e.target.value);
+                setPage(1);
+              }}
               className="bg-transparent text-[11px] text-gray-600 focus:outline-none w-28"
             />
           </div>
+
+          {isFiltered && (
+            <button
+              onClick={handleClearFilters}
+              className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition-colors"
+              title="Reset all filters"
+            >
+              Reset
+            </button>
+          )}
 
           <button
             onClick={handleExport}
@@ -365,7 +402,7 @@ const Bookings = () => {
         {/* Pagination Footer */}
         {!loading && bookings.length > 0 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50/30">
-            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tight">Showing {bookings.length} of {stats.total} entries</p>
+            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tight">Showing {bookings.length} of {totalCount || bookings.length} entries</p>
             <div className="flex gap-1.5 items-center">
               <button
                 onClick={() => setPage(p => Math.max(1, p - 1))}

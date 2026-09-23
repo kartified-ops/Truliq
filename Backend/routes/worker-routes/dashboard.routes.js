@@ -9,6 +9,6 @@ const {
 
 // Routes
 router.get('/stats', authenticate, isWorker, getDashboardStats);
-router.get('/banners', authenticate, isWorker, getDashboardBanners);
+router.get('/banners', getDashboardBanners);
 
 module.exports = router;

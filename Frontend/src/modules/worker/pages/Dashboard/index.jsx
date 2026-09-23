@@ -515,6 +515,7 @@ const Dashboard = () => {
                     className="w-full h-full object-cover"
                     width={720}
                     height={240}
+                    priority={true}
                     style={{ width: '100%', height: '100%' }}
                   />
                   {banner.text ? (
