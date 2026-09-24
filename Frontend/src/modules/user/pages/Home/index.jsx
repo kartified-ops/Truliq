@@ -34,13 +34,7 @@ import DebugConsole from '../../components/common/DebugConsole';
 import flutterBridge from '../../../../utils/flutterBridge';
 import { getGeolocationPermissionState, isGpsOffError, getCachedAddress } from '../../../../utils/locationHelper';
 
-const toAssetUrl = (url) => {
-  if (!url) return '';
-  const clean = url.replace('/api/upload', '/upload');
-  if (clean.startsWith('http')) return clean;
-  const base = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000').replace(/\/api$/, '');
-  return `${base}${clean.startsWith('/') ? '' : '/'}${clean}`;
-};
+import { toAssetUrl } from '../../../../utils/urlHelper';
 
 const Home = () => {
   const navigate = useNavigate();
@@ -488,7 +482,7 @@ const Home = () => {
   };
 
   if (loading) {
-    return <LogoLoader />;
+    return <LogoLoader fullScreen={true} />;
   }
 
   return (

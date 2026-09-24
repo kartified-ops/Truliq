@@ -251,7 +251,8 @@ async function registerFCMToken(userType = 'user', forceUpdate = false) {
       return null;
     }
 
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+    const { getApiBaseUrl } = await import('../utils/urlHelper');
+    const baseUrl = getApiBaseUrl();
     console.log(`[FCM] Saving to backend: ${baseUrl}${endpoint}`);
 
     const response = await fetch(`${baseUrl}${endpoint}`, {
@@ -318,7 +319,8 @@ async function removeFCMToken(userType = 'user') {
 
     const authToken = localStorage.getItem(authTokenKey);
     if (authToken) {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const { getApiBaseUrl } = await import('../utils/urlHelper');
+      const baseUrl = getApiBaseUrl();
       await fetch(`${baseUrl}${endpoint}`, {
         method: 'DELETE',
         headers: {

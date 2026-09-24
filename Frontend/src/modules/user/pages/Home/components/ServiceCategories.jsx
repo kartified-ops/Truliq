@@ -7,13 +7,7 @@ import cleaningIcon from '../../../../../assets/images/icons/services/cleaning-i
 import electricianPlumberIcon from '../../../../../assets/images/icons/services/electrician-plumber-carpenter-icon.png';
 import acApplianceRepairIcon from '../../../../../assets/images/icons/services/ac-appliance-repair-icon.png';
 
-const toAssetUrl = (url) => {
-  if (!url) return '';
-  const clean = url.replace('/api/upload', '/upload');
-  if (clean.startsWith('http')) return clean;
-  const base = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000').replace(/\/api$/, '');
-  return `${base}${clean.startsWith('/') ? '' : '/'}${clean}`;
-};
+import { toAssetUrl } from '../../../../../utils/urlHelper';
 
 const ServiceCategories = React.memo(({ categories, onCategoryClick, onSeeAllClick }) => {
 

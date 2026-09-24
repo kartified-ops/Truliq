@@ -227,17 +227,8 @@ const EditProfile = () => {
     const formData = new FormData();
     formData.append('file', file);
 
-    let baseUrl = import.meta.env.VITE_API_BASE_URL || '';
-    if (!baseUrl) {
-      // If no env var, check hostname to determine dev vs prod
-      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        baseUrl = 'http://localhost:5000';
-      } else {
-        // In production, fallback to same origin (relative path)
-        baseUrl = window.location.origin;
-      }
-    }
-    baseUrl = baseUrl.replace(/\/api$/, '');
+    const { getSocketUrl } = await import('../../../../utils/urlHelper');
+    const baseUrl = getSocketUrl();
     const response = await fetch(`${baseUrl}/api/image/upload`, {
       method: 'POST',
       body: formData,

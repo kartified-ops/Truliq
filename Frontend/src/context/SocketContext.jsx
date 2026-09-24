@@ -4,6 +4,7 @@ import { io } from 'socket.io-client';
 import { motion, useMotionValue, useTransform } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import { playNotificationSound, isSoundEnabled, playAlertRing } from '../utils/notificationSound';
+import { getSocketUrl } from '../utils/urlHelper';
 
 const SwipeableNotification = ({ t, data, onClick }) => {
   const x = useMotionValue(0);
@@ -65,7 +66,7 @@ const SwipeableNotification = ({ t, data, onClick }) => {
 
 const SocketContext = createContext(null);
 
-const SOCKET_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/api$/, '') || 'http://localhost:5000';
+
 
 export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
@@ -132,7 +133,7 @@ export const SocketProvider = ({ children }) => {
     }
 
     // Use HTTP URL for socket.io client - it handles WS upgrade automatically
-    const socketBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/api$/, '') || 'http://localhost:5000';
+    const socketBaseUrl = getSocketUrl();
 
     const newSocket = io(socketBaseUrl, {
       auth: {

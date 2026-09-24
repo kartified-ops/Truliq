@@ -11,14 +11,12 @@ const initializeSocket = (server) => {
     cors: {
       origin: function (origin, callback) {
         const allowedOrigins = [
-          'http://localhost:5173',
-          'http://localhost:5174',
-          'https://www.homster.in',
-          'https://homster.in',
-          'https://api.homster.in',
           'https://www.truliq.com',
           'https://truliq.com',
           'https://api.truliq.com',
+          'https://www.homster.in',
+          'https://homster.in',
+          'https://api.homster.in',
           ''
         ];
         

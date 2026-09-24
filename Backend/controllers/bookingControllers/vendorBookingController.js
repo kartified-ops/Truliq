@@ -948,10 +948,15 @@ const verifySelfVisit = async (req, res) => {
     const { id } = req.params;
     const { otp, location } = req.body;
 
-    const booking = await Booking.findOne({ _id: id, vendorId }).select('+visitOtp');
+    const booking = await Booking.findById(id).select('+visitOtp');
 
     if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
-    if (booking.status !== BOOKING_STATUS.JOURNEY_STARTED) return res.status(400).json({ success: false, message: 'Journey not started' });
+    if (booking.vendorId && booking.vendorId.toString() !== vendorId && booking.workerId?.toString() !== vendorId) {
+      return res.status(403).json({ success: false, message: 'Not authorized for this booking' });
+    }
+    if (!booking.vendorId) {
+      booking.vendorId = vendorId;
+    }
     if (booking.visitOtp !== otp) return res.status(400).json({ success: false, message: 'Invalid OTP' });
 
     booking.status = BOOKING_STATUS.VISITED;

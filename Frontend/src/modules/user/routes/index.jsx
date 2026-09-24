@@ -44,7 +44,7 @@ const Support = lazyLoad(() => import('../pages/Support'));
 import LogoLoader from '../../../components/common/LogoLoader';
 
 const LoadingFallback = () => (
-  <LogoLoader />
+  <LogoLoader fullScreen={true} />
 );
 
 // Import Live Booking Card

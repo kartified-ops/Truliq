@@ -37,13 +37,7 @@ import ReviewCard from '../../components/booking/ReviewCard';
 import NotificationBell from '../../components/common/NotificationBell';
 import api from '../../../../services/api';
 
-const toAssetUrl = (url) => {
-  if (!url) return '';
-  const clean = url.replace('/api/upload', '/upload');
-  if (clean.startsWith('http')) return clean;
-  const base = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000').replace(/\/api$/, '');
-  return `${base}${clean.startsWith('/') ? '' : '/'}${clean}`;
-};
+import { toAssetUrl } from '../../../../utils/urlHelper';
 
 
 const BookingDetails = () => {

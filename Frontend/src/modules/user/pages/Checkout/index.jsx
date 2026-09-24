@@ -16,14 +16,7 @@ import { getPlans } from '../../services/planService';
 import { userAuthService } from '../../../../services/authService';
 import { useCart } from '../../../../context/CartContext';
 import LiveBookingCard from '../../components/booking/LiveBookingCard';
-
-const toAssetUrl = (url) => {
-  if (!url) return '';
-  const clean = url.replace('/api/upload', '/upload');
-  if (clean.startsWith('http')) return clean;
-  const base = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000').replace(/\/api$/, '');
-  return `${base}${clean.startsWith('/') ? '' : '/'}${clean}`;
-};
+import { getSocketUrl, toAssetUrl } from '../../../../utils/urlHelper';
 
 const Checkout = () => {
   const navigate = useNavigate();
@@ -440,7 +433,7 @@ const Checkout = () => {
   useEffect(() => {
     if (currentStep !== 'waiting' || !bookingRequest) return;
 
-    const socketUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/api$/, '') || 'http://localhost:5000';
+    const socketUrl = getSocketUrl();
     const socket = io(socketUrl, {
       auth: { token: localStorage.getItem('accessToken') },
       transports: ['websocket', 'polling']

@@ -8,13 +8,7 @@ import { useCart } from '../../../../../context/CartContext';
 import { themeColors } from '../../../../../theme';
 import { toast } from 'react-hot-toast';
 
-const toAssetUrl = (url) => {
-  if (!url) return '';
-  const clean = url.replace('/api/upload', '/upload');
-  if (clean.startsWith('http')) return clean;
-  const base = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000').replace(/\/api$/, '');
-  return `${base}${clean.startsWith('/') ? '' : '/'}${clean}`;
-};
+import { toAssetUrl } from '../../../../../utils/urlHelper';
 
 const SearchOverlay = ({ isOpen, onClose, categories = [], onCategoryClick }) => {
   const navigate = useNavigate();

@@ -57,7 +57,7 @@ const getAssignedJobs = async (req, res) => {
 const getPendingRequests = async (req, res) => {
   try {
     const workerId = req.user.id;
-    
+
     // Find all pending requests for this worker
     const requests = await BookingRequest.find({ workerId, status: 'PENDING' })
       .populate({
@@ -155,13 +155,24 @@ const updateJobStatus = async (req, res) => {
     const { id } = req.params;
     const { status, finalSettlementStatus, workerPaymentStatus } = req.body;
 
-    const booking = await Booking.findOne({ _id: id, workerId });
+    const booking = await Booking.findById(id);
 
     if (!booking) {
       return res.status(404).json({
         success: false,
         message: 'Job not found'
       });
+    }
+
+    if (booking.workerId && booking.workerId.toString() !== workerId && booking.vendorId?.toString() !== workerId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to update this job'
+      });
+    }
+
+    if (!booking.workerId) {
+      booking.workerId = workerId;
     }
 
     // Validate status transition if status is changing
@@ -259,7 +270,7 @@ const startJob = async (req, res) => {
     const workerId = req.user.id;
     const { id } = req.params;
 
-    const booking = await Booking.findOne({ _id: id, workerId });
+    const booking = await Booking.findById(id);
 
     if (!booking) {
       return res.status(404).json({
@@ -268,20 +279,31 @@ const startJob = async (req, res) => {
       });
     }
 
-    if (booking.status !== BOOKING_STATUS.ASSIGNED && booking.status !== BOOKING_STATUS.CONFIRMED && booking.status !== BOOKING_STATUS.ACCEPTED) {
+    if (booking.workerId && booking.workerId.toString() !== workerId && booking.vendorId?.toString() !== workerId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized for this job'
+      });
+    }
+
+    if (!booking.workerId) {
+      booking.workerId = workerId;
+    }
+
+    if (booking.status !== BOOKING_STATUS.ASSIGNED && booking.status !== BOOKING_STATUS.CONFIRMED && booking.status !== BOOKING_STATUS.ACCEPTED && booking.status !== BOOKING_STATUS.JOURNEY_STARTED) {
       return res.status(400).json({
         success: false,
         message: `Cannot start journey with status: ${booking.status}`
       });
     }
 
-    // Generate Visit OTP
-    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    // Generate Visit OTP if not already generated
+    const otp = booking.visitOtp || Math.floor(1000 + Math.random() * 9000).toString();
 
     // Update booking
     booking.status = BOOKING_STATUS.JOURNEY_STARTED;
-    booking.journeyStartedAt = new Date();
-    booking.visitOtp = otp; // In production, hash this!
+    booking.journeyStartedAt = booking.journeyStartedAt || new Date();
+    booking.visitOtp = otp;
 
     await booking.save();
 
@@ -304,19 +326,21 @@ const startJob = async (req, res) => {
     });
 
     // Notify vendor
-    await createNotification({
-      vendorId: booking.vendorId,
-      type: 'worker_started',
-      title: 'Worker Started Journey',
-      message: `Your worker has started the journey for booking ${booking.bookingNumber}.`,
-      relatedId: booking._id,
-      relatedType: 'booking',
-      pushData: {
-        type: 'journey_started',
-        bookingId: booking._id.toString(),
-        link: `/vendor/bookings/${booking._id}`
-      }
-    });
+    if (booking.vendorId) {
+      await createNotification({
+        vendorId: booking.vendorId,
+        type: 'worker_started',
+        title: 'Worker Started Journey',
+        message: `Your worker has started the journey for booking ${booking.bookingNumber}.`,
+        relatedId: booking._id,
+        relatedType: 'booking',
+        pushData: {
+          type: 'journey_started',
+          bookingId: booking._id.toString(),
+          link: `/vendor/bookings/${booking._id}`
+        }
+      });
+    }
 
     // Explicitly emit socket event
     const io = req.app.get('io');
@@ -326,8 +350,6 @@ const startJob = async (req, res) => {
         status: BOOKING_STATUS.JOURNEY_STARTED,
         visitOtp: otp
       });
-
-      // Socket notification removed - createNotification already handles this
     }
 
     res.status(200).json({
@@ -354,17 +376,25 @@ const workerReachedLocation = async (req, res) => {
     const { id } = req.params;
 
     // Need visitOtp to resend it
-    const booking = await Booking.findOne({ _id: id, workerId }).select('+visitOtp');
+    const booking = await Booking.findById(id).select('+visitOtp');
 
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Job not found' });
     }
 
-    if (booking.status !== BOOKING_STATUS.JOURNEY_STARTED) {
-      return res.status(400).json({ success: false, message: 'Journey not started yet' });
+    if (booking.workerId && booking.workerId.toString() !== workerId && booking.vendorId?.toString() !== workerId) {
+      return res.status(403).json({ success: false, message: 'Not authorized for this job' });
     }
 
-    const otp = booking.visitOtp;
+    if (!booking.workerId) {
+      booking.workerId = workerId;
+    }
+
+    const otp = booking.visitOtp || Math.floor(1000 + Math.random() * 9000).toString();
+    if (!booking.visitOtp) {
+      booking.visitOtp = otp;
+      await booking.save();
+    }
 
     // Notify user
     const { createNotification } = require('../notificationControllers/notificationController');
@@ -401,14 +431,18 @@ const verifyVisit = async (req, res) => {
     const { otp, location } = req.body;
 
     // Use query to select visitOtp which is usually hidden
-    const booking = await Booking.findOne({ _id: id, workerId }).select('+visitOtp');
+    const booking = await Booking.findById(id).select('+visitOtp');
 
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Job not found' });
     }
 
-    if (booking.status !== BOOKING_STATUS.JOURNEY_STARTED) {
-      return res.status(400).json({ success: false, message: 'Worker has not started journey yet' });
+    if (booking.workerId && booking.workerId.toString() !== workerId && booking.vendorId?.toString() !== workerId) {
+      return res.status(403).json({ success: false, message: 'Not authorized for this job' });
+    }
+
+    if (!booking.workerId) {
+      booking.workerId = workerId;
     }
 
     if (booking.visitOtp !== otp) {
@@ -418,7 +452,7 @@ const verifyVisit = async (req, res) => {
     // Update status
     booking.status = BOOKING_STATUS.VISITED;
     booking.visitedAt = new Date();
-    booking.startedAt = new Date(); // Legacy compatibility
+    booking.startedAt = booking.startedAt || new Date(); // Legacy compatibility
     booking.visitOtp = undefined; // Clear OTP
     if (location) {
       booking.visitLocation = {
@@ -478,13 +512,24 @@ const completeJob = async (req, res) => {
     const { id } = req.params;
     const { workPhotos, workDoneDetails } = req.body;
 
-    const booking = await Booking.findOne({ _id: id, workerId });
+    const booking = await Booking.findById(id);
 
     if (!booking) {
       return res.status(404).json({
         success: false,
         message: 'Job not found'
       });
+    }
+
+    if (booking.workerId && booking.workerId.toString() !== workerId && booking.vendorId?.toString() !== workerId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized for this job'
+      });
+    }
+
+    if (!booking.workerId) {
+      booking.workerId = workerId;
     }
 
     if (booking.status !== BOOKING_STATUS.VISITED && booking.status !== BOOKING_STATUS.IN_PROGRESS) {
@@ -549,7 +594,7 @@ const completeJob = async (req, res) => {
       }),
 
       // 3. Notify vendor
-      createNotification({
+      booking.vendorId ? createNotification({
         vendorId: booking.vendorId,
         type: 'worker_completed',
         title: 'Work Done',
@@ -561,7 +606,7 @@ const completeJob = async (req, res) => {
           bookingId: booking._id.toString(),
           link: `/vendor/bookings/${booking._id}`
         }
-      })
+      }) : Promise.resolve()
     ]);
 
     // Explicitly emit socket event to ensure user gets real-time update
@@ -571,8 +616,6 @@ const completeJob = async (req, res) => {
         bookingId: booking._id,
         status: BOOKING_STATUS.WORK_DONE
       });
-
-      // Socket notification removed - createNotification already handles this
     }
 
     res.status(200).json({
@@ -607,9 +650,13 @@ const collectCash = async (req, res) => {
     // Booking + bill + wallet + ledger rows commit as one unit. Documents are read
     // inside the callback so a retry after a write conflict works on fresh state.
     const outcome = await withTransaction(async (session) => {
-      const booking = await Booking.findOne({ _id: id, workerId }).select('+paymentOtp').session(session);
+      const booking = await Booking.findById(id).select('+paymentOtp').session(session);
 
       if (!booking) abort({ notFound: true });
+      if (booking.workerId && booking.workerId.toString() !== workerId && booking.vendorId?.toString() !== workerId) abort({ notAuthorized: true });
+      if (!booking.workerId) {
+        booking.workerId = workerId;
+      }
       if (booking.status !== BOOKING_STATUS.WORK_DONE) abort({ notDone: true });
       if (booking.paymentOtp !== otp) abort({ badOtp: true });
 
@@ -739,6 +786,7 @@ const collectCash = async (req, res) => {
     });
 
     if (outcome.notFound) return res.status(404).json({ success: false, message: 'Job not found' });
+    if (outcome.notAuthorized) return res.status(403).json({ success: false, message: 'Not authorized for this job' });
     if (outcome.notDone) return res.status(400).json({ success: false, message: 'Work is not marked as done yet' });
     if (outcome.badOtp) return res.status(400).json({ success: false, message: 'Invalid OTP' });
     if (outcome.noBill) return res.status(500).json({ success: false, message: 'Bill not found — cannot process payment' });
@@ -787,12 +835,19 @@ const addWorkerNotes = async (req, res) => {
     const { id } = req.params;
     const { notes } = req.body;
 
-    const booking = await Booking.findOne({ _id: id, workerId });
+    const booking = await Booking.findById(id);
 
     if (!booking) {
       return res.status(404).json({
         success: false,
         message: 'Job not found'
+      });
+    }
+
+    if (booking.workerId && booking.workerId.toString() !== workerId && booking.vendorId?.toString() !== workerId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized for this job'
       });
     }
 

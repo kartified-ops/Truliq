@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiX, FiCheckCircle } from 'react-icons/fi';
@@ -18,8 +18,32 @@ const VisitVerificationModal = ({ isOpen, onClose, bookingId, onSuccess }) => {
   const [otpInput, setOtpInput] = useState(['', '', '', '']);
   const [loading, setLoading] = useState(false);
 
+  // Lock background scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      const originalOverflow = document.body.style.overflow;
+      const originalPosition = document.body.style.position;
+      const originalTop = document.body.style.top;
+      const originalWidth = document.body.style.width;
+      const scrollY = window.scrollY;
+
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+      document.body.style.overflow = 'hidden';
+
+      return () => {
+        document.body.style.position = originalPosition;
+        document.body.style.top = originalTop;
+        document.body.style.width = originalWidth;
+        document.body.style.overflow = originalOverflow;
+        window.scrollTo(0, scrollY);
+      };
+    }
+  }, [isOpen]);
+
   // Auto-verify as last digit enters
-  React.useEffect(() => {
+  useEffect(() => {
     const otpValue = otpInput.join('');
     if (otpValue.length === 4 && !loading && isOpen) {
       handleVerify();

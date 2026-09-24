@@ -12,12 +12,7 @@ import api from '../../../services/api';
 import Logo from '../../../components/common/Logo';
 import { z } from "zod";
 
-const toAssetUrl = (url) => {
-  if (!url) return '';
-  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) return url;
-  const backendBase = import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5000';
-  return `${backendBase}${url.startsWith('/') ? '' : '/'}${url}`;
-};
+import { toAssetUrl } from '../../../../utils/urlHelper';
 
 // Zod schema for Worker Signup
 const workerSignupSchema = z.object({

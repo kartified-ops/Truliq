@@ -2,13 +2,7 @@ import React, { memo } from 'react';
 import { MdLocalOffer } from 'react-icons/md';
 import { themeColors } from '../../../../theme';
 
-const toAssetUrl = (url) => {
-  if (!url) return '';
-  const clean = url.replace('/api/upload', '/upload');
-  if (clean.startsWith('http')) return clean;
-  const base = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000').replace(/\/api$/, '');
-  return `${base}${clean.startsWith('/') ? '' : '/'}${clean}`;
-};
+import { toAssetUrl } from '../../../../utils/urlHelper';
 
 const PaymentOffers = memo(({ offers = [] }) => {
   // Format offers to ensure consistent structure
