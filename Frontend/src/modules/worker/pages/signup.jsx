@@ -12,7 +12,7 @@ import api from '../../../services/api';
 import Logo from '../../../components/common/Logo';
 import { z } from "zod";
 
-import { toAssetUrl } from '../../../../utils/urlHelper';
+import { toAssetUrl } from '../../../utils/urlHelper';
 
 // Zod schema for Worker Signup
 const workerSignupSchema = z.object({
