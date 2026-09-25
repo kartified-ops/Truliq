@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { themeColors } from '../../../../theme';
@@ -19,6 +19,7 @@ import {
 import { bookingService } from '../../../../services/bookingService';
 import NotificationBell from '../../components/common/NotificationBell';
 import ConfirmDialog from '../../../../components/common/ConfirmDialog';
+import { useAppNotifications } from '../../../../hooks/useAppNotifications';
 
 // Inline Searching Animation Component
 const SearchingAnimation = () => {
@@ -98,28 +99,33 @@ const BookingConfirmation = () => {
   const [loading, setLoading] = useState(true);
   const [isSearching, setIsSearching] = useState(!location.state?.noVendorsFound); // Respect passed state
   const [confirmDialog, setConfirmDialog] = useState(false);
+  const socket = useAppNotifications('user');
 
+  const applyBookingData = useCallback((data) => {
+    if (!data) return;
+    const enriched = { ...data };
+    if (enriched.paymentMethod === 'plan_benefit') {
+      if (!enriched.tax) enriched.tax = (enriched.basePrice || 0) * 0.18;
+      if (!enriched.visitingCharges && !enriched.visitationFee) enriched.visitingCharges = 49;
+    }
+    setBooking(enriched);
+    const currentStatus = enriched.status?.toLowerCase();
+    const hasProvider = !!(enriched.vendorId || enriched.workerId);
+    const isTerminal = ['expired', 'cancelled', 'rejected', 'failed', 'timeout', 'completed'].includes(currentStatus);
+    if (hasProvider || isTerminal || (currentStatus !== 'requested' && currentStatus !== 'searching' && currentStatus !== 'confirmed')) {
+      setIsSearching(false);
+    }
+  }, []);
+
+  // Initial load
   useEffect(() => {
+    if (!id) return;
     const loadBooking = async () => {
       try {
         setLoading(true);
         const response = await bookingService.getById(id);
         if (response.success) {
-          const data = { ...response.data };
-          // Calculate notional display values for plan_benefit
-          if (data.paymentMethod === 'plan_benefit') {
-            if (!data.tax) data.tax = (data.basePrice || 0) * 0.18;
-            if (!data.visitingCharges && !data.visitationFee) data.visitingCharges = 49;
-          }
-          setBooking(data);
-
-          // Check if vendor/worker is already assigned or in terminal status
-          const currentStatus = data.status?.toLowerCase();
-          const hasProvider = !!(data.vendorId || data.workerId);
-          const isTerminal = ['expired', 'cancelled', 'rejected', 'failed', 'timeout', 'completed'].includes(currentStatus);
-          if (hasProvider || isTerminal || (currentStatus !== 'requested' && currentStatus !== 'searching' && currentStatus !== 'confirmed')) {
-            setIsSearching(false);
-          }
+          applyBookingData(response.data);
         } else {
           toast.error(response.message || 'Booking not found');
           navigate('/user/my-bookings');
@@ -131,45 +137,44 @@ const BookingConfirmation = () => {
         setLoading(false);
       }
     };
+    loadBooking();
+  }, [id, navigate, applyBookingData]);
 
-    if (id) {
-      loadBooking();
-    }
-  }, [id, navigate]);
-
-  // Poll for vendor acceptance
+  // Socket.IO - Replace polling: listen for real-time booking updates
   useEffect(() => {
-    if (!isSearching || !id) return;
+    if (!socket || !id) return;
 
-    const pollInterval = setInterval(async () => {
+    const handleBookingUpdate = async (data) => {
+      const incomingId = data?.bookingId || data?.relatedId || data?.data?.bookingId || data?.id || data?._id;
+      if (incomingId && incomingId !== id) return;
+      // Fetch fresh data from server on event
       try {
         const response = await bookingService.getById(id);
-        if (response.success) {
-          const updatedBooking = { ...response.data };
+        if (response.success) applyBookingData(response.data);
+      } catch (e) { /* ignore */ }
+    };
 
-          // Calculate notional display values for plan_benefit
-          if (updatedBooking.paymentMethod === 'plan_benefit') {
-            if (!updatedBooking.tax) updatedBooking.tax = (updatedBooking.basePrice || 0) * 0.18;
-            if (!updatedBooking.visitingCharges && !updatedBooking.visitationFee) updatedBooking.visitingCharges = 49;
-          }
+    const handleSearchFailed = (data) => {
+      const incomingId = data?.bookingId || data?.relatedId;
+      if (incomingId && incomingId !== id) return;
+      setIsSearching(false);
+      setBooking(prev => prev ? { ...prev, status: 'no_vendors' } : prev);
+    };
 
-          setBooking(updatedBooking);
-          // If vendor accepted or status changed to terminal/assigned
-          const currentStatus = updatedBooking.status?.toLowerCase();
-          const hasProvider = !!(updatedBooking.vendorId || updatedBooking.workerId);
-          const isTerminal = ['expired', 'cancelled', 'rejected', 'failed', 'timeout', 'completed'].includes(currentStatus);
-          if (hasProvider || isTerminal || (currentStatus !== 'requested' && currentStatus !== 'searching' && currentStatus !== 'confirmed')) {
-            setIsSearching(false);
-            clearInterval(pollInterval);
-          }
-        }
-      } catch (error) {
-        console.error('Polling error:', error);
-      }
-    }, 5000); // Poll every 5 seconds
+    socket.on('booking_accepted', handleBookingUpdate);
+    socket.on('booking_updated', handleBookingUpdate);
+    socket.on('booking_status_updated', handleBookingUpdate);
+    socket.on('notification', handleBookingUpdate);
+    socket.on('booking_search_failed', handleSearchFailed);
 
-    return () => clearInterval(pollInterval);
-  }, [isSearching, id]);
+    return () => {
+      socket.off('booking_accepted', handleBookingUpdate);
+      socket.off('booking_updated', handleBookingUpdate);
+      socket.off('booking_status_updated', handleBookingUpdate);
+      socket.off('notification', handleBookingUpdate);
+      socket.off('booking_search_failed', handleSearchFailed);
+    };
+  }, [socket, id, applyBookingData]);
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';

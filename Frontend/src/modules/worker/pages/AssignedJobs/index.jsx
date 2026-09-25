@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { FiBriefcase, FiClock, FiCheckCircle, FiXCircle, FiMapPin, FiChevronRight, FiUser, FiSearch } from 'react-icons/fi';
+import { FiBriefcase, FiClock, FiCheckCircle, FiXCircle, FiMapPin, FiChevronRight, FiUser, FiSearch, FiRefreshCw } from 'react-icons/fi';
 import { workerTheme as themeColors } from '../../../../theme';
 import Header from '../../components/layout/Header';
 import workerService from '../../../../services/workerService';
 import { SkeletonList } from '../../../../components/common/SkeletonLoaders';
+import { useAppNotifications } from '../../../../hooks/useAppNotifications';
 
 const AssignedJobs = () => {
   const navigate = useNavigate();
@@ -59,18 +60,23 @@ const AssignedJobs = () => {
       if (!isBackground) setLoading(true);
       setError(null);
 
-      const response = await workerService.getAssignedJobs({ limit: 20 });
+      const response = await workerService.getAssignedJobs({ limit: 50 });
       if (response.success) {
-        setJobs(response.data);
-        sessionStorage.setItem('workerJobsCache', JSON.stringify(response.data));
+        const jobsList = Array.isArray(response.data) ? response.data : [];
+        setJobs(jobsList);
+        sessionStorage.setItem('workerJobsCache', JSON.stringify(jobsList));
+      } else {
+        if (!isBackground) setError(response.message || 'Failed to load jobs');
       }
-      setLoading(false);
     } catch (err) {
       console.error('Fetch jobs error:', err);
-      setError('Failed to load assigned jobs');
+      if (!isBackground) setError('Failed to load assigned jobs. Please try again.');
+    } finally {
       setLoading(false);
     }
   };
+
+  const socket = useAppNotifications('worker');
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -78,26 +84,37 @@ const AssignedJobs = () => {
     const cachedJobs = sessionStorage.getItem('workerJobsCache');
     if (cachedJobs) {
       try {
-        setJobs(JSON.parse(cachedJobs));
-        setLoading(false);
-        // 2. Fetch fresh data silently in background
-        fetchJobs(true);
-      } catch (e) {
-        fetchJobs(false);
-      }
-    } else {
-      fetchJobs(false);
+        const parsed = JSON.parse(cachedJobs);
+        if (Array.isArray(parsed)) {
+          setJobs(parsed);
+          setLoading(false);
+        }
+      } catch (e) { /* ignore */ }
     }
+    // 2. Always fetch fresh data
+    fetchJobs(false);
 
-    const handleUpdate = () => {
-      fetchJobs(true);
-    };
+    const handleUpdate = () => fetchJobs(true);
     window.addEventListener('workerJobsUpdated', handleUpdate);
+    return () => window.removeEventListener('workerJobsUpdated', handleUpdate);
+  }, []);
+
+  // Socket.IO: real-time job list updates
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleJobEvent = () => fetchJobs(true);
+
+    socket.on('new_job_assigned', handleJobEvent);
+    socket.on('booking_updated', handleJobEvent);
+    socket.on('booking_accepted', handleJobEvent);
 
     return () => {
-      window.removeEventListener('workerJobsUpdated', handleUpdate);
+      socket.off('new_job_assigned', handleJobEvent);
+      socket.off('booking_updated', handleJobEvent);
+      socket.off('booking_accepted', handleJobEvent);
     };
-  }, []);
+  }, [socket]);
 
   const getStatusColor = (status) => {
     const colors = {
@@ -206,6 +223,19 @@ const AssignedJobs = () => {
         {loading ? (
           <div className="py-2">
             <SkeletonList count={5} cardHeight="140px" />
+          </div>
+        ) : error ? (
+          <div className="bg-white rounded-xl p-8 text-center shadow-md">
+            <FiXCircle className="w-12 h-12 mx-auto mb-3 text-red-300" />
+            <p className="text-gray-600 font-semibold mb-2">Could not load jobs</p>
+            <p className="text-sm text-gray-400 mb-4">{error}</p>
+            <button
+              onClick={() => fetchJobs(false)}
+              className="flex items-center gap-2 mx-auto px-4 py-2 rounded-lg text-sm font-semibold text-white"
+              style={{ background: themeColors.button }}
+            >
+              <FiRefreshCw className="w-4 h-4" /> Retry
+            </button>
           </div>
         ) : filteredJobs.length === 0 ? (
           <div
