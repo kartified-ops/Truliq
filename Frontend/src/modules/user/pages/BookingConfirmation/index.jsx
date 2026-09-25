@@ -338,7 +338,7 @@ const BookingConfirmation = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-gray-500 mb-1">Booking ID</p>
-                <p className="text-base font-bold text-black">{booking.bookingNumber || booking._id || booking.id}</p>
+                <p className="text-xs font-bold text-black">{booking.bookingNumber || booking._id || booking.id}</p>
               </div>
               <div className={`px-3 py-1.5 rounded-full ${(isSearching || booking?.status?.toLowerCase() === 'requested' || (!booking.vendorId && !booking.workerId))
                 ? 'bg-amber-50 text-amber-700 border border-amber-200'

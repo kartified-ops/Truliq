@@ -184,6 +184,10 @@ const BookingTrack = () => {
   // Track if initial location was set from socket
   const locationFromSocketRef = useRef(false);
 
+  // Use a ref for coords to avoid re-creating refreshBooking on every coords change
+  const coordsRef = useRef(coords);
+  useEffect(() => { coordsRef.current = coords; }, [coords]);
+
   // Main function to fetch booking data - accessible to all effects
   const refreshBooking = React.useCallback(async (isFirstLoad = false) => {
     try {
@@ -193,14 +197,14 @@ const BookingTrack = () => {
 
         // Geocoding and Initial Location Logic
         // Only run this complex logic on first load or if coords/location are missing
-        if (isFirstLoad || !coords) {
-          const geocoder = new window.google.maps.Geocoder();
+        if (isFirstLoad || !coordsRef.current) {
+          const geocoder = window.google?.maps?.Geocoder ? new window.google.maps.Geocoder() : null;
           const bAddr = response.data.address || {};
 
           // 1. Destination
           if (bAddr.lat && bAddr.lng) {
             setCoords({ lat: parseFloat(bAddr.lat), lng: parseFloat(bAddr.lng) });
-          } else {
+          } else if (geocoder) {
             const addressStr = typeof bAddr === 'string' ? bAddr : `${bAddr.addressLine1 || ''}, ${bAddr.city || ''}, ${bAddr.state || ''} ${bAddr.pincode || ''}`;
             if (addressStr && addressStr.replaceAll(',', '').trim() && !addressStr.toLowerCase().includes('current location')) {
               geocoder.geocode({ address: addressStr }, (results, status) => {
@@ -231,7 +235,7 @@ const BookingTrack = () => {
     } finally {
       if (isFirstLoad) setLoading(false);
     }
-  }, [id, coords]);
+  }, [id]);
 
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
@@ -239,62 +243,96 @@ const BookingTrack = () => {
     libraries
   });
 
-  // Initial Load and Polling
+  // Initial Load ONLY (No polling interval)
   useEffect(() => {
-    if (isLoaded) {
-      refreshBooking(true);
-      const intervalId = setInterval(() => refreshBooking(false), 10000); // Poll every 10s
-      return () => clearInterval(intervalId);
+    refreshBooking(true);
+  }, [id, refreshBooking]);
+
+  // Geocode address when Google Maps finishes loading if not already set
+  useEffect(() => {
+    if (isLoaded && booking && !coordsRef.current && window.google?.maps?.Geocoder) {
+      const bAddr = booking.address || {};
+      if (bAddr.lat && bAddr.lng) {
+        setCoords({ lat: parseFloat(bAddr.lat), lng: parseFloat(bAddr.lng) });
+      } else {
+        const addressStr = typeof bAddr === 'string' ? bAddr : `${bAddr.addressLine1 || ''}, ${bAddr.city || ''}, ${bAddr.state || ''} ${bAddr.pincode || ''}`;
+        if (addressStr && addressStr.replaceAll(',', '').trim() && !addressStr.toLowerCase().includes('current location')) {
+          const geocoder = new window.google.maps.Geocoder();
+          geocoder.geocode({ address: addressStr }, (results, status) => {
+            if (status === 'OK' && results[0]) {
+              setCoords(results[0].geometry.location.toJSON());
+            }
+          });
+        }
+      }
     }
-  }, [isLoaded, refreshBooking]);
+  }, [isLoaded, booking]);
 
   const socket = useAppNotifications('user');
 
-  // Socket Listener
+  // Socket.IO Real-Time Listener (Handles all updates without polling)
   useEffect(() => {
-    if (socket && id) {
+    if (!socket || !id) return;
+
+    // Join tracking room on mount and reconnect
+    const joinRoom = () => {
       socket.emit('join_tracking', id);
+    };
 
-      const handleLocationUpdate = (data) => {
-        if (data.lat && data.lng) {
-          // Mark that we've received location from socket - don't let booking refresh override
-          locationFromSocketRef.current = true;
-          setCurrentLocation({ lat: parseFloat(data.lat), lng: parseFloat(data.lng) });
-          // Use heading from socket if available (more accurate)
-          if (data.heading !== undefined && data.heading !== null) {
-            setHeading(parseFloat(data.heading));
-          }
+    joinRoom();
+    socket.on('connect', joinRoom);
+
+    const handleLocationUpdate = (data) => {
+      if (data && data.lat && data.lng) {
+        // Mark that we've received location from socket - don't let booking refresh override
+        locationFromSocketRef.current = true;
+        setCurrentLocation({ lat: parseFloat(data.lat), lng: parseFloat(data.lng) });
+        // Use heading from socket if available (more accurate)
+        if (data.heading !== undefined && data.heading !== null) {
+          setHeading(parseFloat(data.heading));
         }
-      };
+      }
+    };
 
-      const handleBookingUpdate = (data) => {
-        if (data.bookingId === id || data.relatedId === id || data.data?.bookingId === id) {
-          setBooking(prev => {
-            if (!prev) return prev;
-            return { ...prev, ...(data.data || data) };
-          });
-          if (data.qrPaymentInitiated) {
-            setShowPaymentModal(true);
-            toast.success('Professional has initiated payment!');
-          } else if (data.customerConfirmationOTP) {
-            setShowPaymentModal(true);
-            toast.success('Professional has requested payment!');
-          }
-          refreshBooking(false);
+    const handleBookingUpdate = (data) => {
+      const incomingId = data?.bookingId || data?.relatedId || data?.data?.bookingId || data?.id || data?._id;
+      if (!incomingId || incomingId === id) {
+        setBooking(prev => {
+          if (!prev) return prev;
+          const updated = data?.data || data?.booking || data;
+          return { ...prev, ...updated };
+        });
+
+        if (data?.qrPaymentInitiated) {
+          setShowPaymentModal(true);
+          toast.success('Professional has initiated payment!');
+        } else if (data?.customerConfirmationOTP) {
+          setShowPaymentModal(true);
+          toast.success('Professional has requested payment!');
         }
-      };
 
-      socket.on('live_location_update', handleLocationUpdate);
-      socket.on('booking_updated', handleBookingUpdate);
-      socket.on('notification', handleBookingUpdate);
+        // Fetch fresh populated data only when an actual event is emitted by server
+        refreshBooking(false);
+      }
+    };
 
-      return () => {
-        socket.off('live_location_update', handleLocationUpdate);
-        socket.off('booking_updated', handleBookingUpdate);
-        socket.off('notification', handleBookingUpdate);
-      };
-    }
-  }, [socket, id]);
+    socket.on('live_location_update', handleLocationUpdate);
+    socket.on('booking_updated', handleBookingUpdate);
+    socket.on('booking_accepted', handleBookingUpdate);
+    socket.on('booking_status_updated', handleBookingUpdate);
+    socket.on('payment_success', handleBookingUpdate);
+    socket.on('notification', handleBookingUpdate);
+
+    return () => {
+      socket.off('connect', joinRoom);
+      socket.off('live_location_update', handleLocationUpdate);
+      socket.off('booking_updated', handleBookingUpdate);
+      socket.off('booking_accepted', handleBookingUpdate);
+      socket.off('booking_status_updated', handleBookingUpdate);
+      socket.off('payment_success', handleBookingUpdate);
+      socket.off('notification', handleBookingUpdate);
+    };
+  }, [socket, id, refreshBooking]);
 
   // Firebase Realtime Tracking Listener
   useEffect(() => {
