@@ -21,8 +21,20 @@ const AssignedJobs = () => {
     return 'all';
   };
 
-  const [jobs, setJobs] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const getCachedJobs = () => {
+    try {
+      const cached = sessionStorage.getItem('workerJobsCache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) { /* ignore */ }
+    return [];
+  };
+
+  const initialJobs = getCachedJobs();
+  const [jobs, setJobs] = useState(initialJobs);
+  const [loading, setLoading] = useState(initialJobs.length === 0);
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState(getInitialFilter); // all, confirmed, in_progress, completed
   const [searchQuery, setSearchQuery] = useState('');
@@ -82,17 +94,19 @@ const AssignedJobs = () => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     // 1. Instantly load from cache for blazing fast navigation
     const cachedJobs = sessionStorage.getItem('workerJobsCache');
+    let hasCache = false;
     if (cachedJobs) {
       try {
         const parsed = JSON.parse(cachedJobs);
-        if (Array.isArray(parsed)) {
+        if (Array.isArray(parsed) && parsed.length > 0) {
           setJobs(parsed);
           setLoading(false);
+          hasCache = true;
         }
       } catch (e) { /* ignore */ }
     }
-    // 2. Always fetch fresh data
-    fetchJobs(false);
+    // 2. Fetch fresh data (background if cache already exists)
+    fetchJobs(hasCache);
 
     const handleUpdate = () => fetchJobs(true);
     window.addEventListener('workerJobsUpdated', handleUpdate);
