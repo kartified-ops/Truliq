@@ -65,18 +65,29 @@ const getPublicBrands = async (req, res) => {
 
     // Build query
     const query = { status: 'active' };
+    const andConditions = [];
+
     if (categoryId) {
-      query.$or = [
-        { categoryIds: categoryId },
-        { categoryId: categoryId }
-      ];
+      andConditions.push({
+        $or: [
+          { categoryIds: categoryId },
+          { categoryId: categoryId }
+        ]
+      });
     }
+
     if (cityId) {
-      query.$or = [
-        { cityIds: cityId },
-        { cityIds: { $size: 0 } },
-        { cityIds: { $exists: false } }
-      ];
+      andConditions.push({
+        $or: [
+          { cityIds: cityId },
+          { cityIds: { $size: 0 } },
+          { cityIds: { $exists: false } }
+        ]
+      });
+    }
+
+    if (andConditions.length > 0) {
+      query.$and = andConditions;
     }
 
     if (search) {

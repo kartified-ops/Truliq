@@ -12,20 +12,36 @@ const getAllBrands = async (req, res) => {
     const { status, categoryId, cityId } = req.query;
 
     // Build query
-    const query = {};
+    const andConditions = [];
+
     if (status) {
       query.status = status;
     } else {
       // Exclude deleted brands by default if status not explicitly specified
       query.status = { $ne: SERVICE_STATUS.DELETED };
     }
-    if (categoryId) query.categoryIds = categoryId;
+
+    if (categoryId) {
+      andConditions.push({
+        $or: [
+          { categoryIds: categoryId },
+          { categoryId: categoryId }
+        ]
+      });
+    }
+
     if (cityId) {
-      query.$or = [
-        { cityIds: cityId },
-        { cityIds: { $size: 0 } },
-        { cityIds: { $exists: false } }
-      ];
+      andConditions.push({
+        $or: [
+          { cityIds: cityId },
+          { cityIds: { $size: 0 } },
+          { cityIds: { $exists: false } }
+        ]
+      });
+    }
+
+    if (andConditions.length > 0) {
+      query.$and = andConditions;
     }
 
     const brands = await Brand.find(query)

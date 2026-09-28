@@ -53,7 +53,7 @@ export default defineConfig({
               return 'vendor-maps';
             }
             if (id.includes('/framer-motion/') || id.includes('/recharts/') || id.includes('/gsap/')) {
-              return 'vendor-ui';
+              return 'vendor-ui';w
             }
           }
         },
