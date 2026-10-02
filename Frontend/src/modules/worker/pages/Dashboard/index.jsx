@@ -609,8 +609,8 @@ const Dashboard = () => {
             </div>
           </div>
         </div>
-        {/* Current Subscription Section (Temporarily commented out) */}
-        {false && (() => {
+        {/* Current Subscription Section */}
+        {(() => {
           const subData = getSubscriptionDetails(subscriptionStatus);
           return (
             <div className="px-4 pt-2 pb-0.5">
