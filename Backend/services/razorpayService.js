@@ -40,7 +40,9 @@ const createOrder = async (amount, currency = 'INR', receipt = null, notes = {})
   } catch (error) {
     console.error('❌ Payment create order error:', error.message);
     const creds = await getCredentials();
-    if (process.env.NODE_ENV !== 'production' || !creds.keyId || creds.keyId.includes('placeholder')) {
+    // Only fall back to a mock order when no real keys are configured. If keys exist
+    // and Razorpay rejected them, surface the error instead of faking a paid order.
+    if (!creds.keyId || creds.keyId.includes('placeholder')) {
       const mockOrderId = `order_mock_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
       return {
         success: true,

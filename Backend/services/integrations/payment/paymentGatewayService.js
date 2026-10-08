@@ -21,9 +21,13 @@ const getActivePaymentConfig = async () => {
     return null;
   }
   const providerId = config.configuration?.activeProvider || config.provider || 'razorpay';
-  const credentials = config.configuration?.providerProfiles?.[providerId]
-    || config.credentials
-    || {};
+  // config.credentials is the decrypted, env-merged set for the active provider.
+  // providerProfiles holds the raw stored (encrypted) values and must not be sent to the gateway.
+  const credentials = config.credentials
+    && Object.keys(config.credentials).length
+    && (!config.provider || config.provider === providerId)
+    ? config.credentials
+    : (config.configuration?.providerProfiles?.[providerId] || {});
   const adapter = ADAPTERS[providerId] || null;
   return {
     providerId,
@@ -76,8 +80,10 @@ const getCredentials = async () => {
 };
 
 const verifySignature = async (orderId, paymentId, signature) => {
-  if (!orderId || orderId.startsWith('order_mock_')) return true;
+  if (!orderId) return false;
   const creds = await getCredentials();
+  // Mock orders are only valid when no real gateway keys are configured.
+  if (orderId.startsWith('order_mock_')) return !creds.keySecret;
   if (!creds.keySecret) return true;
   const generated = crypto
     .createHmac('sha256', creds.keySecret)

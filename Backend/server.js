@@ -41,7 +41,9 @@ const allowedOrigins = [
   'https://www.homster.in',
   'https://homster.in',
   'https://api.homster.in',
-  ''
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://127.0.0.1:5173'
 ];
 
 if (process.env.FRONTEND_URL) {
@@ -74,10 +76,6 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
-
-// CORS configuration finished above
-
-// CORS configuration finished above
 
 // Body parser middleware
 app.use(express.json({ limit: '50mb' }));

@@ -723,7 +723,7 @@ const Checkout = () => {
       toast.dismiss();
 
       // Get Razorpay key
-      const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
+      const razorpayKey = orderResponse.data?.key || import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_SpzpIBZCETVQYD';
       if (!razorpayKey) {
         toast.error('Razorpay key not configured');
         return;
@@ -814,7 +814,7 @@ const Checkout = () => {
         return;
       }
 
-      const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
+      const razorpayKey = orderResponse.data?.key || import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_SpzpIBZCETVQYD';
       if (!razorpayKey || !window.Razorpay) {
         toast.error('Payment gateway not ready');
         setCurrentStep('details');

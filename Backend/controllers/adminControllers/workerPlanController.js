@@ -10,12 +10,61 @@ const {
   saveWorkerDashboardBannerSettings
 } = require('../../services/workerDashboardBannerService');
 
+const defaultWorkerPlanSeed = [
+  {
+    title: 'Basic Plan',
+    description: 'Perfect for getting started with job alerts and customer contact.',
+    price: 299,
+    durationDays: 30,
+    duration: 1,
+    durationUnit: 'MONTH',
+    features: ['Unlimited job alerts', 'Direct customer contact', '30-day validity'],
+    isActive: true,
+    allowExtension: true
+  },
+  {
+    title: 'Standard Plan',
+    description: 'Ideal for steady workers who want consistent visibility.',
+    price: 699,
+    durationDays: 90,
+    duration: 3,
+    durationUnit: 'MONTH',
+    features: ['Unlimited job alerts', 'Priority visibility', '90-day validity'],
+    isActive: true,
+    allowExtension: true
+  },
+  {
+    title: 'Premium Plan',
+    description: 'Best value for long-term job access and growth.',
+    price: 1299,
+    durationDays: 180,
+    duration: 6,
+    durationUnit: 'MONTH',
+    features: ['Unlimited job alerts', 'Premium profile visibility', '180-day validity'],
+    isActive: true,
+    allowExtension: true
+  }
+];
+
+exports.ensureDefaultWorkerPlans = async () => {
+  const activePlans = await WorkerSubscriptionPlan.find({ isActive: true }).lean();
+  if (activePlans.length > 0) {
+    return activePlans;
+  }
+
+  const plans = await WorkerSubscriptionPlan.insertMany(defaultWorkerPlanSeed);
+  return plans;
+};
+
 /**
  * Get all worker subscription plans
  */
 exports.getAllPlans = async (req, res) => {
   try {
-    const plans = await WorkerSubscriptionPlan.find().sort({ price: 1 });
+    let plans = await WorkerSubscriptionPlan.find().sort({ price: 1 });
+    if (!plans.length) {
+      plans = await exports.ensureDefaultWorkerPlans();
+    }
     res.status(200).json({
       success: true,
       count: plans.length,

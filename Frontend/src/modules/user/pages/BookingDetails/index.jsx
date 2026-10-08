@@ -304,47 +304,6 @@ const BookingDetails = () => {
   const handleOnlinePayment = async () => {
     if (paying) return;
 
-    // If a Razorpay order already exists for this booking and hasn't been used, skip creating a new one
-    if (booking.razorpayOrderId) {
-      // Open Razorpay with existing order
-      const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
-        amount: Math.round((booking.finalAmount || 0) * 100),
-        currency: 'INR',
-        order_id: booking.razorpayOrderId,
-        name: 'Truliq',
-        description: `Payment for ${booking.serviceName}`,
-        handler: async function (response) {
-          toast.loading('Verifying payment...');
-          const verifyResponse = await paymentService.verifyPayment({
-            razorpay_order_id: response.razorpay_order_id,
-            razorpay_payment_id: response.razorpay_payment_id,
-            razorpay_signature: response.razorpay_signature
-          });
-          toast.dismiss();
-
-          if (verifyResponse.success) {
-            toast.success('Payment successful!');
-            window.location.reload();
-          } else {
-            toast.error('Payment verification failed');
-          }
-          setPaying(false);
-        },
-        modal: {
-          ondismiss: function () {
-            setPaying(false);
-          }
-        },
-        prefill: { name: 'User', contact: '' },
-        theme: { color: themeColors.button }
-      };
-      setPaying(true);
-      const razorpay = new window.Razorpay(options);
-      razorpay.open();
-      return;
-    }
-
     try {
       setPaying(true);
       toast.loading('Creating payment order...');
@@ -357,50 +316,67 @@ const BookingDetails = () => {
         return;
       }
 
+      const rzpKey = orderResponse.data?.key || import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_SpzpIBZCETVQYD';
+
+      if (!window.Razorpay) {
+        toast.error('Payment gateway is loading, please try again in a moment');
+        setPaying(false);
+        return;
+      }
+
       const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
-        amount: Math.round(orderResponse.data.amount * 100),
-        currency: orderResponse.data.currency || 'INR',
-        order_id: orderResponse.data.orderId,
+        key: rzpKey,
+        amount: Math.round((orderResponse.data?.amount || booking.finalAmount || 0) * 100),
+        currency: orderResponse.data?.currency || 'INR',
+        order_id: orderResponse.data?.orderId,
         name: 'Truliq',
-        description: `Payment for ${booking.serviceName}`,
+        description: `Payment for ${booking.serviceName || 'Service'}`,
         handler: async function (response) {
           toast.loading('Verifying payment...');
-          const verifyResponse = await paymentService.verifyPayment({
-            razorpay_order_id: response.razorpay_order_id,
-            razorpay_payment_id: response.razorpay_payment_id,
-            razorpay_signature: response.razorpay_signature
-          });
-          toast.dismiss();
+          try {
+            const verifyResponse = await paymentService.verifyPayment({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature
+            });
+            toast.dismiss();
 
-          if (verifyResponse.success) {
-            toast.success('Payment successful!');
-            loadBooking();
-          } else {
-            toast.error('Payment verification failed');
+            if (verifyResponse.success) {
+              toast.success('Payment successful!');
+              loadBooking();
+            } else {
+              toast.error(verifyResponse.message || 'Payment verification failed');
+            }
+          } catch (err) {
+            toast.dismiss();
+            toast.error(err.response?.data?.message || 'Payment verification failed');
+          } finally {
+            setPaying(false);
           }
-          setPaying(false);
         },
         modal: {
-          onhighlight: function () { },
           ondismiss: function () {
             setPaying(false);
           }
         },
         prefill: {
-          name: 'User',
-          contact: ''
+          name: booking.userId?.name || 'Customer',
+          contact: booking.userId?.phone || ''
         },
         theme: {
-          color: themeColors.button
+          color: themeColors.button || '#0F766E'
         }
       };
 
       const razorpay = new window.Razorpay(options);
+      razorpay.on('payment.failed', function (response) {
+        toast.error(response.error?.description || 'Payment failed');
+        setPaying(false);
+      });
       razorpay.open();
     } catch (error) {
       toast.dismiss();
-      toast.error('Failed to process payment');
+      toast.error(error.response?.data?.message || 'Failed to process payment');
       setPaying(false);
     }
   };

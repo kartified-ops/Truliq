@@ -9,11 +9,22 @@ const { withTransaction, abort } = require('../../utils/withTransaction');
  */
 const getAssignedJobs = async (req, res) => {
   try {
-    const workerId = req.user.id;
-    const { status, page = 1, limit = 10 } = req.query;
+    const workerId = req.user.id || req.user._id?.toString();
+    const { status, page = 1, limit = 50 } = req.query;
 
-    // Build query
-    const query = { workerId };
+    const mongoose = require('mongoose');
+    const workerObjectId = mongoose.Types.ObjectId.isValid(workerId)
+      ? new mongoose.Types.ObjectId(workerId)
+      : null;
+
+    // Build query - match both string and ObjectId workerId
+    const query = {
+      $or: [
+        { workerId: workerId },
+        ...(workerObjectId ? [{ workerId: workerObjectId }] : [])
+      ]
+    };
+
     if (status) {
       query.status = status;
     }
@@ -23,7 +34,9 @@ const getAssignedJobs = async (req, res) => {
 
     // Get bookings
     const bookings = await Booking.find(query)
+      .select('-workPhotos -requirementImages -reviewImages -chatHistory')
       .populate('userId', 'name phone email')
+      .populate('serviceId', 'title description iconUrl')
       .sort({ scheduledDate: 1, createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit))
@@ -46,7 +59,7 @@ const getAssignedJobs = async (req, res) => {
     console.error('Get assigned jobs error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch jobs. Please try again.'
+      message: error.message || 'Failed to fetch jobs. Please try again.'
     });
   }
 };
@@ -920,20 +933,37 @@ const respondToJob = async (req, res) => {
       booking.status = BOOKING_STATUS.ASSIGNED;
       booking.workerId = workerId; // Assign the worker
       booking.bookingModel = 'worker'; // Ensure model is set
+      booking.assignedAt = new Date();
       booking.workerAcceptedAt = new Date();
       booking.workerResponse = 'ACCEPTED';
 
+      // Update BookingRequest statuses
+      try {
+        await BookingRequest.findOneAndUpdate(
+          { bookingId: id, workerId },
+          { status: 'ACCEPTED', respondedAt: new Date() }
+        );
+        await BookingRequest.updateMany(
+          { bookingId: id, workerId: { $ne: workerId } },
+          { status: 'EXPIRED', respondedAt: new Date() }
+        );
+      } catch (reqErr) {
+        console.error('[WorkerBookingController] Error updating BookingRequest:', reqErr);
+      }
+
       const { createNotification } = require('../notificationControllers/notificationController');
 
-      // Notify Vendor
-      await createNotification({
-        vendorId: booking.vendorId,
-        type: 'job_accepted',
-        title: 'Worker Accepted Job',
-        message: `Worker has accepted job ${booking.bookingNumber}`,
-        relatedId: booking._id,
-        relatedType: 'booking'
-      });
+      // Notify Vendor (if vendor exists)
+      if (booking.vendorId) {
+        await createNotification({
+          vendorId: booking.vendorId,
+          type: 'job_accepted',
+          title: 'Worker Accepted Job',
+          message: `Worker has accepted job ${booking.bookingNumber}`,
+          relatedId: booking._id,
+          relatedType: 'booking'
+        });
+      }
 
       // Fetch worker details for personalized notification
       const Worker = require('../../models/Worker');
@@ -951,18 +981,43 @@ const respondToJob = async (req, res) => {
         pushData: { type: 'worker_accepted', bookingId: booking._id.toString(), link: `/user/booking/${booking._id}` }
       });
 
-      // --- SOCKET EMISSION ---
-      // Notify user via socket so the searching modal closes
+      // --- SOCKET EMISSIONS ---
       const io = req.app.get('io');
-      if (io && worker) {
-        io.to(`user_${booking.userId}`).emit('booking_accepted', {
+      if (io) {
+        // 1. Notify User via socket
+        if (worker) {
+          io.to(`user_${booking.userId}`).emit('booking_accepted', {
+            bookingId: booking._id,
+            worker: {
+              id: worker._id,
+              name: worker.name,
+              phone: worker.phone,
+              profilePhoto: worker.profilePhoto,
+              rating: worker.rating
+            }
+          });
+        }
+
+        // 2. Notify Accepting Worker so their jobs page auto-updates
+        io.to(`worker_${workerId}`).emit('booking_updated', {
           bookingId: booking._id,
-          worker: {
-            id: worker._id,
-            name: worker.name,
-            phone: worker.phone,
-            profilePhoto: worker.profilePhoto,
-            rating: worker.rating
+          status: booking.status,
+          message: 'Job accepted successfully'
+        });
+        io.to(`worker_${workerId}`).emit('new_job_assigned', {
+          bookingId: booking._id,
+          booking
+        });
+
+        // 3. Notify other workers to dismiss alert
+        const partnersToDismiss = booking.notifiedPartners || [];
+        partnersToDismiss.forEach(pId => {
+          const strId = pId.toString();
+          if (strId !== workerId.toString()) {
+            io.to(`worker_${strId}`).emit('job_taken', {
+              bookingId: booking._id,
+              message: 'This job was accepted by another professional.'
+            });
           }
         });
       }
@@ -979,20 +1034,31 @@ const respondToJob = async (req, res) => {
         pushData: { type: 'job_accepted', bookingId: booking._id.toString(), link: `/worker/job/${booking._id}` }
       });
 
-
     } else if (status === 'REJECTED') {
       booking.workerId = null;
       booking.status = BOOKING_STATUS.CONFIRMED; // Revert to unassigned state
+      booking.workerResponse = 'REJECTED';
 
-      const { createNotification } = require('../notificationControllers/notificationController');
-      await createNotification({
-        vendorId: booking.vendorId,
-        type: 'job_rejected',
-        title: 'Worker Declined Job',
-        message: `Worker declined job ${booking.bookingNumber}`,
-        relatedId: booking._id,
-        relatedType: 'booking'
-      });
+      try {
+        await BookingRequest.findOneAndUpdate(
+          { bookingId: id, workerId },
+          { status: 'REJECTED', respondedAt: new Date() }
+        );
+      } catch (reqErr) {
+        console.error('[WorkerBookingController] Error updating BookingRequest on reject:', reqErr);
+      }
+
+      if (booking.vendorId) {
+        const { createNotification } = require('../notificationControllers/notificationController');
+        await createNotification({
+          vendorId: booking.vendorId,
+          type: 'job_rejected',
+          title: 'Worker Declined Job',
+          message: `Worker declined job ${booking.bookingNumber}`,
+          relatedId: booking._id,
+          relatedType: 'booking'
+        });
+      }
     }
 
     await booking.save();

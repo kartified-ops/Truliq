@@ -110,7 +110,7 @@ const Wallet = () => {
       const orderRes = await workerWalletService.createDuesOrder();
       
       const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+        key: orderRes.data?.key || import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_SpzpIBZCETVQYD',
         amount: orderRes.data.amount * 100,
         currency: orderRes.data.currency,
         name: 'Homster',

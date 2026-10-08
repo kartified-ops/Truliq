@@ -73,16 +73,22 @@ const AssignedJobs = () => {
       setError(null);
 
       const response = await workerService.getAssignedJobs({ limit: 50 });
-      if (response.success) {
+      if (response && response.success) {
         const jobsList = Array.isArray(response.data) ? response.data : [];
         setJobs(jobsList);
-        sessionStorage.setItem('workerJobsCache', JSON.stringify(jobsList));
+        try {
+          sessionStorage.setItem('workerJobsCache', JSON.stringify(jobsList));
+        } catch (storageErr) {
+          // In case sessionStorage quota is exceeded, safely ignore/clear
+          sessionStorage.removeItem('workerJobsCache');
+        }
       } else {
-        if (!isBackground) setError(response.message || 'Failed to load jobs');
+        if (!isBackground) setError(response?.message || 'Failed to load jobs');
       }
     } catch (err) {
       console.error('Fetch jobs error:', err);
-      if (!isBackground) setError('Failed to load assigned jobs. Please try again.');
+      const serverMessage = err.response?.data?.message || err.message;
+      if (!isBackground) setError(serverMessage || 'Failed to load assigned jobs. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -108,7 +114,10 @@ const AssignedJobs = () => {
     // 2. Fetch fresh data (background if cache already exists)
     fetchJobs(hasCache);
 
-    const handleUpdate = () => fetchJobs(true);
+    const handleUpdate = () => {
+      sessionStorage.removeItem('workerJobsCache');
+      fetchJobs(false);
+    };
     window.addEventListener('workerJobsUpdated', handleUpdate);
     return () => window.removeEventListener('workerJobsUpdated', handleUpdate);
   }, []);
@@ -117,16 +126,21 @@ const AssignedJobs = () => {
   useEffect(() => {
     if (!socket) return;
 
-    const handleJobEvent = () => fetchJobs(true);
+    const handleJobEvent = () => {
+      sessionStorage.removeItem('workerJobsCache');
+      fetchJobs(true);
+    };
 
     socket.on('new_job_assigned', handleJobEvent);
     socket.on('booking_updated', handleJobEvent);
     socket.on('booking_accepted', handleJobEvent);
+    socket.on('job_accepted', handleJobEvent);
 
     return () => {
       socket.off('new_job_assigned', handleJobEvent);
       socket.off('booking_updated', handleJobEvent);
       socket.off('booking_accepted', handleJobEvent);
+      socket.off('job_accepted', handleJobEvent);
     };
   }, [socket]);
 
@@ -168,16 +182,21 @@ const AssignedJobs = () => {
     if (filter === 'all') {
       matchesFilter = true;
     } else if (filter === 'confirmed') {
-      matchesFilter = ['confirmed', 'assigned', 'pending'].includes(status);
+      matchesFilter = ['confirmed', 'assigned', 'pending', 'accepted'].includes(status);
     } else if (filter === 'in_progress') {
       matchesFilter = ['in_progress', 'started', 'reached', 'visited', 'work_done', 'on_the_way'].includes(status);
     } else if (filter === 'completed') {
       matchesFilter = ['completed', 'worker_paid', 'paid'].includes(status);
     }
 
+    const title = job.serviceName || job.serviceId?.title || '';
+    const customer = job.userId?.name || '';
+    const bookingNum = job.bookingNumber || '';
+
     const matchesSearch = searchQuery === '' ||
-      job.serviceName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      job.userId?.name?.toLowerCase().includes(searchQuery.toLowerCase());
+      title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      bookingNum.toLowerCase().includes(searchQuery.toLowerCase());
 
     return matchesFilter && matchesSearch;
   });
@@ -301,7 +320,7 @@ const AssignedJobs = () => {
                           >
                             <FiBriefcase className="w-4 h-4" style={{ color: statusColor }} />
                           </div>
-                          <h3 className="font-bold text-gray-800 text-base">{job.serviceName}</h3>
+                          <h3 className="font-bold text-gray-800 text-base">{job.serviceName || job.serviceId?.title || 'Service Job'}</h3>
                         </div>
                         <div className="ml-8 mb-2">
                           <span

@@ -77,7 +77,12 @@ router.post('/verify-payment', authenticate, isWorker, verifySubscriptionPayment
  */
 router.get('/plans', authenticate, isWorker, async (req, res) => {
   try {
-    const plans = await WorkerSubscriptionPlan.find({ isActive: true }).sort({ price: 1 });
+    let plans = await WorkerSubscriptionPlan.find({ isActive: true }).sort({ price: 1 });
+    if (!plans.length) {
+      const { ensureDefaultWorkerPlans } = require('../../controllers/adminControllers/workerPlanController');
+      plans = await ensureDefaultWorkerPlans();
+    }
+
     const settings = await Settings.findOne({ type: 'global' }).select('isSubscriptionPaymentEnabled');
     const isPaymentGatewayEnabled = settings ? settings.isSubscriptionPaymentEnabled !== false : true;
     res.status(200).json({
@@ -86,6 +91,7 @@ router.get('/plans', authenticate, isWorker, async (req, res) => {
       isPaymentGatewayEnabled
     });
   } catch (error) {
+    console.error('[Worker Subscription Plans] Error:', error);
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 });

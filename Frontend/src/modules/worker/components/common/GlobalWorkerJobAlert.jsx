@@ -315,6 +315,10 @@ export default function GlobalWorkerJobAlert() {
         return np;
       });
 
+      // Clear cached jobs so AssignedJobs and Dashboard fetch fresh data immediately
+      sessionStorage.removeItem('workerJobsCache');
+      sessionStorage.removeItem('workerDashboardCache');
+
       window.dispatchEvent(new Event('workerJobsUpdated'));
       toast.success('Job Accepted Successfully!');
       navigate(`/worker/job/${id}`);
