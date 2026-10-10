@@ -46,10 +46,22 @@ const confirmGatewayPayment = async ({ orderId, paymentId }) => {
     return { ok: false, status: 502, message: 'Could not confirm payment with the gateway. Please try again.' };
   }
 
-  const payment = paymentRes.payment;
+  let payment = paymentRes.payment;
 
   if (payment.order_id !== orderId) {
     return { ok: false, status: 400, message: 'Payment does not belong to this order' };
+  }
+
+  // Accounts with auto-capture off leave payments 'authorized'; capture them here
+  // so the money actually settles instead of being auto-refunded by Razorpay.
+  if (payment.status === 'authorized') {
+    const { capturePayment } = require('../services/razorpayService');
+    const captureRes = await capturePayment(paymentId, payment.amount, payment.currency || 'INR');
+    if (captureRes.success && captureRes.payment) {
+      payment = captureRes.payment;
+    } else {
+      return { ok: false, status: 502, message: `Could not capture payment: ${captureRes.error || 'gateway error'}` };
+    }
   }
 
   if (payment.status !== 'captured') {

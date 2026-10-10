@@ -16,7 +16,7 @@
 
 const Booking = require('../models/Booking');
 const Vendor = require('../models/Vendor');
-const { BOOKING_STATUS } = require('../utils/constants');
+const { BOOKING_STATUS, PAYMENT_STATUS } = require('../utils/constants');
 const { createNotification } = require('../controllers/notificationControllers/notificationController');
 
 const Settings = require('../models/Settings');
@@ -147,40 +147,59 @@ class BookingScheduler {
             if (totalElapsed > MAX_SEARCH_TIME_MS) {
               console.log(`[BookingScheduler] ${booking.bookingNumber}: Search timed out. Cancelling.`);
 
-              const bookingDoc = await Booking.findById(booking._id);
-              if (bookingDoc) {
-                let refundAmount = 0;
-                if (bookingDoc.paymentStatus === 'SUCCESS' && ['wallet', 'razorpay', 'upi', 'card'].includes(bookingDoc.paymentMethod)) {
-                  refundAmount = bookingDoc.finalAmount;
-                }
-
-                if (refundAmount > 0) {
-                  const User = require('../models/User');
-                  const Transaction = require('../models/Transaction');
-                  const user = await User.findById(bookingDoc.userId);
-                  if (user) {
-                    user.wallet.balance = (user.wallet.balance || 0) + refundAmount;
-                    await user.save();
-
-                    await Transaction.create({
-                      userId: user._id,
-                      type: 'refund',
-                      amount: refundAmount,
-                      status: 'completed',
-                      paymentMethod: 'wallet',
-                      description: `Auto-refund for timed-out booking #${bookingDoc.bookingNumber}`,
-                      bookingId: bookingDoc._id,
-                      balanceAfter: user.wallet.balance
-                    });
+              // ATOMIC CLAIM: only a still-unassigned booking times out. This also stops
+              // a second scheduler tick (or a late accept) from refunding it twice.
+              const bookingDoc = await Booking.findOneAndUpdate(
+                {
+                  _id: booking._id,
+                  status: { $in: [BOOKING_STATUS.SEARCHING, BOOKING_STATUS.CONFIRMED] },
+                  workerId: null,
+                  vendorId: null
+                },
+                {
+                  $set: {
+                    status: BOOKING_STATUS.NO_VENDORS,
+                    cancellationReason: `No ${bookingModel} accepted within time limit`,
+                    cancelledAt: new Date(),
+                    cancelledBy: 'system'
                   }
-                  bookingDoc.paymentStatus = 'REFUNDED';
-                }
+                },
+                { new: true }
+              );
+              if (!bookingDoc) return;
 
-                bookingDoc.status = BOOKING_STATUS.NO_VENDORS;
-                bookingDoc.cancellationReason = `No ${bookingModel} accepted within time limit`;
-                bookingDoc.cancelledAt = new Date();
-                bookingDoc.cancelledBy = 'system';
-                await bookingDoc.save();
+              const isPaid = bookingDoc.paymentStatus === PAYMENT_STATUS.SUCCESS;
+              const isWalletOrOnline = ['wallet', 'online', 'razorpay', 'upi', 'card'].includes(bookingDoc.paymentMethod);
+              const refundAmount = isPaid && isWalletOrOnline ? (Number(bookingDoc.finalAmount) || 0) : 0;
+              const carriedPenalty = Number(bookingDoc.penalty) || 0;
+
+              const User = require('../models/User');
+              if (refundAmount > 0) {
+                const Transaction = require('../models/Transaction');
+                const user = await User.findByIdAndUpdate(
+                  bookingDoc.userId,
+                  { $inc: { 'wallet.balance': refundAmount } },
+                  { new: true }
+                );
+                if (user) {
+                  await Transaction.create({
+                    userId: user._id,
+                    type: 'refund',
+                    amount: refundAmount,
+                    status: 'completed',
+                    paymentMethod: 'wallet',
+                    description: `Auto-refund for timed-out booking #${bookingDoc.bookingNumber}`,
+                    bookingId: bookingDoc._id,
+                    balanceAfter: user.wallet.balance
+                  });
+                }
+                await Booking.updateOne(
+                  { _id: bookingDoc._id },
+                  { $set: { paymentStatus: PAYMENT_STATUS.REFUNDED, refundedAmount: refundAmount } }
+                );
+              } else if (carriedPenalty > 0) {
+                // The service never happened, so an old penalty folded into it is still owed
+                await User.updateOne({ _id: bookingDoc.userId }, { $inc: { 'wallet.penalty': carriedPenalty } });
               }
 
               // Notify User
@@ -191,11 +210,18 @@ class BookingScheduler {
                 });
               }
 
-              // Remove from all notified partners
-              const notifiedList = bookingModel === 'worker' ? booking.notifiedWorkers : booking.notifiedVendors;
-              if (notifiedList && notifiedList.length > 0) {
-                notifiedList.forEach(pId => {
-                  this.io.to(`${bookingModel}_${pId}`).emit('removePartnerBooking', { id: booking._id });
+              // Close every open alert. 'removeWorkerBooking' / 'removeVendorBooking'
+              // are the events the apps actually listen for.
+              const BookingRequest = require('../models/BookingRequest');
+              const pendingRequests = await BookingRequest.find({ bookingId: booking._id, status: 'PENDING' }).lean();
+              await BookingRequest.updateMany(
+                { bookingId: booking._id, status: 'PENDING' },
+                { $set: { status: 'EXPIRED', respondedAt: new Date() } }
+              );
+              if (this.io) {
+                pendingRequests.forEach((r) => {
+                  if (r.workerId) this.io.to(`worker_${r.workerId}`).emit('removeWorkerBooking', { bookingId: booking._id, message: 'Request expired' });
+                  if (r.vendorId) this.io.to(`vendor_${r.vendorId}`).emit('removeVendorBooking', { bookingId: booking._id, message: 'Request expired' });
                 });
               }
 

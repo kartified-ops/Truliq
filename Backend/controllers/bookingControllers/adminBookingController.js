@@ -1,7 +1,9 @@
 const Booking = require('../../models/Booking');
 const User = require('../../models/User');
+const Transaction = require('../../models/Transaction');
 const { validationResult } = require('express-validator');
-const { BOOKING_STATUS } = require('../../utils/constants');
+const { BOOKING_STATUS, PAYMENT_STATUS } = require('../../utils/constants');
+const { withTransaction, abort } = require('../../utils/withTransaction');
 const { getAdminCityScope, getCityQueryFilter } = require('../../utils/adminScope');
 
 /**
@@ -253,17 +255,139 @@ const cancelBooking = async (req, res) => {
       });
     }
 
-    // Update booking
+    // Admin cancellation is never the customer's fault: anything already paid
+    // (wallet or online) is refunded in full to the user's wallet.
+    const isPaid = booking.paymentStatus === PAYMENT_STATUS.SUCCESS;
+    const isWalletOrOnline = ['wallet', 'online', 'razorpay', 'upi', 'card'].includes(booking.paymentMethod);
+    const refundAmount = isPaid && isWalletOrOnline ? (Number(booking.finalAmount) || 0) : 0;
+    const previousStatus = booking.status;
+    const reason = cancellationReason || 'Cancelled by admin';
+
+    // Cancellation, wallet credit and ledger row commit together, so a retry can
+    // never refund the same booking twice.
+    const outcome = await withTransaction(async (session) => {
+      const cancelFields = {
+        status: BOOKING_STATUS.CANCELLED,
+        cancelledAt: new Date(),
+        cancelledBy: 'admin',
+        cancellationReason: reason
+      };
+      if (refundAmount > 0) {
+        cancelFields.paymentStatus = PAYMENT_STATUS.REFUNDED;
+        cancelFields.refundedAmount = refundAmount;
+      }
+
+      const claim = await Booking.updateOne(
+        { _id: booking._id, status: { $nin: [BOOKING_STATUS.CANCELLED, BOOKING_STATUS.COMPLETED] } },
+        { $set: cancelFields },
+        { session }
+      );
+      if (claim.modifiedCount === 0) abort({ alreadyCancelled: true });
+
+      if (refundAmount > 0) {
+        const updatedUser = await User.findByIdAndUpdate(
+          booking.userId,
+          { $inc: { 'wallet.balance': refundAmount } },
+          { new: true, session }
+        );
+        if (!updatedUser) abort({ userMissing: true });
+
+        await Transaction.create([{
+          userId: updatedUser._id,
+          bookingId: booking._id,
+          type: 'refund',
+          amount: refundAmount,
+          status: 'completed',
+          paymentMethod: 'wallet',
+          description: `Refund for booking #${booking.bookingNumber} (cancelled by admin)`,
+          balanceAfter: updatedUser.wallet.balance
+        }], { session });
+      }
+
+      return { ok: true };
+    });
+
+    if (outcome.alreadyCancelled) {
+      return res.status(400).json({ success: false, message: 'Booking is already cancelled or completed' });
+    }
+    if (outcome.userMissing) {
+      return res.status(404).json({ success: false, message: 'Customer account not found, refund not possible' });
+    }
+
     booking.status = BOOKING_STATUS.CANCELLED;
     booking.cancelledAt = new Date();
     booking.cancelledBy = 'admin';
-    booking.cancellationReason = cancellationReason || 'Cancelled by admin';
+    booking.cancellationReason = reason;
+    if (refundAmount > 0) {
+      booking.paymentStatus = PAYMENT_STATUS.REFUNDED;
+      booking.refundedAmount = refundAmount;
+    }
 
-    await booking.save();
+    // Post-commit side effects: close pending alerts and tell everyone involved
+    try {
+      const BookingRequest = require('../../models/BookingRequest');
+      const { getIO } = require('../../sockets');
+      const { createNotification } = require('../notificationControllers/notificationController');
+      const io = getIO();
+
+      const pendingRequests = await BookingRequest.find({ bookingId: booking._id, status: 'PENDING' }).lean();
+      await BookingRequest.updateMany(
+        { bookingId: booking._id, status: 'PENDING' },
+        { $set: { status: 'EXPIRED', respondedAt: new Date() } }
+      );
+      if (io) {
+        pendingRequests.forEach((r) => {
+          if (r.workerId) io.to(`worker_${r.workerId}`).emit('removeWorkerBooking', { bookingId: booking._id, message: 'Booking cancelled by admin' });
+          if (r.vendorId) io.to(`vendor_${r.vendorId}`).emit('removeVendorBooking', { bookingId: booking._id, message: 'Booking cancelled by admin' });
+        });
+        io.to(`user_${booking.userId}`).emit('booking_updated', { bookingId: booking._id, status: BOOKING_STATUS.CANCELLED });
+        if (booking.workerId) {
+          io.to(`worker_${booking.workerId}`).emit('booking_updated', { bookingId: booking._id, status: BOOKING_STATUS.CANCELLED });
+        }
+      }
+
+      await createNotification({
+        userId: booking.userId,
+        type: 'booking_cancelled',
+        title: 'Booking Cancelled',
+        message: refundAmount > 0
+          ? `Your booking ${booking.bookingNumber} was cancelled by support. ₹${refundAmount} has been refunded to your wallet.`
+          : `Your booking ${booking.bookingNumber} was cancelled by support. Reason: ${reason}`,
+        relatedId: booking._id,
+        relatedType: 'booking',
+        pushData: { type: 'booking_cancelled', bookingId: booking._id.toString(), link: `/user/booking/${booking._id}` }
+      });
+
+      if (booking.workerId) {
+        await createNotification({
+          workerId: booking.workerId,
+          type: 'booking_cancelled',
+          title: 'Job Cancelled',
+          message: `Job ${booking.bookingNumber} has been cancelled by admin.`,
+          relatedId: booking._id,
+          relatedType: 'booking',
+          pushData: { type: 'job_cancelled', bookingId: booking._id.toString(), link: `/worker/job/${booking._id}` }
+        });
+      }
+      if (booking.vendorId) {
+        await createNotification({
+          vendorId: booking.vendorId,
+          type: 'booking_cancelled',
+          title: 'Booking Cancelled',
+          message: `Booking ${booking.bookingNumber} has been cancelled by admin.`,
+          relatedId: booking._id,
+          relatedType: 'booking'
+        });
+      }
+    } catch (sideEffectError) {
+      console.error(`[AdminCancel] Notifications failed for ${booking.bookingNumber} (was ${previousStatus}):`, sideEffectError);
+    }
 
     res.status(200).json({
       success: true,
-      message: 'Booking cancelled successfully',
+      message: refundAmount > 0
+        ? `Booking cancelled. ₹${refundAmount} refunded to the customer's wallet.`
+        : 'Booking cancelled successfully',
       data: booking
     });
   } catch (error) {

@@ -92,7 +92,8 @@ const getPendingRequests = async (req, res) => {
           ...req.bookingId,
           requestId: req._id,
           distance: req.distance,
-          expiresAt: req.expiresAt
+          expiresAt: req.expiresAt,
+          sentAt: req.sentAt || req.createdAt
         };
       });
 
@@ -177,19 +178,27 @@ const updateJobStatus = async (req, res) => {
       });
     }
 
-    if (booking.workerId && booking.workerId.toString() !== workerId && booking.vendorId?.toString() !== workerId) {
+    // Only the worker the job is assigned to may update it. Jobs are claimed through
+    // /respond (atomic accept), never by writing a status on an unassigned booking.
+    if (!booking.workerId || booking.workerId.toString() !== workerId) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to update this job'
       });
     }
 
-    if (!booking.workerId) {
-      booking.workerId = workerId;
-    }
-
     // Validate status transition if status is changing
     if (status && status !== booking.status) {
+      // Completion has to go through billing + payment collection (bill / collect-cash /
+      // online payment), which is what marks the booking paid.
+      const settledPaymentStatuses = [PAYMENT_STATUS.SUCCESS, PAYMENT_STATUS.COLLECTED_BY_VENDOR, PAYMENT_STATUS.PLAN_COVERED];
+      if (status === BOOKING_STATUS.COMPLETED && !settledPaymentStatuses.includes(booking.paymentStatus)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Collect the payment before completing this job'
+        });
+      }
+
       const validTransitions = {
         [BOOKING_STATUS.ASSIGNED]: [BOOKING_STATUS.VISITED, BOOKING_STATUS.IN_PROGRESS],
         [BOOKING_STATUS.CONFIRMED]: [BOOKING_STATUS.ASSIGNED, BOOKING_STATUS.IN_PROGRESS],
@@ -249,14 +258,20 @@ const updateJobStatus = async (req, res) => {
 
     }
 
-    // Update additional fields
-    if (finalSettlementStatus) booking.finalSettlementStatus = finalSettlementStatus;
-    if (workerPaymentStatus) {
-      booking.workerPaymentStatus = workerPaymentStatus;
-      if (workerPaymentStatus === 'PAID' || workerPaymentStatus === 'SUCCESS') {
-        booking.isWorkerPaid = true;
-        booking.workerPaidAt = booking.workerPaidAt || new Date();
+    // Update additional fields.
+    // workerPaymentStatus records that the worker was PAID by the platform/vendor, so a
+    // worker can't set it on their own job — it is ignored here.
+    if (finalSettlementStatus) {
+      if (finalSettlementStatus === 'DONE' && booking.status !== BOOKING_STATUS.COMPLETED) {
+        return res.status(400).json({
+          success: false,
+          message: 'Settlement can only be confirmed after the job is completed'
+        });
       }
+      booking.finalSettlementStatus = finalSettlementStatus;
+    }
+    if (workerPaymentStatus) {
+      console.warn(`[WorkerJob] Ignored workerPaymentStatus=${workerPaymentStatus} sent by worker ${workerId} for ${booking.bookingNumber}`);
     }
 
     await booking.save();
@@ -895,47 +910,74 @@ const respondToJob = async (req, res) => {
   try {
     // Find the booking by ID
     // In Direct Worker Model, workerId might not be set yet on the Booking itself
-    const booking = await Booking.findById(id);
+    let booking = await Booking.findById(id);
 
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Job not found' });
     }
 
-    // Check if job is already taken by someone else
-    if (booking.workerId && booking.workerId.toString() !== workerId.toString()) {
-      return res.status(400).json({
-        success: false,
-        message: 'This job has already been accepted by another professional.'
-      });
-    }
+    const isAssignedToMe = !!booking.workerId && booking.workerId.toString() === workerId.toString();
+    const takenByOther = !!booking.workerId && !isAssignedToMe;
 
     // Security: Check if this worker was actually notified/requested for this booking
-    // Optional but recommended for production
     const BookingRequest = require('../../models/BookingRequest');
     const request = await BookingRequest.findOne({ bookingId: id, workerId });
-    if (!request && !booking.workerId) {
+    if (!request && !isAssignedToMe) {
       return res.status(403).json({
         success: false,
         message: 'You are not authorized to respond to this job.'
       });
     }
 
-    // Idempotency check: If already in desired state, return success without re-notifying
-    if (status === 'ACCEPTED' && booking.workerResponse === 'ACCEPTED') {
-      return res.status(200).json({ success: true, message: 'Job already accepted', data: booking });
-    }
-
-    if (status === 'REJECTED' && booking.workerResponse === 'REJECTED') {
-      return res.status(200).json({ success: true, message: 'Job already rejected', data: booking });
-    }
-
     if (status === 'ACCEPTED') {
-      booking.status = BOOKING_STATUS.ASSIGNED;
-      booking.workerId = workerId; // Assign the worker
-      booking.bookingModel = 'worker'; // Ensure model is set
-      booking.assignedAt = new Date();
-      booking.workerAcceptedAt = new Date();
-      booking.workerResponse = 'ACCEPTED';
+      if (isAssignedToMe) {
+        return res.status(200).json({ success: true, message: 'Job already accepted', data: booking });
+      }
+      if (takenByOther) {
+        return res.status(400).json({
+          success: false,
+          message: 'This job has already been accepted by another professional.'
+        });
+      }
+
+      // ATOMIC CLAIM: only an open, unassigned booking can be taken, and only by
+      // one worker. Two simultaneous accepts can no longer both "win", and a
+      // cancelled / timed-out booking can no longer be revived by a late accept.
+      const now = new Date();
+      const claimed = await Booking.findOneAndUpdate(
+        {
+          _id: id,
+          workerId: null,
+          status: { $in: [BOOKING_STATUS.SEARCHING, BOOKING_STATUS.REQUESTED, BOOKING_STATUS.CONFIRMED, BOOKING_STATUS.PENDING] }
+        },
+        {
+          $set: {
+            status: BOOKING_STATUS.ASSIGNED,
+            workerId,
+            bookingModel: 'worker',
+            assignedAt: now,
+            workerAcceptedAt: now,
+            workerResponse: 'ACCEPTED'
+          }
+        },
+        { new: true }
+      );
+
+      if (!claimed) {
+        const fresh = await Booking.findById(id).select('workerId status');
+        const takenNow = fresh?.workerId && fresh.workerId.toString() !== workerId.toString();
+        await BookingRequest.updateOne(
+          { bookingId: id, workerId, status: 'PENDING' },
+          { $set: { status: 'EXPIRED', respondedAt: new Date() } }
+        );
+        return res.status(400).json({
+          success: false,
+          message: takenNow
+            ? 'This job has already been accepted by another professional.'
+            : 'This booking is no longer available (it was cancelled or has expired).'
+        });
+      }
+      booking = claimed;
 
       // Update BookingRequest statuses
       try {
@@ -1035,34 +1077,81 @@ const respondToJob = async (req, res) => {
       });
 
     } else if (status === 'REJECTED') {
-      booking.workerId = null;
-      booking.status = BOOKING_STATUS.CONFIRMED; // Revert to unassigned state
-      booking.workerResponse = 'REJECTED';
-
+      // Declining an alert only closes THIS worker's request. The booking itself
+      // stays in search so the other alerted workers (and later waves) can still take it.
       try {
         await BookingRequest.findOneAndUpdate(
-          { bookingId: id, workerId },
+          { bookingId: id, workerId, status: 'PENDING' },
           { status: 'REJECTED', respondedAt: new Date() }
         );
       } catch (reqErr) {
         console.error('[WorkerBookingController] Error updating BookingRequest on reject:', reqErr);
       }
 
-      if (booking.vendorId) {
+      if (isAssignedToMe) {
+        // The assigned worker is backing out. Allowed only before the journey starts;
+        // the booking goes back to searching so another worker can pick it up.
+        const reopened = await Booking.findOneAndUpdate(
+          {
+            _id: id,
+            workerId,
+            status: { $in: [BOOKING_STATUS.ASSIGNED, BOOKING_STATUS.ACCEPTED, BOOKING_STATUS.CONFIRMED] }
+          },
+          {
+            $set: {
+              workerId: null,
+              status: BOOKING_STATUS.SEARCHING,
+              workerResponse: 'REJECTED',
+              assignedAt: null,
+              workerAcceptedAt: null,
+              waveStartedAt: new Date()
+            }
+          },
+          { new: true }
+        );
+        if (!reopened) {
+          return res.status(400).json({
+            success: false,
+            message: 'This job is already underway and cannot be declined. Please contact support.'
+          });
+        }
+        booking = reopened;
+
         const { createNotification } = require('../notificationControllers/notificationController');
         await createNotification({
-          vendorId: booking.vendorId,
-          type: 'job_rejected',
-          title: 'Worker Declined Job',
-          message: `Worker declined job ${booking.bookingNumber}`,
+          userId: booking.userId,
+          type: 'booking_cancelled',
+          title: 'Finding Another Professional',
+          message: `The assigned professional is unavailable for booking ${booking.bookingNumber}. We are finding another one for you.`,
           relatedId: booking._id,
-          relatedType: 'booking'
+          relatedType: 'booking',
+          pushData: { type: 'booking_updated', bookingId: booking._id.toString(), link: `/user/booking/${booking._id}` }
         });
+        const io = req.app.get('io');
+        if (io) {
+          io.to(`user_${booking.userId}`).emit('booking_updated', {
+            bookingId: booking._id,
+            status: booking.status,
+            message: 'Finding another professional'
+          });
+        }
+
+        if (booking.vendorId) {
+          await createNotification({
+            vendorId: booking.vendorId,
+            type: 'job_rejected',
+            title: 'Worker Declined Job',
+            message: `Worker declined job ${booking.bookingNumber}`,
+            relatedId: booking._id,
+            relatedType: 'booking'
+          });
+        }
       }
+
+      return res.status(200).json({ success: true, message: 'Job rejected', data: booking });
     }
 
-    await booking.save();
-    res.status(200).json({ success: true, message: `Job ${status.toLowerCase()}`, data: booking });
+    res.status(200).json({ success: true, message: `Job ${String(status).toLowerCase()}`, data: booking });
 
   } catch (error) {
     console.error('Respond job error:', error);

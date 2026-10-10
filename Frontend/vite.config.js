@@ -20,12 +20,12 @@ export default defineConfig({
     strictPort: false,
     proxy: {
       '/api': {
-        target: 'http://localhost:6000',
+        target: 'http://localhost:5000',
         changeOrigin: true,
         secure: false,
       },
       '/socket.io': {
-        target: 'http://localhost:6000',
+        target: 'http://localhost:5000',
         ws: true,
         changeOrigin: true,
       },

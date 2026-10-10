@@ -5,10 +5,10 @@
  * Priority:
  *   1. VITE_API_BASE_URL from .env (baked at build time)
  *   2. window.location.origin (auto-detect in production)
- *   3. http://localhost:6000/api  (local dev fallback)
+ *   3. http://localhost:5000/api  (local dev fallback)
  */
 
-const DEV_FALLBACK = 'http://localhost:6000/api';
+const DEV_FALLBACK = 'http://localhost:5000/api';
 
 export const getApiBaseUrl = () => {
   const envUrl = import.meta.env.VITE_API_BASE_URL;

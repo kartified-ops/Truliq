@@ -330,6 +330,8 @@ const Checkout = () => {
         : firstItem.serviceId;
 
       const bookedItemsData = cartItems.map(item => ({
+        // Backend prices each item from this catalog id
+        serviceId: typeof item.serviceId === 'object' ? (item.serviceId?._id || item.serviceId?.id) : item.serviceId,
         brandName: item.sectionTitle || item.brand || '',
         brandIcon: item.sectionIcon || null,
         card: {
@@ -572,6 +574,8 @@ const Checkout = () => {
         brandIcon = firstItem.sectionIcon || null;
 
         bookedItemsData = itemsToUse.map(item => ({
+          // Backend prices each item from this catalog id (resent bookings keep theirs)
+          serviceId: typeof item.serviceId === 'object' ? (item.serviceId?._id || item.serviceId?.id) : item.serviceId,
           brandName: item.sectionTitle || item.brand || '',
           brandIcon: item.sectionIcon || null,
           card: {
@@ -722,10 +726,10 @@ const Checkout = () => {
 
       toast.dismiss();
 
-      // Get Razorpay key
-      const razorpayKey = orderResponse.data?.key || import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_SpzpIBZCETVQYD';
+      // Key must come from the backend so the admin's test/live setting is honoured
+      const razorpayKey = orderResponse.data?.key;
       if (!razorpayKey) {
-        toast.error('Razorpay key not configured');
+        toast.error('Online payment is not available right now. Please choose Pay at Home.');
         return;
       }
 
@@ -814,7 +818,8 @@ const Checkout = () => {
         return;
       }
 
-      const razorpayKey = orderResponse.data?.key || import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_SpzpIBZCETVQYD';
+      // Key must come from the backend so the admin's test/live setting is honoured
+      const razorpayKey = orderResponse.data?.key;
       if (!razorpayKey || !window.Razorpay) {
         toast.error('Payment gateway not ready');
         setCurrentStep('details');

@@ -12,6 +12,7 @@ const getAllBrands = async (req, res) => {
     const { status, categoryId, cityId } = req.query;
 
     // Build query
+    const query = {};
     const andConditions = [];
 
     if (status) {

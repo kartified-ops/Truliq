@@ -76,7 +76,13 @@ const BookingTrack = () => {
         return;
       }
 
-      const rzpKey = orderResponse.data?.key || import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_SpzpIBZCETVQYD';
+      // Key must come from the backend so the admin's test/live setting is honoured
+      const rzpKey = orderResponse.data?.key;
+      if (!rzpKey) {
+        toast.error('Online payment is not available right now. Please choose Pay at Home.');
+        setPaying(false);
+        return;
+      }
 
       if (!window.Razorpay) {
         toast.error('Payment gateway is loading, please try again in a moment');

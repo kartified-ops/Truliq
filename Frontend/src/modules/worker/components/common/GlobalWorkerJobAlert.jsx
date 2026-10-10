@@ -8,7 +8,17 @@ import { playAlertRing, stopAlertRing } from '../../../../utils/notificationSoun
 import workerService from '../../../../services/workerService';
 
 const WorkerAlertCard = ({ booking, onAccept, onReject, initialTimeLeft = 120 }) => {
-  const [timeLeft, setTimeLeft] = useState(initialTimeLeft);
+  // Countdown is derived from the real alert start time so a page refresh resumes
+  // where it left off instead of restarting at the full duration.
+  const startedAtMs = useRef(null);
+  if (startedAtMs.current === null) {
+    const parsed = booking?.alertStartedAt ? new Date(booking.alertStartedAt).getTime() : NaN;
+    startedAtMs.current = Number.isFinite(parsed) ? Math.min(parsed, Date.now()) : Date.now();
+  }
+  const calcTimeLeft = () =>
+    Math.max(0, Math.min(initialTimeLeft, initialTimeLeft - Math.floor((Date.now() - startedAtMs.current) / 1000)));
+
+  const [timeLeft, setTimeLeft] = useState(calcTimeLeft);
   const [loadingAction, setLoadingAction] = useState(null);
 
   const handleAction = async (actionFn, actionType) => {
@@ -28,14 +38,12 @@ const WorkerAlertCard = ({ booking, onAccept, onReject, initialTimeLeft = 120 })
     if (!booking) return;
 
     const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          onReject?.(booking.id || booking._id, true); // true = auto-reject
-          return 0;
-        }
-        return prev - 1;
-      });
+      const remaining = calcTimeLeft();
+      setTimeLeft(remaining);
+      if (remaining <= 0) {
+        clearInterval(timer);
+        onReject?.(booking.id || booking._id, true); // true = auto-reject
+      }
     }, 1000);
 
     return () => clearInterval(timer);
@@ -199,7 +207,8 @@ export default function GlobalWorkerJobAlert() {
             },
             status: jobData.status,
             createdAt: jobData.createdAt || new Date().toISOString(),
-            expiresAt: jobData.expiresAt
+            expiresAt: jobData.expiresAt,
+            alertStartedAt: jobData.sentAt || jobData.createdAt
           }));
           
           setActiveAlerts(prev => {

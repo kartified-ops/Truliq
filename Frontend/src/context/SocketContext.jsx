@@ -444,8 +444,8 @@ export const SocketProvider = ({ children }) => {
         window.dispatchEvent(event);
       });
 
-      // Listen for removeWorkerBooking - generic removal (timeout, cancellation, etc.)
-      newSocket.on('removeWorkerBooking', (data) => {
+      // Generic alert removal (timeout, cancellation, taken by another worker, etc.)
+      const removeWorkerAlert = (data = {}) => {
         const bookingId = String(data.bookingId || data.id);
 
         // Remove from localStorage
@@ -456,7 +456,12 @@ export const SocketProvider = ({ children }) => {
         // Dispatch specific remove event for instant UI update (closes alert)
         window.dispatchEvent(new CustomEvent('removeWorkerJobAlert', { detail: { id: bookingId } }));
         window.dispatchEvent(new Event('workerJobsUpdated'));
-      });
+      };
+      newSocket.on('removeWorkerBooking', removeWorkerAlert);
+      // Emitted when another worker accepts the job
+      newSocket.on('job_taken', removeWorkerAlert);
+      // Older backend builds emit this on search timeout
+      newSocket.on('removePartnerBooking', removeWorkerAlert);
     }
 
     return () => {

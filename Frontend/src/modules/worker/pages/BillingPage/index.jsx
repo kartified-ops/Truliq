@@ -854,10 +854,10 @@ const BillingPage = () => {
             <div className="space-y-5">
               {customItems.map((item, idx) => (
                 <div key={idx} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm relative animate-in slide-in-from-bottom-2">
-                  <button onClick={() => removeCustomItem(idx)} className="absolute -top-1 -right-1 w-7 h-7 bg-white text-red-500 rounded-full border border-red-100 flex items-center justify-center hover:bg-red-50 transition-all shadow-sm z-10">
+                  <button onClick={() => removeCustomItem(idx)} className="absolute top-2 right-2 w-7 h-7 bg-white text-red-500 rounded-full border border-red-100 flex items-center justify-center hover:bg-red-50 transition-all shadow-sm z-10">
                     <FiTrash2 className="w-3.5 h-3.5" />
                   </button>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-7">
                     <div className="flex flex-col gap-1">
                       <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Item Name</label>
                       <input placeholder="e.g. Copper Pipe" value={item.name} onChange={e => updateCustomItem(idx, 'name', e.target.value)}
@@ -865,7 +865,7 @@ const BillingPage = () => {
                     </div>
                     <div className="flex flex-col gap-1">
                       <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">HSN Code</label>
-                      <input placeholder="Optional code" value={item.hsnCode || ''} onChange={e => updateCustomItem(idx, 'hsnCode', e.target.value)}
+                      <input placeholder="HSN code" value={item.hsnCode || ''} onChange={e => updateCustomItem(idx, 'hsnCode', e.target.value)}
                         className="w-full bg-gray-50 border border-gray-100 rounded-lg px-3 py-2 text-sm font-bold outline-none focus:ring-1 focus:ring-blue-500 uppercase text-gray-800" />
                     </div>
                     <div className="grid grid-cols-2 gap-3">

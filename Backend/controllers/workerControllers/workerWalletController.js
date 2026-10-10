@@ -277,7 +277,9 @@ const createDuesPaymentOrder = async (req, res) => {
       data: {
         orderId: orderResult.orderId,
         amount: duesAmount,
-        currency: 'INR'
+        currency: 'INR',
+        // Active gateway key (test or live, as set in admin) for the checkout popup
+        key: (await require('../../services/razorpayService').getCredentials()).keyId
       }
     });
   } catch (error) {

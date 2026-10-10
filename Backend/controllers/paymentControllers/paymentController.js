@@ -45,6 +45,23 @@ const createPaymentOrder = async (req, res) => {
       });
     }
 
+    if ([BOOKING_STATUS.CANCELLED, BOOKING_STATUS.NO_VENDORS, BOOKING_STATUS.REJECTED].includes(booking.status)
+      || booking.paymentStatus === PAYMENT_STATUS.REFUNDED) {
+      return res.status(400).json({
+        success: false,
+        message: 'This booking is closed and can no longer be paid'
+      });
+    }
+
+    // Admin "Online Payment" toggle (Settings → isOnlinePaymentEnabled)
+    const paymentSettings = await Settings.findOne({ type: 'global' }).select('isOnlinePaymentEnabled').lean();
+    if (paymentSettings && paymentSettings.isOnlinePaymentEnabled === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'Online payment is currently disabled. Please choose Pay at Home.'
+      });
+    }
+
     // Create Razorpay order
     console.log('Creating Razorpay order with amount:', booking.finalAmount);
     const orderResult = await createOrder(
@@ -115,6 +132,40 @@ const verifyPaymentWebhook = async (req, res) => {
       });
     }
 
+    // A valid signature doesn't prove the amount. Read the captured payment back
+    // from the gateway and make sure it covers what the booking costs right now
+    // (the bill can grow after the order was created).
+    const confirmed = await confirmGatewayPayment({
+      orderId: razorpay_order_id,
+      paymentId: razorpay_payment_id
+    });
+    if (!confirmed.ok) {
+      return res.status(confirmed.status).json({ success: false, message: confirmed.message });
+    }
+
+    const pendingBooking = await Booking.findOne({ razorpayOrderId: razorpay_order_id })
+      .select('_id userId finalAmount paymentStatus');
+    if (!pendingBooking) {
+      return res.status(404).json({ success: false, message: 'Booking not found' });
+    }
+    if (String(pendingBooking.userId) !== String(req.user.id)) {
+      return res.status(403).json({ success: false, message: 'This payment belongs to a different account' });
+    }
+    if (!confirmed.mock) {
+      const notes = confirmed.notes || {};
+      if (notes.bookingId && String(notes.bookingId) !== String(pendingBooking._id)) {
+        return res.status(400).json({ success: false, message: 'Payment does not belong to this booking' });
+      }
+      if (pendingBooking.paymentStatus !== PAYMENT_STATUS.SUCCESS
+        && confirmed.amount + 0.01 < Number(pendingBooking.finalAmount || 0)) {
+        return res.status(400).json({
+          success: false,
+          message: `Paid amount ₹${confirmed.amount} is less than the booking amount ₹${pendingBooking.finalAmount}. Please contact support.`
+        });
+      }
+    }
+    const paidAmount = confirmed.mock ? null : confirmed.amount;
+
     const Transaction = require('../../models/Transaction');
     const Vendor = require('../../models/Vendor');
     const Worker = require('../../models/Worker');
@@ -162,7 +213,7 @@ const verifyPaymentWebhook = async (req, res) => {
       await Transaction.create([{
         userId: booking.userId,
         bookingId: booking._id,
-        amount: booking.finalAmount,
+        amount: paidAmount ?? booking.finalAmount,
         type: 'payment',
         paymentMethod: 'razorpay',
         status: 'completed',
@@ -294,6 +345,19 @@ const verifyPaymentWebhook = async (req, res) => {
       });
     }
 
+    if (booking.workerId) {
+      await createNotification({
+        workerId: booking.workerId,
+        type: 'payment_success',
+        title: booking.status === BOOKING_STATUS.COMPLETED ? 'Payment Received (Online)' : 'Booking Paid Online',
+        message: `Customer paid ₹${paidAmount ?? booking.finalAmount} online for booking ${booking.bookingNumber}.`,
+        relatedId: booking._id,
+        relatedType: 'booking',
+        priority: 'high',
+        pushData: { type: 'payment_success', bookingId: booking._id.toString(), link: `/worker/job/${booking._id}` }
+      });
+    }
+
     // --- SOCKET EMISSION ---
     const io = req.app.get('io');
     if (io) {
@@ -385,7 +449,12 @@ const processWalletPayment = async (req, res) => {
       // Claim the booking and mark it paid in one step, so a double-submit can't
       // debit the wallet twice for the same booking.
       const booking = await Booking.findOneAndUpdate(
-        { _id: bookingId, userId, paymentStatus: { $ne: PAYMENT_STATUS.SUCCESS } },
+        {
+          _id: bookingId,
+          userId,
+          paymentStatus: { $nin: [PAYMENT_STATUS.SUCCESS, PAYMENT_STATUS.REFUNDED] },
+          status: { $nin: [BOOKING_STATUS.CANCELLED, BOOKING_STATUS.NO_VENDORS, BOOKING_STATUS.REJECTED] }
+        },
         {
           $set: {
             paymentStatus: PAYMENT_STATUS.SUCCESS,
@@ -506,7 +575,7 @@ const processWalletPayment = async (req, res) => {
     if (walletOutcome.alreadyPaid) {
       return res.status(400).json({
         success: false,
-        message: 'Payment already completed for this booking'
+        message: 'This booking is already paid or has been closed'
       });
     }
     if (walletOutcome.insufficient) {
@@ -557,6 +626,19 @@ const processWalletPayment = async (req, res) => {
         relatedId: booking._id,
         relatedType: 'booking',
         priority: 'high'
+      });
+    }
+
+    if (booking.workerId) {
+      await createNotification({
+        workerId: booking.workerId,
+        type: 'payment_success',
+        title: booking.status === BOOKING_STATUS.COMPLETED ? 'Payment Received (Wallet)' : 'Booking Paid via Wallet',
+        message: `Customer paid ₹${booking.finalAmount} via wallet for booking ${booking.bookingNumber}.`,
+        relatedId: booking._id,
+        relatedType: 'booking',
+        priority: 'high',
+        pushData: { type: 'payment_success', bookingId: booking._id.toString(), link: `/worker/job/${booking._id}` }
       });
     }
     // --- SOCKET EMISSION ---
@@ -659,13 +741,16 @@ const processRefund = async (req, res) => {
       });
     }
 
-    if (booking.paymentMethod !== 'wallet' &&
-        !(booking.paymentMethod === 'razorpay' && booking.razorpayPaymentId)) {
+    // Online payments are stored as paymentMethod 'online' (older rows: 'razorpay')
+    const isGatewayPayment = ['online', 'razorpay'].includes(booking.paymentMethod) && !!booking.razorpayPaymentId;
+    if (booking.paymentMethod !== 'wallet' && !isGatewayPayment) {
       return res.status(400).json({
         success: false,
         message: 'Refund not supported for this payment method'
       });
     }
+
+    const Transaction = require('../../models/Transaction');
 
     // Claiming SUCCESS -> REFUNDED in the query is what stops a double-submit from
     // refunding twice; only the first request past this point moves any money.
@@ -682,9 +767,20 @@ const processRefund = async (req, res) => {
         const claimed = await claimRefund(session);
         if (!claimed) abort({ alreadyRefunded: true });
 
-        await User.findByIdAndUpdate(claimed.userId, {
+        const updatedUser = await User.findByIdAndUpdate(claimed.userId, {
           $inc: { 'wallet.balance': refundAmount }
-        }, { session });
+        }, { new: true, session });
+
+        await Transaction.create([{
+          userId: claimed.userId,
+          bookingId: claimed._id,
+          type: 'refund',
+          amount: refundAmount,
+          status: 'completed',
+          paymentMethod: 'wallet',
+          description: `Admin refund for booking #${claimed.bookingNumber}`,
+          balanceAfter: updatedUser?.wallet?.balance
+        }], { session });
 
         return { claimed };
       });
@@ -726,11 +822,32 @@ const processRefund = async (req, res) => {
         );
         return res.status(500).json({
           success: false,
-          message: 'Failed to process refund'
+          message: `Failed to process refund: ${refundResult.error || 'gateway error'}`
         });
       }
+
+      await Transaction.create({
+        userId: booking.userId,
+        bookingId: booking._id,
+        type: 'refund',
+        amount: refundAmount,
+        status: 'completed',
+        paymentMethod: 'razorpay',
+        description: `Refund to original payment method for booking #${booking.bookingNumber}`,
+        referenceId: refundResult.refund?.id || null
+      });
       booking.paymentStatus = PAYMENT_STATUS.REFUNDED;
     }
+
+    createNotification({
+      userId: booking.userId,
+      type: 'payment_refunded',
+      title: 'Refund Processed',
+      message: `₹${refundAmount} has been refunded for booking ${booking.bookingNumber}${booking.paymentMethod === 'wallet' ? ' to your wallet' : ' to your original payment method'}.`,
+      relatedId: booking._id,
+      relatedType: 'payment',
+      priority: 'high'
+    }).catch(err => console.error('[Refund] Notification failed:', err));
 
     res.status(200).json({
       success: true,
@@ -820,22 +937,42 @@ const confirmPayAtHome = async (req, res) => {
       });
     }
 
+    // Closed or refunded bookings must not be revived by choosing a payment method
+    const closedStatuses = [
+      BOOKING_STATUS.CANCELLED, BOOKING_STATUS.NO_VENDORS, BOOKING_STATUS.REJECTED, BOOKING_STATUS.COMPLETED
+    ];
+    if (closedStatuses.includes(booking.status) || booking.paymentStatus === PAYMENT_STATUS.REFUNDED) {
+      return res.status(400).json({
+        success: false,
+        message: 'This booking is closed. Pay at Home cannot be selected.'
+      });
+    }
+
     // Update booking status — NO earnings set (VendorBill handles that later)
     booking.paymentMethod = 'pay_at_home';
     booking.paymentStatus = PAYMENT_STATUS.PENDING;
-    booking.status = BOOKING_STATUS.CONFIRMED;
+    // Only pre-journey bookings move to CONFIRMED; a job already underway keeps its status
+    const preJourneyStatuses = [
+      BOOKING_STATUS.SEARCHING, BOOKING_STATUS.REQUESTED, BOOKING_STATUS.AWAITING_PAYMENT,
+      BOOKING_STATUS.PENDING, BOOKING_STATUS.ASSIGNED, BOOKING_STATUS.ACCEPTED, BOOKING_STATUS.CONFIRMED
+    ];
+    if (preJourneyStatuses.includes(booking.status)) {
+      booking.status = BOOKING_STATUS.CONFIRMED;
+    }
 
     await booking.save();
 
     // Notify Vendor that booking is confirmed
-    await createNotification({
-      vendorId: booking.vendorId,
-      type: 'booking_confirmed',
-      title: 'Booking Confirmed (Pay at Home)',
-      message: `Booking ${booking.bookingNumber} has been confirmed. Payment method: Pay at Home.`,
-      relatedId: booking._id,
-      relatedType: 'booking'
-    });
+    if (booking.vendorId) {
+      await createNotification({
+        vendorId: booking.vendorId,
+        type: 'booking_confirmed',
+        title: 'Booking Confirmed (Pay at Home)',
+        message: `Booking ${booking.bookingNumber} has been confirmed. Payment method: Pay at Home.`,
+        relatedId: booking._id,
+        relatedType: 'booking'
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -908,11 +1045,13 @@ const getUpgradeDetails = async (req, res) => {
 
 const createPlanOrder = async (req, res) => {
   try {
-    const settings = await Settings.findOne({ type: 'global' }).select('isSubscriptionPaymentEnabled');
-    if (settings && settings.isSubscriptionPaymentEnabled === false) {
+    // User plans are paid online, so they follow the admin's Online Payment toggle
+    // (isSubscriptionPaymentEnabled is the worker-subscription switch).
+    const settings = await Settings.findOne({ type: 'global' }).select('isOnlinePaymentEnabled');
+    if (settings && settings.isOnlinePaymentEnabled === false) {
       return res.status(403).json({
         success: false,
-        message: 'Subscription payment gateway is currently disabled by administrator'
+        message: 'Online payment is currently disabled by administrator'
       });
     }
 
@@ -954,11 +1093,13 @@ const createPlanOrder = async (req, res) => {
 
 const verifyPlanPayment = async (req, res) => {
   try {
-    const settings = await Settings.findOne({ type: 'global' }).select('isSubscriptionPaymentEnabled');
-    if (settings && settings.isSubscriptionPaymentEnabled === false) {
+    // User plans are paid online, so they follow the admin's Online Payment toggle
+    // (isSubscriptionPaymentEnabled is the worker-subscription switch).
+    const settings = await Settings.findOne({ type: 'global' }).select('isOnlinePaymentEnabled');
+    if (settings && settings.isOnlinePaymentEnabled === false) {
       return res.status(403).json({
         success: false,
-        message: 'Subscription payment gateway is currently disabled by administrator'
+        message: 'Online payment is currently disabled by administrator'
       });
     }
 

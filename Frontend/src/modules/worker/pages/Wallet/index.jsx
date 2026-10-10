@@ -108,9 +108,14 @@ const Wallet = () => {
 
       // 1. Create order
       const orderRes = await workerWalletService.createDuesOrder();
-      
+      if (!orderRes.data?.key) {
+        toast.error('Online payment is not available right now. Please try again later.');
+        setDuesPaymentLoading(false);
+        return;
+      }
+
       const options = {
-        key: orderRes.data?.key || import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_SpzpIBZCETVQYD',
+        key: orderRes.data.key,
         amount: orderRes.data.amount * 100,
         currency: orderRes.data.currency,
         name: 'Homster',

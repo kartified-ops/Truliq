@@ -37,16 +37,7 @@ const createBooking = async (req, res) => {
       timeSlot,
       userNotes,
       paymentMethod,
-      amount,
-      isPlusAdded,
       bookedItems, // Array of specific items from cart
-      visitingCharges: reqVisitingCharges,
-      visitationFee: reqVisitationFee, // Backward compatibility
-      basePrice: reqBasePrice,
-      discount: reqDiscount,
-      tax: reqTax,
-      promoCode: reqPromoCode,
-      promoDiscount: reqPromoDiscount,
       // Metadata from frontend
       serviceCategory: reqServiceCategory,
       categoryIcon: reqCategoryIcon,
@@ -59,22 +50,10 @@ const createBooking = async (req, res) => {
       requirementImages
     } = req.body;
 
-    let visitingCharges = reqVisitingCharges ?? reqVisitationFee;
-
-    // Calculate total value from booked items or fallback to base (Move to top)
-    let totalServiceValue = 0;
-    if (bookedItems && bookedItems.length > 0) {
-      totalServiceValue = bookedItems.reduce((sum, item) => {
-        const itemPrice = item.card?.price || item.price || 0;
-        return sum + (itemPrice * (item.quantity || 1));
-      }, 0);
-    }
-    // Note: Fallback to service.basePrice is done later if totalServiceValue is 0 AND service is loaded.
-    // But we need 'service' to define fallback.
-    // 'service' is loaded at line 46.
-    // So we must calculate it AFTER loading service but BEFORE usage.
-    // Usage is at line 98. Service loaded at 46.
-    // So distinct placement: AFTER line 52.
+    // Client-sent price fields (amount, basePrice, discount, tax, visitationFee,
+    // promoDiscount) are deliberately ignored: pricing is recomputed below from the
+    // catalog and global settings so a tampered request cannot lower the price.
+    let visitingCharges = 0;
 
     // Handle serviceId if it's an object (from populated cart data)
     if (typeof serviceId === 'object' && serviceId._id) {
@@ -113,18 +92,42 @@ const createBooking = async (req, res) => {
     const categoryId = service.categoryId || service.categoryIds?.[0];
     const category = categoryId ? await Category.findById(categoryId).select('title icon image slug').lean() : null;
 
-    // Calculate total value from booked items or fallback to service base price
-    if (totalServiceValue === 0) {
-      totalServiceValue = service.basePrice || 500;
-    }
-
     // Check for Pending Penalty
     const pendingPenalty = user.wallet?.penalty || 0;
 
     // --- MOVE SEARCH UP HERE ---
     // Load Global Settings for Flow Control
     const Settings = require('../../models/Settings');
-    const globalSettings = await Settings.findOne({ type: 'global' }).select('searchRadius bookingModel').lean();
+    const globalSettings = await Settings.findOne({ type: 'global' }).select('searchRadius bookingModel serviceGstPercentage visitedCharges').lean();
+
+    // --- SERVER-SIDE ITEM PRICING ---
+    // Each booked item is priced from its UserService record. Items sent without
+    // their own serviceId (older clients) fall back to the booking's main service.
+    const rawItems = (Array.isArray(bookedItems) && bookedItems.length > 0)
+      ? bookedItems
+      : [{ serviceId: service._id, quantity: 1 }];
+    const resolveItemServiceId = (item) => {
+      const id = item?.serviceId?._id || item?.serviceId;
+      return id && mongoose.isValidObjectId(id) ? String(id) : String(service._id);
+    };
+    const itemServiceIds = [...new Set(rawItems.map(resolveItemServiceId))];
+    const catalogServices = await Service.find({ _id: { $in: itemServiceIds } })
+      .select('title basePrice discountPrice categoryId status')
+      .lean();
+    const catalogById = new Map(catalogServices.map(s => [String(s._id), s]));
+    if (catalogById.size !== itemServiceIds.length) {
+      return res.status(400).json({
+        success: false,
+        message: 'Some items in your cart are no longer available. Please refresh your cart.'
+      });
+    }
+    const pricedItems = rawItems.map(item => {
+      const svc = catalogById.get(resolveItemServiceId(item));
+      const quantity = Math.min(Math.max(parseInt(item.quantity, 10) || 1, 1), 50);
+      const unitPrice = Number(svc.discountPrice || svc.basePrice) || 0;
+      const unitOriginal = svc.discountPrice ? (Number(svc.basePrice) || unitPrice) : unitPrice;
+      return { item, svc, quantity, unitPrice, unitOriginal };
+    });
     const bookingModel = globalSettings?.bookingModel || 'worker';
     const searchRadius = globalSettings?.searchRadius || 10;
 
@@ -175,108 +178,65 @@ const createBooking = async (req, res) => {
     // --- END SEARCH BLOCK ---
     // --- END VENDOR SEARCH BLOCK ---
 
-    // Calculate pricing - use amount from frontend if provided, otherwise calculate
     let basePrice, discount, tax, finalAmount;
     let bookingStatus = BOOKING_STATUS.SEARCHING;
     let bookingPaymentStatus = PAYMENT_STATUS.PENDING;
 
     // -------------------------------------------------------------------------
-    // PRICING CALCULATION LOGIC
+    // PRICING CALCULATION LOGIC (server-side only, mirrors the Checkout page)
     // -------------------------------------------------------------------------
 
-    // 1. Determine if we can use Plan Benefits
-    let usePlanBenefits = false;
-    if (paymentMethod === 'plan_benefit') {
-      if (user.plans && user.plans.isActive) {
-        if (user.plans.expiry && new Date() > new Date(user.plans.expiry)) {
-          // Plan expired - update status and FALLBACK to normal
-          console.log(`[CreateBooking] Plan expired for user ${userId}. Falling back to normal booking.`);
-          user.plans.isActive = false;
-          await user.save();
-          paymentMethod = 'pay_at_home'; // Fallback to Pay at Home
-        } else {
-          usePlanBenefits = true;
-        }
+    // 1. Active user plan: covered items (free category or free service) cost 0
+    let userPlan = null;
+    if (user.plans && user.plans.isActive) {
+      if (user.plans.expiry && new Date() > new Date(user.plans.expiry)) {
+        console.log(`[CreateBooking] Plan expired for user ${userId}. Pricing without plan benefits.`);
+        user.plans.isActive = false;
+        await user.save();
       } else {
-        // No active plan or invalid status - Fallback
-        paymentMethod = 'pay_at_home';
+        const Plan = require('../../models/Plan');
+        userPlan = await Plan.findOne({ name: user.plans.name }).select('freeCategories freeServices').lean();
       }
     }
+    const isItemCovered = (svc) => {
+      if (!userPlan) return false;
+      const itemCategoryId = svc.categoryId || categoryId;
+      const categoryCovered = itemCategoryId && (userPlan.freeCategories || [])
+        .some(cat => String(cat) === String(itemCategoryId));
+      const serviceCovered = (userPlan.freeServices || [])
+        .some(s => String(s) === String(svc._id));
+      return categoryCovered || serviceCovered;
+    };
 
-    // 2. Logic Branch: Plan Benefit vs Standard
+    // 2. Totals
+    let itemTotal = 0;
+    let originalTotal = 0;
+    pricedItems.forEach(p => {
+      p.isCovered = isItemCovered(p.svc);
+      originalTotal += p.unitOriginal * p.quantity;
+      if (!p.isCovered) itemTotal += p.unitPrice * p.quantity;
+    });
+
+    const gstPercentage = globalSettings?.serviceGstPercentage ?? 18;
+    basePrice = originalTotal;
+    discount = Math.max(0, originalTotal - itemTotal);
+    tax = Math.round((itemTotal * gstPercentage) / 100);
+    visitingCharges = itemTotal === 0 ? 0 : (globalSettings?.visitedCharges ?? 0);
+    finalAmount = itemTotal + tax + visitingCharges + pendingPenalty;
+
+    const usePlanBenefits = itemTotal === 0 && !!userPlan;
     if (usePlanBenefits) {
-      const Plan = require('../../models/Plan');
-      const userPlan = await Plan.findOne({ name: user.plans.name });
-
-      if (!userPlan) {
-        // Fallback if data missing (rare)
-        usePlanBenefits = false;
-        paymentMethod = 'pay_at_home';
-      } else {
-        // Check Coverage
-        const isCategoryCovered = categoryId && userPlan.freeCategories &&
-          userPlan.freeCategories.some(cat => String(cat) === String(categoryId));
-        const isServiceCovered = serviceId && userPlan.freeServices &&
-          userPlan.freeServices.some(svc => String(svc) === String(serviceId));
-
-        if (isCategoryCovered || isServiceCovered) {
-          // >>> APPLY FREE PRICING <<<
-          basePrice = totalServiceValue > 0 ? totalServiceValue : (service.basePrice || 500);
-          discount = basePrice; // Full discount
-          tax = 0;
-          visitingCharges = 0;
-          finalAmount = pendingPenalty; // User only pays penalty
-
-          bookingStatus = BOOKING_STATUS.SEARCHING;
-          bookingPaymentStatus = finalAmount > 0 ? PAYMENT_STATUS.PENDING : PAYMENT_STATUS.PLAN_COVERED;
-        } else {
-          // Not covered -> Fallback
-          usePlanBenefits = false;
-          paymentMethod = 'pay_at_home';
-        }
-      }
-    }
-
-    // 3. Standard Pricing (Fallback) if NOT using Plan Benefits
-    if (!usePlanBenefits) {
-      if (amount && amount > 0) {
-        // Use amount from frontend logic
-        if (reqBasePrice !== undefined && reqTax !== undefined) {
-          // Use breakdown provided by frontend
-          basePrice = reqBasePrice;
-          discount = reqDiscount || 0;
-          const currentPromoDiscount = reqPromoDiscount || 0;
-          tax = reqTax;
-          visitingCharges = (reqVisitingCharges !== undefined) ? reqVisitingCharges : (visitingCharges ?? 49);
-          finalAmount = Math.max(0, (basePrice - discount - currentPromoDiscount + tax + visitingCharges) + pendingPenalty);
-        } else {
-          // Backward compatibility: Reverse calculate
-          if (!visitingCharges) visitingCharges = 0;
-          basePrice = amount;
-          tax = 0;
-          discount = 0;
-          finalAmount = amount + pendingPenalty;
-        }
-      } else {
-        // Fallback to service pricing (if no amount sent)
-        if (!visitingCharges) visitingCharges = 0;
-        basePrice = service.basePrice || 500;
-        discount = service.discountPrice ? (basePrice - service.discountPrice) : 0;
-        tax = 0;
-        finalAmount = (basePrice - discount + tax + visitingCharges) + pendingPenalty;
-      }
+      paymentMethod = 'plan_benefit';
+      bookingPaymentStatus = finalAmount > 0 ? PAYMENT_STATUS.PENDING : PAYMENT_STATUS.PLAN_COVERED;
+    } else if (paymentMethod === 'plan_benefit') {
+      // Client asked for plan pricing but the plan doesn't cover this cart
+      paymentMethod = 'pay_at_home';
     }
 
     // NOTE: vendor earnings are NOT calculated at booking creation.
     // They are computed ONLY at bill generation (completeSelfJob) and stored in VendorBill.
     // This prevents inconsistency between Booking and VendorBill.
     console.log(`[CreateBooking] Payment=${paymentMethod}, FinalAmount=${finalAmount}, Penalty=${pendingPenalty}`);
-
-    // Clear penalty from user wallet if we charged it
-    if (pendingPenalty > 0) {
-      user.wallet.penalty = 0;
-      await user.save();
-    }
 
     // Ensure minimum amount for Razorpay (₹1) for paid bookings
     if (finalAmount < 1 && paymentMethod !== 'plan_benefit') {
@@ -295,11 +255,18 @@ const createBooking = async (req, res) => {
     }
 
     // Map booked items to new schema (sectionTitle -> brandName)
-    const formattedBookedItems = (Array.isArray(bookedItems) && bookedItems.length > 0) ? bookedItems.map(item => ({
+    // Prices on the stored items come from the catalog, never from the request
+    const formattedBookedItems = (Array.isArray(bookedItems) && bookedItems.length > 0) ? pricedItems.map(({ item, svc, quantity, unitPrice, unitOriginal, isCovered }) => ({
+      serviceId: svc._id,
       brandName: item.brandName || item.sectionTitle || item.brand || '', // Robust fallback
       brandIcon: item.brandIcon || item.sectionIcon || item.icon || null,
-      card: item.card || item,
-      quantity: item.quantity || 1
+      card: {
+        ...(item.card || {}),
+        title: item.card?.title || svc.title,
+        price: isCovered ? 0 : unitPrice,
+        originalPrice: unitOriginal !== unitPrice || isCovered ? unitOriginal : null
+      },
+      quantity
     })) : [];
 
     console.log('[CreateBooking] About to save with formatted items:', JSON.stringify(formattedBookedItems, null, 2));
@@ -344,10 +311,12 @@ const createBooking = async (req, res) => {
       bookedItems: formattedBookedItems,
       basePrice,
       discount,
-      promoCode: reqPromoCode || null,
-      promoDiscount: reqPromoDiscount || 0,
+      // No promo-code system exists server-side, so a client promo discount is never applied
+      promoCode: null,
+      promoDiscount: 0,
       tax,
       visitingCharges,
+      penalty: pendingPenalty,
       finalAmount,
       userPayableAmount: finalAmount,
       address: {
@@ -374,6 +343,16 @@ const createBooking = async (req, res) => {
       paymentStatus: bookingPaymentStatus
       // notifiedVendors will be set after wave sorting
     });
+
+    // The pending penalty now lives on this booking, so clear it from the wallet only
+    // after the booking exists. Matching on the old value avoids wiping a penalty
+    // that was added concurrently. Cancelling this booking restores it.
+    if (pendingPenalty > 0) {
+      await User.updateOne(
+        { _id: userId, 'wallet.penalty': pendingPenalty },
+        { $set: { 'wallet.penalty': 0 } }
+      );
+    }
 
     // --- IMMEDIATE RESPONSE ---
     // Send immediate response to the client. All subsequent operations will run in the background.
@@ -413,19 +392,8 @@ const createBooking = async (req, res) => {
           return;
         }
 
-        // If Plus membership was added, update user status
-        if (isPlusAdded) {
-          const expiryDate = new Date();
-          expiryDate.setFullYear(expiryDate.getFullYear() + 1); // 1 year membership
-          userForBackground.plans = {
-            isActive: true,
-            name: 'Plus Membership',
-            expiry: expiryDate,
-            price: 999 // Or fetch based on constants if needed, hardcoding placeholder or 0
-          };
-          await userForBackground.save();
-          console.log(`User ${userId} upgraded to Plus Membership until ${expiryDate}`);
-        }
+        // isPlusAdded is ignored on purpose: memberships are granted only through a
+        // verified plan payment (/payments/plan/verify), never by a booking flag.
 
         // Partners already found above
         // WAVE-BASED ALERTING: Sort by distance and only notify first wave
@@ -820,6 +788,14 @@ const cancelBooking = async (req, res) => {
       });
     }
 
+    // Once work has started the job can't be walked away from — it goes to billing
+    if ([BOOKING_STATUS.IN_PROGRESS, BOOKING_STATUS.WORK_DONE].includes(booking.status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Work has already started on this booking, so it can no longer be cancelled. Please contact support.'
+      });
+    }
+
     // --- REFUND & CANCELLATION FEE LOGIC ---
     let refundAmount = 0;
     let cancellationFee = 0;
@@ -827,37 +803,40 @@ const cancelBooking = async (req, res) => {
 
     // Fetch dynamic cancellation penalty from Settings
     const Settings = require('../../models/Settings');
-    let settingsPenalty = 49; // Default
+    let settingsPenalty = 0;
+    let settingsVisitFee = 0;
     try {
-      const globalSettings = await Settings.findOne({ type: 'global' });
-      if (globalSettings && globalSettings.cancellationPenalty !== undefined) {
-        settingsPenalty = globalSettings.cancellationPenalty;
-      }
+      const globalSettings = await Settings.findOne({ type: 'global' }).select('cancellationPenalty visitedCharges').lean();
+      settingsPenalty = Number(globalSettings?.cancellationPenalty) || 0;
+      settingsVisitFee = Number(globalSettings?.visitedCharges) || 0;
     } catch (err) {
       console.error('Error fetching settings for cancellation penalty:', err);
     }
 
-    const hasStartedJourney = !!booking.journeyStartedAt;
+    const hasStartedJourney = !!booking.journeyStartedAt || booking.status === BOOKING_STATUS.JOURNEY_STARTED;
     const isPaid = booking.paymentStatus === PAYMENT_STATUS.SUCCESS;
-    const isWalletOrOnline = ['wallet', 'razorpay', 'upi', 'card'].includes(booking.paymentMethod);
-    const isCash = booking.paymentMethod === 'cash';
+    // 'online' is what payment verification stores for Razorpay payments
+    const isWalletOrOnline = ['wallet', 'online', 'razorpay', 'upi', 'card'].includes(booking.paymentMethod);
+    // Penalty from an earlier cancellation that was folded into this booking's amount
+    const carriedPenalty = Number(booking.penalty) || 0;
 
-    if (hasStartedJourney) {
+    if (hasStartedJourney || booking.status === BOOKING_STATUS.VISITED) {
       // SCENARIO: Worker/Vendor already started journey
 
-      const hasReached = !!booking.visitedAt || booking.status === 'visited';
+      const hasReached = !!booking.visitedAt || booking.status === BOOKING_STATUS.VISITED;
 
       if (hasReached) {
-        // Professional Reached -> Full Visiting Charges
-        cancellationFee = booking.visitingCharges ?? 49;
+        // Professional Reached -> Visiting charges (booking's own, else the global setting)
+        cancellationFee = Number(booking.visitingCharges) || settingsVisitFee || settingsPenalty;
       } else {
         // Before Arrival (Journey Started) -> Dynamic Penalty
         cancellationFee = settingsPenalty;
       }
 
       if (isPaid && isWalletOrOnline) {
-        // User paid upfront -> Refund (Total - Fee)
-        refundAmount = Math.max(0, booking.finalAmount - cancellationFee);
+        // User paid upfront -> Refund (Total - Fee). An old penalty collected with
+        // this booking stays collected.
+        refundAmount = Math.max(0, booking.finalAmount - carriedPenalty - cancellationFee);
         refundMessage = `Booking cancelled after ${hasReached ? 'professional arrival' : 'journey start'}. Refund of ₹${refundAmount} initiated (Cancellation Fee: ₹${cancellationFee} deducted).`;
       } else {
         // User hasn't paid (e.g. COD or pending) -> Add Penalty to Wallet for Next Booking
@@ -872,8 +851,8 @@ const cancelBooking = async (req, res) => {
       cancellationFee = 0;
 
       if (isPaid && isWalletOrOnline) {
-        refundAmount = booking.finalAmount;
-        refundMessage = `Booking cancelled successfully. Full refund of ₹${refundAmount} initiated to your wallet.`;
+        refundAmount = Math.max(0, booking.finalAmount - carriedPenalty);
+        refundMessage = `Booking cancelled successfully. Refund of ₹${refundAmount} credited to your wallet.`;
       } else {
         refundAmount = 0;
         refundMessage = 'Booking cancelled successfully.';
@@ -910,7 +889,10 @@ const cancelBooking = async (req, res) => {
       if (claim.modifiedCount === 0) abort({ alreadyCancelled: true });
 
       // Update User Wallet
-      if (refundAmount > 0 || (cancellationFee > 0 && !isPaid)) {
+      // Unpaid booking: the new fee plus any penalty this booking was carrying go
+      // (back) into the penalty bucket, to be charged on the next booking.
+      const penaltyToAdd = isPaid ? 0 : cancellationFee + carriedPenalty;
+      if (refundAmount > 0 || penaltyToAdd > 0) {
         const User = require('../../models/User');
         const Transaction = require('../../models/Transaction');
 
@@ -920,7 +902,7 @@ const cancelBooking = async (req, res) => {
         // 2. Process Cancellation Fee (Add to Penalty Bucket if Unpaid).
         //    No debit transaction here — no money has left yet; the actual charge
         //    happens when the next booking is created.
-        if (cancellationFee > 0 && !isPaid) walletInc['wallet.penalty'] = cancellationFee;
+        if (penaltyToAdd > 0) walletInc['wallet.penalty'] = penaltyToAdd;
 
         const updatedUser = await User.findByIdAndUpdate(
           userId,
@@ -943,8 +925,8 @@ const cancelBooking = async (req, res) => {
           }], { session });
         }
 
-        if (cancellationFee > 0 && !isPaid) {
-          console.log(`[CancelBooking] Added penalty of ₹${cancellationFee} to user ${userId}. Total Penalty: ${updatedUser.wallet.penalty}`);
+        if (penaltyToAdd > 0) {
+          console.log(`[CancelBooking] Added penalty of ₹${penaltyToAdd} to user ${userId}. Total Penalty: ${updatedUser.wallet.penalty}`);
         }
       }
 
@@ -965,12 +947,16 @@ const cancelBooking = async (req, res) => {
     booking.cancellationReason = cancellationReason || 'Cancelled by user';
     if (refundAmount > 0) booking.paymentStatus = PAYMENT_STATUS.REFUNDED;
 
-    // Send cancellation sockets to pending partners if booking was in SEARCHING state
-    if (previousStatus === BOOKING_STATUS.SEARCHING || previousStatus === 'REQUESTED') {
+    // Send cancellation sockets to pending partners if booking was still unassigned
+    if ([BOOKING_STATUS.SEARCHING, BOOKING_STATUS.REQUESTED, BOOKING_STATUS.CONFIRMED].includes(previousStatus)) {
       try {
         const BookingRequest = require('../../models/BookingRequest');
         const pendingRequests = await BookingRequest.find({ bookingId: booking._id, status: 'PENDING' });
-        
+        await BookingRequest.updateMany(
+          { bookingId: booking._id, status: 'PENDING' },
+          { $set: { status: 'EXPIRED', respondedAt: new Date() } }
+        );
+
         const { getIO } = require('../../sockets');
         const io = getIO();
         const { createNotification } = require('../notificationControllers/notificationController');

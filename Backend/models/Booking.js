@@ -105,6 +105,7 @@ const bookingSchema = new mongoose.Schema({
   }],
   // Booked Items (Brand > Card snapshot)
   bookedItems: [{
+    serviceId: { type: mongoose.Schema.Types.ObjectId, ref: 'UserService', default: null },
     brandName: { type: String, default: '' },
     brandIcon: { type: String, default: null },
     serviceName: { type: String, default: '' },

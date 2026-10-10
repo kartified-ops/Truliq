@@ -59,6 +59,8 @@ const BookingDetails = () => {
     email: 'support@Truliq.com',
     phone: ''
   });
+  // Mirrors the backend cancellation fee inputs so the warning shows the real amount
+  const [cancelFeeSettings, setCancelFeeSettings] = useState({ penalty: 0, visitedCharges: 0 });
 
   const socket = useAppNotifications();
 
@@ -68,10 +70,14 @@ const BookingDetails = () => {
       try {
         const response = await api.get('/public/config');
         if (response.data?.success && response.data?.settings) {
-          const { supportEmail, supportPhone } = response.data.settings;
+          const { supportEmail, supportPhone, cancellationPenalty, visitedCharges } = response.data.settings;
           setSupportInfo({
             email: supportEmail || 'help@Truliq.in',
             phone: supportPhone || '+919999999999'
+          });
+          setCancelFeeSettings({
+            penalty: Number(cancellationPenalty) || 0,
+            visitedCharges: Number(visitedCharges) || 0
           });
         }
       } catch (error) {
@@ -271,13 +277,18 @@ const BookingDetails = () => {
   // ... (keep handle methods same) ...
 
   const handleCancelBooking = async () => {
-    // Check if journey has started to determine if a fee applies
-    const journeyStarted = ['journey_started', 'visited', 'in_progress'].includes(booking.status?.toLowerCase());
-    const cancellationFee = booking.visitingCharges || 49;
+    // Same fee rules as the backend: journey started -> cancellation penalty,
+    // professional reached -> visiting charges.
+    const status = booking.status?.toLowerCase();
+    const hasReached = status === 'visited' || !!booking.visitedAt;
+    const journeyStarted = hasReached || status === 'journey_started' || !!booking.journeyStartedAt;
+    const cancellationFee = hasReached
+      ? (Number(booking.visitingCharges) || cancelFeeSettings.visitedCharges || cancelFeeSettings.penalty)
+      : (journeyStarted ? cancelFeeSettings.penalty : 0);
 
-    const modalTitle = journeyStarted ? 'Cancellation Fee Applies' : 'Cancel Booking';
-    const modalMessage = journeyStarted
-      ? `The service agent has already started their journey. Cancelling now will incur a fee of ₹${cancellationFee}, which will be deducted from your wallet or refund amount. Do you want to proceed?`
+    const modalTitle = cancellationFee > 0 ? 'Cancellation Fee Applies' : 'Cancel Booking';
+    const modalMessage = cancellationFee > 0
+      ? `The service agent has already ${hasReached ? 'reached your location' : 'started their journey'}. Cancelling now will incur a fee of ₹${cancellationFee}, which will be deducted from your refund or added to your next booking. Do you want to proceed?`
       : 'Are you sure you want to cancel this booking? You will receive a full refund if applicable. This action cannot be undone.';
 
     setConfirmDialog({
@@ -289,13 +300,14 @@ const BookingDetails = () => {
         try {
           const response = await bookingService.cancel(booking._id || booking.id, 'Cancelled by user');
           if (response.success) {
-            toast.success('Booking cancelled successfully');
+            // Backend message carries the refund / fee outcome
+            toast.success(response.message || 'Booking cancelled successfully', { duration: 5000 });
             loadBooking();
           } else {
             toast.error(response.message || 'Failed to cancel booking');
           }
         } catch (error) {
-          toast.error('Failed to cancel booking. Please try again.');
+          toast.error(error.response?.data?.message || 'Failed to cancel booking. Please try again.');
         }
       }
     });
@@ -316,7 +328,13 @@ const BookingDetails = () => {
         return;
       }
 
-      const rzpKey = orderResponse.data?.key || import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_SpzpIBZCETVQYD';
+      // Key must come from the backend so the admin's test/live setting is honoured
+      const rzpKey = orderResponse.data?.key;
+      if (!rzpKey) {
+        toast.error('Online payment is not available right now. Please choose Pay at Home.');
+        setPaying(false);
+        return;
+      }
 
       if (!window.Razorpay) {
         toast.error('Payment gateway is loading, please try again in a moment');
@@ -1403,7 +1421,7 @@ const BookingDetails = () => {
             </button>
 
             {/* Cancel */}
-            {!['cancelled', 'completed', 'work_done'].includes(booking.status?.toLowerCase()) && (
+            {!['cancelled', 'completed', 'work_done', 'in_progress', 'no_vendors'].includes(booking.status?.toLowerCase()) && (
               <button
                 onClick={handleCancelBooking}
                 className="col-span-2 py-4 rounded-2xl text-red-600 font-bold text-sm bg-red-50 border border-red-100 hover:bg-red-100 transition-colors active:scale-95"

@@ -85,6 +85,19 @@ const getPaymentDetails = async (paymentId) => {
   }
 };
 
+// Capture an 'authorized' payment (needed when auto-capture is off on the account).
+// `amountPaise` must equal the authorized amount.
+const capturePayment = async (paymentId, amountPaise, currency = 'INR') => {
+  try {
+    const { client } = await getClient();
+    if (!client) return { success: false, error: 'Payment gateway not initialized' };
+    const payment = await client.payments.capture(paymentId, amountPaise, currency);
+    return { success: true, payment };
+  } catch (error) {
+    return { success: false, error: error.error?.description || error.message };
+  }
+};
+
 const refundPayment = async (paymentId, amount = null, notes = {}) => {
   try {
     const { client } = await getClient();
@@ -206,6 +219,7 @@ module.exports = {
   verifyPayment,
   getOrderDetails,
   getPaymentDetails,
+  capturePayment,
   refundPayment,
   createQRCode,
   getQRCodePayments,
