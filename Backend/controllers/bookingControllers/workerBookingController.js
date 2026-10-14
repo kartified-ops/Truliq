@@ -573,6 +573,8 @@ const completeJob = async (req, res) => {
     // Reuse existing Payment OTP or generate new one
     const payOtp = booking.paymentOtp || Math.floor(1000 + Math.random() * 9000).toString();
     booking.paymentOtp = payOtp;
+    // Make the bill visible to the customer immediately (worker can still revise it in billing)
+    booking.customerConfirmationOTP = payOtp;
 
     if (workPhotos && Array.isArray(workPhotos)) {
       booking.workPhotos = workPhotos;
@@ -582,6 +584,19 @@ const completeJob = async (req, res) => {
     }
 
     await booking.save();
+
+    // Emit socket event first, before the slower push notifications, so the bill shows instantly
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`user_${booking.userId}`).emit('booking_updated', {
+        bookingId: booking._id,
+        status: BOOKING_STATUS.WORK_DONE,
+        finalAmount: booking.finalAmount,
+        workDoneDetails: booking.workDoneDetails,
+        customerConfirmationOTP: payOtp,
+        paymentOtp: payOtp
+      });
+    }
 
     // Notify user
     const { createNotification } = require('../notificationControllers/notificationController');
@@ -636,15 +651,6 @@ const completeJob = async (req, res) => {
         }
       }) : Promise.resolve()
     ]);
-
-    // Explicitly emit socket event to ensure user gets real-time update
-    const io = req.app.get('io');
-    if (io) {
-      io.to(`user_${booking.userId}`).emit('booking_updated', {
-        bookingId: booking._id,
-        status: BOOKING_STATUS.WORK_DONE
-      });
-    }
 
     res.status(200).json({
       success: true,

@@ -47,6 +47,44 @@ const settingsSchema = new mongoose.Schema({
     min: 0,
     max: 100
   },
+  // Platform fee charged to a direct worker on each completed job (applied on service + parts base).
+  // Default 0 so nothing changes until an admin sets it.
+  workerJobFeeType: {
+    type: String,
+    enum: ['percentage', 'fixed'],
+    default: 'percentage'
+  },
+  workerJobFeePercentage: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 100
+  },
+  workerJobFeeFixed: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  // Worker withdrawal charges (workers are not charged on vendor rates above).
+  // Default 0 so nothing changes until an admin sets them.
+  workerPlatformFeePercentage: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 100
+  },
+  workerPlatformFeeGstPercentage: {
+    type: Number,
+    default: 0, // GST charged on top of the worker platform fee
+    min: 0,
+    max: 100
+  },
+  workerTdsPercentage: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 100
+  },
   vendorCashLimit: {
     type: Number,
     default: 10000,

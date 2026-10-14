@@ -509,7 +509,7 @@ const BillingPage = () => {
       }
     } catch (error) {
       console.error('Online payment error:', error);
-      toast.error('Failed to initiate online payment');
+      toast.error(error.response?.data?.message || 'Failed to initiate online payment');
     } finally {
       setQrLoading(false);
     }

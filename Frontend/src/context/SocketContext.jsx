@@ -139,7 +139,9 @@ export const SocketProvider = ({ children }) => {
       auth: {
         token: currentToken
       },
-      transports: ['polling', 'websocket'], // Try polling first for reliability
+      // WebSocket first: a long-poll holds one of the browser's 6 connections per host
+      // (shared across all tabs), which stalls every API call. Polling is only a fallback.
+      transports: ['websocket', 'polling'],
       path: '/socket.io/',
       secure: true,
       rejectUnauthorized: false,

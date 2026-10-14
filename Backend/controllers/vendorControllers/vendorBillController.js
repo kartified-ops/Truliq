@@ -1,6 +1,7 @@
 const VendorBill = require('../../models/VendorBill');
 const Booking = require('../../models/Booking');
 const VendorServiceCatalog = require('../../models/VendorServiceCatalog');
+const UserService = require('../../models/UserService');
 const VendorPartsCatalog = require('../../models/VendorPartsCatalog');
 const Settings = require('../../models/Settings');
 const { BILL_STATUS } = require('../../utils/constants');
@@ -49,15 +50,26 @@ const createOrUpdateBill = async (req, res) => {
     const isDirectWorkerFlow = booking.bookingModel === 'worker';
 
     const { getWorkerServiceSplitPct } = require('../../services/promotionalOfferService');
-    const existingServiceSplit = isDirectWorkerFlow ? 100 : (settings?.servicePayoutPercentage ?? DEFAULT_SERVICE_PAYOUT_PCT);
-    const existingPartsSplit = isDirectWorkerFlow ? 100 : (settings?.partsPayoutPercentage ?? 10);
+    // Direct worker: admin-configured job platform fee (percentage or fixed ₹), waived during a free-fee promo
+    const { isFreePlatformFeeActive } = require('../../services/promotionalOfferService');
+    const workerFeeWaived = isDirectWorkerFlow && booking.workerId
+      ? await isFreePlatformFeeActive(booking.workerId)
+      : false;
+    const workerFeeIsFixed = isDirectWorkerFlow && !workerFeeWaived && settings?.workerJobFeeType === 'fixed';
+    const workerFeePct = isDirectWorkerFlow && !workerFeeWaived && !workerFeeIsFixed
+      ? Math.min(100, Math.max(0, Number(settings?.workerJobFeePercentage) || 0))
+      : 0;
+    const workerFixedFee = workerFeeIsFixed ? Math.max(0, Number(settings?.workerJobFeeFixed) || 0) : 0;
+
+    const existingServiceSplit = isDirectWorkerFlow ? 100 - workerFeePct : (settings?.servicePayoutPercentage ?? DEFAULT_SERVICE_PAYOUT_PCT);
+    const existingPartsSplit = isDirectWorkerFlow ? 100 - workerFeePct : (settings?.partsPayoutPercentage ?? 10);
     const serviceSplitPct = isDirectWorkerFlow
       ? await getWorkerServiceSplitPct({
         workerId: booking.workerId,
         existingSplitPct: existingServiceSplit
       })
       : existingServiceSplit;
-    const partsSplitPct = isDirectWorkerFlow ? 100 : existingPartsSplit;
+    const partsSplitPct = isDirectWorkerFlow ? (serviceSplitPct === 100 ? 100 : existingPartsSplit) : existingPartsSplit;
     const serviceGstPct = 0;
     const partsGstPct = 0;
 
@@ -82,6 +94,11 @@ const createOrUpdateBill = async (req, res) => {
         let catalogItem = null;
         if (item.catalogId) {
           catalogItem = await VendorServiceCatalog.findById(item.catalogId);
+          if (!catalogItem) {
+            // Admin-managed service picked from the worker catalog
+            const adminService = await UserService.findById(item.catalogId).select('title basePrice').lean();
+            if (adminService) catalogItem = { name: adminService.title, price: adminService.basePrice };
+          }
         }
 
         const name = catalogItem ? catalogItem.name : item.name;
@@ -200,8 +217,14 @@ const createOrUpdateBill = async (req, res) => {
     // ═══════════════════════════════════════
     // 5. REVENUE SPLIT (% applied on BASE only)
     // ═══════════════════════════════════════
-    const vendorServiceEarning = parseFloat(((totalServiceBaseForEarnings * serviceSplitPct) / 100).toFixed(2));
-    const vendorPartsEarning = parseFloat(((totalPartsBase * partsSplitPct) / 100).toFixed(2));
+    let vendorServiceEarning = parseFloat(((totalServiceBaseForEarnings * serviceSplitPct) / 100).toFixed(2));
+    let vendorPartsEarning = parseFloat(((totalPartsBase * partsSplitPct) / 100).toFixed(2));
+    if (workerFixedFee > 0) {
+      // Fixed ₹ platform fee per job: take from service earning first, then parts
+      const fromService = Math.min(workerFixedFee, vendorServiceEarning);
+      vendorServiceEarning = parseFloat((vendorServiceEarning - fromService).toFixed(2));
+      vendorPartsEarning = parseFloat(Math.max(0, vendorPartsEarning - (workerFixedFee - fromService)).toFixed(2));
+    }
     const vendorTotalEarning = parseFloat((vendorServiceEarning + vendorPartsEarning).toFixed(2));
     const companyRevenue = parseFloat((grandTotal - vendorTotalEarning).toFixed(2));
 

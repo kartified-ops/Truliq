@@ -686,9 +686,9 @@ module.exports = {
 
         // Fetch global settings for rates
         const settings = await Settings.findOne({ type: 'global' }).session(session);
-        // Workers have no TDS/Platform fee under simplified flow
-        const tdsRate = isWorker ? 0 : (settings?.tdsPercentage || 1);
-        const existingPlatformFeeRate = isWorker ? 0 : (settings?.platformFeePercentage || 1);
+        // Workers use their own admin-configured rates (default 0); vendors keep the vendor rates
+        const tdsRate = isWorker ? (settings?.workerTdsPercentage ?? 0) : (settings?.tdsPercentage || 1);
+        const existingPlatformFeeRate = isWorker ? (settings?.workerPlatformFeePercentage ?? 0) : (settings?.platformFeePercentage || 1);
         const { getWorkerWithdrawalPlatformFeeRate } = require('../../services/promotionalOfferService');
         const platformFeeRate = await getWorkerWithdrawalPlatformFeeRate({
           workerId: existing.workerId,
@@ -703,7 +703,10 @@ module.exports = {
         const grossAmount = existing.amount;
         const tdsAmount = Math.round((grossAmount * tdsRate) / 100);
         const platformFeeAmount = Math.round((grossAmount * platformFeeRate) / 100);
-        const netAmount = grossAmount - tdsAmount - platformFeeAmount;
+        // GST on the platform fee applies to workers only
+        const platformFeeGstRate = isWorker ? (settings?.workerPlatformFeeGstPercentage ?? 0) : 0;
+        const platformFeeGstAmount = Math.round((platformFeeAmount * platformFeeGstRate) / 100);
+        const netAmount = grossAmount - tdsAmount - platformFeeAmount - platformFeeGstAmount;
 
         // ATOMIC CLAIM on 'pending': two admins hitting approve at the same moment
         // would otherwise both pass a read-then-check and pay out twice.
@@ -720,6 +723,8 @@ module.exports = {
               tdsAmount,
               platformFeeRate,
               platformFeeAmount,
+              platformFeeGstRate,
+              platformFeeGstAmount,
               netAmount
             }
           },
@@ -763,6 +768,8 @@ module.exports = {
             tdsAmount,
             platformFeeRate,
             platformFeeAmount,
+            platformFeeGstRate,
+            platformFeeGstAmount,
             netAmount
           }
         }], { session });
@@ -805,9 +812,29 @@ module.exports = {
           }], { session });
         }
 
+        // Transaction 4: GST on Platform Fee (workers)
+        if (platformFeeGstAmount > 0) {
+          await Transaction.create([{
+            [userTypeField]: userRecord._id,
+            type: 'gst',
+            amount: platformFeeGstAmount,
+            status: 'completed',
+            paymentMethod: 'system',
+            description: `GST (${platformFeeGstRate}%) on platform fee for withdrawal of ₹${grossAmount}`,
+            referenceId: transactionReference,
+            metadata: {
+              withdrawalId: withdrawal._id,
+              grossAmount,
+              platformFeeAmount,
+              platformFeeGstRate,
+              netAmountTransferred: netAmount
+            }
+          }], { session });
+        }
+
         return {
           withdrawal, userRecord, grossAmount, netAmount,
-          tdsRate, tdsAmount, platformFeeRate, platformFeeAmount,
+          tdsRate, tdsAmount, platformFeeRate, platformFeeAmount, platformFeeGstRate, platformFeeGstAmount,
           isWorker, targetId
         };
       });
@@ -824,7 +851,7 @@ module.exports = {
 
       const {
         withdrawal, userRecord, grossAmount, netAmount,
-        tdsRate, tdsAmount, platformFeeRate, platformFeeAmount,
+        tdsRate, tdsAmount, platformFeeRate, platformFeeAmount, platformFeeGstRate, platformFeeGstAmount,
         isWorker, targetId
       } = outcome;
 
@@ -861,6 +888,8 @@ module.exports = {
           tdsAmount,
           platformFeeRate,
           platformFeeAmount,
+          platformFeeGstRate,
+          platformFeeGstAmount,
           netAmount,
           transactionReference
         }

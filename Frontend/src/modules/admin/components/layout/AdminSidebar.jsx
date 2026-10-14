@@ -202,9 +202,13 @@ const AdminSidebar = ({ isOpen, onClose }) => {
 
   // Fetch pending counts for badges
   useEffect(() => {
+    let inFlight = false;
     const fetchCounts = async () => {
+      // Skip when a previous call is still running or the tab is in the background
+      if (inFlight || document.hidden) return;
+      inFlight = true;
       try {
-        const response = await dashboardService.getStats();
+        const response = await dashboardService.getCounts();
         if (response.success && response.data?.stats) {
           const stats = response.data.stats;
           setCounts({
@@ -217,6 +221,8 @@ const AdminSidebar = ({ isOpen, onClose }) => {
         }
       } catch (error) {
         console.error("Error fetching sidebar counts:", error);
+      } finally {
+        inFlight = false;
       }
     };
 

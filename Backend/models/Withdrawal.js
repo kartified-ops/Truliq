@@ -65,6 +65,14 @@ const withdrawalSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  platformFeeGstRate: {
+    type: Number,
+    default: 0
+  },
+  platformFeeGstAmount: {
+    type: Number,
+    default: 0
+  },
   netAmount: {
     type: Number, // Amount actually transferred to vendor (amount - tdsAmount - platformFeeAmount)
     default: 0

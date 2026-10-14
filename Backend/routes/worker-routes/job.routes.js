@@ -22,6 +22,7 @@ const {
   getBillByBookingId
 } = require('../../controllers/vendorControllers/vendorBillController');
 const VendorServiceCatalog = require('../../models/VendorServiceCatalog');
+const UserService = require('../../models/UserService');
 const VendorPartsCatalog = require('../../models/VendorPartsCatalog');
 
 // Validation rules
@@ -65,7 +66,29 @@ router.get('/jobs/:id/bill', authenticate, isWorker, (req, res, next) => {
 // Catalog Routes (for billing)
 router.get('/catalog/services', authenticate, isWorker, async (req, res) => {
   try {
-    const services = await VendorServiceCatalog.find({ status: 'active' }).populate('categoryId', 'title').sort({ name: 1 });
+    const catalogServices = await VendorServiceCatalog.find({ status: 'active' }).populate('categoryId', 'title').sort({ name: 1 }).lean();
+
+    // Also offer the admin-managed services (with the admin's price) so a worker can
+    // add them to a bill. Their category comes from the brand they belong to.
+    const adminServices = await UserService.find({ status: 'active' })
+      .populate('categoryId', 'title')
+      .populate({ path: 'brandId', select: 'title categoryIds', populate: { path: 'categoryIds', select: 'title' } })
+      .lean();
+
+    const mappedAdminServices = adminServices.map((svc) => {
+      const category = svc.categoryId?.title ? svc.categoryId : svc.brandId?.categoryIds?.[0];
+      return {
+        _id: svc._id,
+        name: svc.brandId?.title ? `${svc.title} (${svc.brandId.title})` : svc.title,
+        price: svc.basePrice,
+        status: svc.status,
+        description: svc.description,
+        categoryId: category ? { _id: category._id, title: category.title } : undefined
+      };
+    });
+
+    const services = [...catalogServices, ...mappedAdminServices]
+      .sort((a, b) => String(a.name).localeCompare(String(b.name)));
     res.status(200).json({ success: true, services });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to fetch services catalog' });

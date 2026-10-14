@@ -22,6 +22,12 @@ const AdminSettings = ({ defaultView = 'main' }) => {
     cancellationPenalty: 49,
     tdsPercentage: 1,
     platformFeePercentage: 1,
+    workerPlatformFeePercentage: 0,
+    workerPlatformFeeGstPercentage: 0,
+    workerTdsPercentage: 0,
+    workerJobFeeType: 'percentage',
+    workerJobFeePercentage: 0,
+    workerJobFeeFixed: 0,
     maxSearchTime: 5,
     waveDuration: 60,
     searchRadius: 10,
@@ -142,6 +148,12 @@ const AdminSettings = ({ defaultView = 'main' }) => {
             partsPayoutPercentage: res.settings.partsPayoutPercentage ?? 100,
             tdsPercentage: res.settings.tdsPercentage || 1,
             platformFeePercentage: res.settings.platformFeePercentage || 1,
+            workerPlatformFeePercentage: res.settings.workerPlatformFeePercentage ?? 0,
+            workerPlatformFeeGstPercentage: res.settings.workerPlatformFeeGstPercentage ?? 0,
+            workerTdsPercentage: res.settings.workerTdsPercentage ?? 0,
+            workerJobFeeType: res.settings.workerJobFeeType || 'percentage',
+            workerJobFeePercentage: res.settings.workerJobFeePercentage ?? 0,
+            workerJobFeeFixed: res.settings.workerJobFeeFixed ?? 0,
             vendorCashLimit: res.settings.vendorCashLimit || 10000,
             cancellationPenalty: res.settings.cancellationPenalty !== undefined ? res.settings.cancellationPenalty : 49,
             searchRadius: res.settings.searchRadius || 10,
@@ -715,6 +727,65 @@ const AdminSettings = ({ defaultView = 'main' }) => {
                       <input type="number" name="platformFeePercentage" value={financialSettings.platformFeePercentage} onChange={handleFinancialChange}
                         className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-green-500 transition-all" />
                       <p className="text-[10px] text-gray-400 mt-1">Fee charged on {providerLabel.toLowerCase()} withdrawals</p>
+                    </div>
+                    <div className="pt-4 border-t border-gray-100 md:col-span-2">
+                      <h4 className="text-xs font-bold text-gray-700 uppercase mb-1">Worker Job Platform Fee</h4>
+                      <p className="text-[10px] text-gray-400 mb-3">Deducted from the worker's earning on every completed job (service + parts). Leave 0 for no charge.</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Fee Type</label>
+                          <select value={financialSettings.workerJobFeeType}
+                            onChange={(e) => setFinancialSettings(prev => ({ ...prev, workerJobFeeType: e.target.value }))}
+                            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-green-500 transition-all">
+                            <option value="percentage">Percentage (%)</option>
+                            <option value="fixed">Fixed amount (₹)</option>
+                          </select>
+                        </div>
+                        {financialSettings.workerJobFeeType === 'fixed' ? (
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Fixed Fee per Job (₹)</label>
+                            <input type="number" name="workerJobFeeFixed" value={financialSettings.workerJobFeeFixed} onChange={handleFinancialChange}
+                              min="0"
+                              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-green-500 transition-all" />
+                            <p className="text-[10px] text-gray-400 mt-1">Flat ₹ taken from the worker on each job</p>
+                          </div>
+                        ) : (
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Fee per Job (%)</label>
+                            <input type="number" name="workerJobFeePercentage" value={financialSettings.workerJobFeePercentage} onChange={handleFinancialChange}
+                              min="0" max="100"
+                              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-green-500 transition-all" />
+                            <p className="text-[10px] text-gray-400 mt-1">% of the job's service + parts amount</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="pt-4 border-t border-gray-100 md:col-span-2">
+                      <h4 className="text-xs font-bold text-gray-700 uppercase mb-1">Worker Withdrawal Charges</h4>
+                      <p className="text-[10px] text-gray-400 mb-3">Deducted when a worker's withdrawal is approved. Leave 0 for no charge.</p>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Worker Platform Fee (%)</label>
+                          <input type="number" name="workerPlatformFeePercentage" value={financialSettings.workerPlatformFeePercentage} onChange={handleFinancialChange}
+                            min="0" max="100"
+                            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-green-500 transition-all" />
+                          <p className="text-[10px] text-gray-400 mt-1">% of the withdrawal amount</p>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">GST on Platform Fee (%)</label>
+                          <input type="number" name="workerPlatformFeeGstPercentage" value={financialSettings.workerPlatformFeeGstPercentage} onChange={handleFinancialChange}
+                            min="0" max="100"
+                            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-green-500 transition-all" />
+                          <p className="text-[10px] text-gray-400 mt-1">Charged on top of the platform fee</p>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Worker TDS (%)</label>
+                          <input type="number" name="workerTdsPercentage" value={financialSettings.workerTdsPercentage} onChange={handleFinancialChange}
+                            min="0" max="100"
+                            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-green-500 transition-all" />
+                          <p className="text-[10px] text-gray-400 mt-1">% of the withdrawal amount</p>
+                        </div>
+                      </div>
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Cancellation Penalty (₹)</label>

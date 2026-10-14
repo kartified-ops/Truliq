@@ -35,6 +35,12 @@ exports.updateSettings = async (req, res, next) => {
       partsPayoutPercentage,
       tdsPercentage,
       platformFeePercentage,
+      workerPlatformFeePercentage,
+      workerPlatformFeeGstPercentage,
+      workerTdsPercentage,
+      workerJobFeeType,
+      workerJobFeePercentage,
+      workerJobFeeFixed,
       vendorCashLimit, // Add this
       cancellationPenalty,
       razorpayKeyId,
@@ -71,6 +77,12 @@ exports.updateSettings = async (req, res, next) => {
         partsPayoutPercentage,
         tdsPercentage,
         platformFeePercentage,
+        workerPlatformFeePercentage,
+        workerPlatformFeeGstPercentage,
+        workerTdsPercentage,
+        workerJobFeeType,
+        workerJobFeePercentage,
+        workerJobFeeFixed,
         vendorCashLimit, // Add this
         cancellationPenalty,
         razorpayKeyId,
@@ -92,6 +104,12 @@ exports.updateSettings = async (req, res, next) => {
       if (partsPayoutPercentage !== undefined) settings.partsPayoutPercentage = partsPayoutPercentage;
       if (tdsPercentage !== undefined) settings.tdsPercentage = tdsPercentage;
       if (platformFeePercentage !== undefined) settings.platformFeePercentage = platformFeePercentage;
+      if (workerPlatformFeePercentage !== undefined) settings.workerPlatformFeePercentage = workerPlatformFeePercentage;
+      if (workerPlatformFeeGstPercentage !== undefined) settings.workerPlatformFeeGstPercentage = workerPlatformFeeGstPercentage;
+      if (workerTdsPercentage !== undefined) settings.workerTdsPercentage = workerTdsPercentage;
+      if (workerJobFeeType !== undefined) settings.workerJobFeeType = workerJobFeeType;
+      if (workerJobFeePercentage !== undefined) settings.workerJobFeePercentage = workerJobFeePercentage;
+      if (workerJobFeeFixed !== undefined) settings.workerJobFeeFixed = workerJobFeeFixed;
       if (vendorCashLimit !== undefined) settings.vendorCashLimit = vendorCashLimit; // Add this
       if (cancellationPenalty !== undefined) settings.cancellationPenalty = cancellationPenalty;
       if (razorpayKeyId !== undefined) settings.razorpayKeyId = razorpayKeyId;

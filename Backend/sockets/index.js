@@ -17,6 +17,10 @@ const initializeSocket = (server) => {
           'https://www.homster.in',
           'https://homster.in',
           'https://api.homster.in',
+          // Local dev origins (same as the HTTP CORS list in server.js)
+          'http://localhost:5173',
+          'http://localhost:5174',
+          'http://127.0.0.1:5173',
           ''
         ];
         

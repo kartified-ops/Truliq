@@ -238,8 +238,11 @@ const createBooking = async (req, res) => {
     // This prevents inconsistency between Booking and VendorBill.
     console.log(`[CreateBooking] Payment=${paymentMethod}, FinalAmount=${finalAmount}, Penalty=${pendingPenalty}`);
 
-    // Ensure minimum amount for Razorpay (₹1) for paid bookings
-    if (finalAmount < 1 && paymentMethod !== 'plan_benefit') {
+    // Razorpay can't create an order below ₹1, so only online bookings get that floor.
+    // A free booking (₹0) paid at home / by plan stays ₹0 so every screen shows the same amount;
+    // the real amount is set later when the professional generates the bill.
+    const isOnlinePayment = ['online', 'razorpay', 'upi', 'card'].includes(paymentMethod);
+    if (finalAmount < 1 && isOnlinePayment) {
       finalAmount = 1;
     }
 

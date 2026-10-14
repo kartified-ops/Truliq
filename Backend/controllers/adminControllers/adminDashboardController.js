@@ -298,6 +298,46 @@ const getDashboardStats = async (req, res) => {
 };
 
 /**
+ * Lightweight pending counts for the admin sidebar badges
+ * (the full dashboard stats run 13 queries and are far too heavy to poll)
+ */
+const getSidebarCounts = async (req, res) => {
+  try {
+    const cityFilter = getCityQueryFilter(req, 'address.city');
+
+    const [pendingBookings, pendingVendors, pendingWithdrawals, pendingSettlements, pendingScraps] = await Promise.all([
+      Booking.countDocuments({
+        status: {
+          $in: [
+            BOOKING_STATUS.PENDING,
+            BOOKING_STATUS.SEARCHING,
+            BOOKING_STATUS.REQUESTED,
+            BOOKING_STATUS.AWAITING_PAYMENT,
+            'pending',
+            'searching',
+            'requested',
+            'awaiting_payment'
+          ]
+        },
+        ...cityFilter
+      }),
+      Vendor.countDocuments({ approvalStatus: VENDOR_STATUS.PENDING, ...cityFilter }),
+      Withdrawal.countDocuments({ status: 'pending' }),
+      Settlement.countDocuments({ status: 'pending' }),
+      Scrap.countDocuments({ status: 'pending' })
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: { stats: { pendingBookings, pendingVendors, pendingWithdrawals, pendingSettlements, pendingScraps } }
+    });
+  } catch (error) {
+    console.error('Get sidebar counts error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch counts.' });
+  }
+};
+
+/**
  * Get revenue analytics
  */
 const getRevenueAnalytics = async (req, res) => {
@@ -559,6 +599,7 @@ const getUserGrowthMetrics = async (req, res) => {
 
 module.exports = {
   getDashboardStats,
+  getSidebarCounts,
   getRevenueAnalytics,
   getBookingTrends,
   getUserGrowthMetrics

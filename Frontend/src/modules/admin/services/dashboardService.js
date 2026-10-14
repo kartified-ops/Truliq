@@ -13,6 +13,14 @@ const dashboardService = {
   },
 
   /**
+   * Lightweight pending counts for sidebar badges
+   */
+  getCounts: async () => {
+    const response = await api.get('/admin/dashboard/counts');
+    return response.data;
+  },
+
+  /**
    * Get revenue analytics
    * @param {Object} params - period (daily, weekly, monthly), startDate, endDate
    */
