@@ -356,8 +356,9 @@ exports.confirmCashCollection = async (req, res) => {
       }
 
       // Update Booking
-      booking.finalAmount = collectionAmount;
-      booking.userPayableAmount = collectionAmount;
+      // Bill (if any) is the source of truth; grandTotal equals collectionAmount when there is no bill
+      booking.finalAmount = grandTotal;
+      booking.userPayableAmount = grandTotal;
       booking.cashCollected = true;
       booking.cashCollectedAt = new Date();
       booking.cashCollectedBy = userRole === 'vendor' ? 'vendor' : 'worker';
