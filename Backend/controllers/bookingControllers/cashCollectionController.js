@@ -6,6 +6,7 @@ const Transaction = require('../../models/Transaction');
 const { PAYMENT_STATUS, BOOKING_STATUS } = require('../../utils/constants');
 const { recordBookingEarning } = require('../../services/earningTrackerService');
 const { getCommissionRates } = require('../../utils/commission');
+const { workerKeepsFromBill } = require('../../utils/userPlatformFee');
 const { withTransaction, abort } = require('../../utils/withTransaction');
 const { createQRCode, getQRCodePayments } = require('../../services/razorpayService');
 
@@ -347,7 +348,7 @@ exports.confirmCashCollection = async (req, res) => {
 
       if (bill) {
         const isWorkerBookingLocal = booking.bookingModel === 'worker';
-        vendorEarning = isWorkerBookingLocal ? Number(bill.grandTotal) : (Number(bill.vendorTotalEarning) || 0);
+        vendorEarning = isWorkerBookingLocal ? workerKeepsFromBill(bill) : (Number(bill.vendorTotalEarning) || 0);
         grandTotal = Number(bill.grandTotal) || 0;
 
         // Sync booking fields from bill to ensure data consistency
@@ -471,8 +472,9 @@ exports.confirmCashCollection = async (req, res) => {
         if (worker) {
           // For cash collection: Worker gets the money in hand, so they owe Admin the difference (Total - Earning)
           const isWorkerBookingLocal = booking.bookingModel === 'worker';
-          const workerEarning = isWorkerBookingLocal ? grandTotal : vendorEarning;
-          const adminShare = isWorkerBookingLocal ? 0 : (grandTotal - workerEarning);
+          const workerEarning = isWorkerBookingLocal ? (bill ? workerKeepsFromBill(bill) : grandTotal) : vendorEarning;
+          // Customer platform fee (+GST) is company money: the worker collected it in cash, so it is owed to admin
+          const adminShare = parseFloat((grandTotal - workerEarning).toFixed(2));
 
           // LOGIC:
           // 1. Worker collected CASH: They have their share (workerEarning) in hand.
@@ -666,7 +668,7 @@ exports.verifyOnlinePayment = async (req, res) => {
           let vendorEarning = 0;
           if (bill) {
             const isWorkerBooking = bk.bookingModel === 'worker';
-            vendorEarning = isWorkerBooking ? bill.grandTotal : bill.vendorTotalEarning;
+            vendorEarning = isWorkerBooking ? workerKeepsFromBill(bill) : bill.vendorTotalEarning;
 
             // Sync booking fields from bill to ensure data consistency
             bk.basePrice = bill.originalServiceBase;
@@ -881,7 +883,7 @@ exports.confirmManualOnlinePayment = async (req, res) => {
       let vendorEarning = 0;
       if (bill) {
         const isWorkerBooking = booking.bookingModel === 'worker';
-        vendorEarning = isWorkerBooking ? bill.grandTotal : bill.vendorTotalEarning;
+        vendorEarning = isWorkerBooking ? workerKeepsFromBill(bill) : bill.vendorTotalEarning;
 
         // Sync booking fields from bill to ensure data consistency
         booking.basePrice = bill.originalServiceBase;

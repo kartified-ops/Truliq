@@ -9,6 +9,7 @@ const { createNotification } = require('../notificationControllers/notificationC
 const { recordBookingEarning } = require('../../services/earningTrackerService');
 const { withTransaction, abort } = require('../../utils/withTransaction');
 const { confirmGatewayPayment } = require('../../utils/confirmGatewayPayment');
+const { workerKeepsFromBill } = require('../../utils/userPlatformFee');
 
 /**
  * Create Razorpay order for booking payment
@@ -227,7 +228,7 @@ const verifyPaymentWebhook = async (req, res) => {
       const isWorkerBooking = booking.bookingModel === 'worker';
 
       if (bill) {
-        const partnerEarning = isWorkerBooking ? bill.grandTotal : bill.vendorTotalEarning;
+        const partnerEarning = isWorkerBooking ? workerKeepsFromBill(bill) : bill.vendorTotalEarning;
 
         // Mark bill as paid
         bill.status = 'paid';
@@ -508,7 +509,7 @@ const processWalletPayment = async (req, res) => {
       const isWorkerBooking = booking.bookingModel === 'worker';
 
       if (bill) {
-        const partnerEarning = isWorkerBooking ? bill.grandTotal : bill.vendorTotalEarning;
+        const partnerEarning = isWorkerBooking ? workerKeepsFromBill(bill) : bill.vendorTotalEarning;
 
         // Mark bill as paid
         bill.status = 'paid';

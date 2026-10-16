@@ -18,6 +18,7 @@ import {
 } from 'react-icons/fi';
 import { bookingService } from '../../../../services/bookingService';
 import { configService } from '../../../../services/configService';
+
 import NotificationBell from '../../components/common/NotificationBell';
 import ConfirmDialog from '../../../../components/common/ConfirmDialog';
 import { useAppNotifications } from '../../../../hooks/useAppNotifications';
@@ -500,6 +501,20 @@ const BookingConfirmation = () => {
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-green-600 font-medium">Discount</span>
                   <span className="font-medium text-green-600">-₹{booking.discount.toLocaleString('en-IN')}</span>
+                </div>
+              )}
+
+              {/* Customer platform fee (+GST on it) — hidden when 0 */}
+              {(booking.platformFee || 0) > 0 && (
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-500">Platform Fee</span>
+                  <span className="font-medium text-slate-700">₹{(booking.platformFee || 0).toLocaleString('en-IN')}</span>
+                </div>
+              )}
+              {(booking.platformFeeGst || 0) > 0 && (
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-500">GST on Platform Fee</span>
+                  <span className="font-medium text-slate-700">₹{(booking.platformFeeGst || 0).toLocaleString('en-IN')}</span>
                 </div>
               )}
 

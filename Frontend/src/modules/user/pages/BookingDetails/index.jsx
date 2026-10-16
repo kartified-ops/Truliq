@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { platformFeeLabel } from '../../../../utils/userPlatformFee';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import useAppNotifications from '../../../../hooks/useAppNotifications';
@@ -569,6 +570,28 @@ const BookingDetails = () => {
 
   // Final Total
   const hasBill = !!bill;
+
+  // Customer platform fee (+GST on it): from the bill when one exists, otherwise what was stored on the booking.
+  // Each is hidden when its amount is 0.
+  const platformFeeAmt = Number(bill ? bill.userPlatformFee : booking.platformFee) || 0;
+  const platformFeeGstAmt = Number(bill ? bill.userPlatformFeeGst : booking.platformFeeGst) || 0;
+  const platformFeeCfg = bill?.userPlatformFeeConfig || {};
+  const feeRows = (
+    <>
+      {platformFeeAmt > 0 && (
+        <div className="flex justify-between items-center text-gray-600">
+          <span>{platformFeeLabel({ type: platformFeeCfg.type, rate: platformFeeCfg.rate })}</span>
+          <span className="font-mono text-xs">₹{platformFeeAmt.toFixed(2)}</span>
+        </div>
+      )}
+      {platformFeeGstAmt > 0 && (
+        <div className="flex justify-between items-center text-gray-600">
+          <span>GST on Platform Fee{platformFeeCfg.gstRate ? ' (' + platformFeeCfg.gstRate + '%)' : ''}</span>
+          <span className="font-mono text-xs">₹{platformFeeGstAmt.toFixed(2)}</span>
+        </div>
+      )}
+    </>
+  );
   const finalTotal = bill?.grandTotal || (booking.finalAmount || booking.totalAmount || 0);
 
   // --------------------------------------
@@ -1264,6 +1287,10 @@ const BookingDetails = () => {
 
 
 
+                      {(platformFeeAmt > 0 || platformFeeGstAmt > 0) && (
+                        <div className="mt-2 pt-2 border-t border-gray-100 space-y-2">{feeRows}</div>
+                      )}
+
                       {/* Transport Charges */}
                       {bill?.transportCharges > 0 && (
                         <div className="mt-2 pt-2 border-t border-gray-100">
@@ -1297,7 +1324,7 @@ const BookingDetails = () => {
                       <div className="pt-4 mt-2 border-t-2 border-gray-100 flex justify-between items-center">
                         <span className="font-bold text-gray-900 text-lg">Grand Total</span>
                         <span className="font-black text-teal-700 text-2xl">
-                          ₹{(bill?.grandTotal ?? (originalBase + extraServiceBase + originalGST + extraServiceGST + partsBase + partsGST + (bill?.transportCharges || 0))).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          ₹{(bill?.grandTotal ?? (originalBase + extraServiceBase + originalGST + extraServiceGST + partsBase + partsGST + platformFeeAmt + platformFeeGstAmt + (bill?.transportCharges || 0))).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
 
                       </div>
@@ -1348,6 +1375,8 @@ const BookingDetails = () => {
                           </div>
                         </div>
                       )}
+
+                      {feeRows}
 
                       <div className="pt-4 mt-2 border-t border-gray-100 flex justify-between items-center">
                         <span className="font-bold text-gray-900 text-lg">Total Payable</span>

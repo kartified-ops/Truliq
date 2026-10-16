@@ -31,6 +31,10 @@ const getSettings = async (req, res) => {
         global: {
           serviceGstPercentage: globalSettings?.serviceGstPercentage ?? 0,
           partsGstPercentage: globalSettings?.partsGstPercentage ?? 0,
+          userPlatformFeeType: globalSettings?.userPlatformFeeType ?? 'percentage',
+          userPlatformFeePercentage: globalSettings?.userPlatformFeePercentage ?? 0,
+          userPlatformFeeFixed: globalSettings?.userPlatformFeeFixed ?? 0,
+          userPlatformFeeGstPercentage: globalSettings?.userPlatformFeeGstPercentage ?? 0,
           servicePayoutPercentage: globalSettings?.servicePayoutPercentage ?? DEFAULT_SERVICE_PAYOUT_PCT,
           partsPayoutPercentage: globalSettings?.partsPayoutPercentage ?? 10
         }

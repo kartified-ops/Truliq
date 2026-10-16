@@ -25,6 +25,10 @@ const AdminSettings = ({ defaultView = 'main' }) => {
     workerPlatformFeePercentage: 0,
     workerPlatformFeeGstPercentage: 0,
     workerTdsPercentage: 0,
+    userPlatformFeeType: 'percentage',
+    userPlatformFeePercentage: 0,
+    userPlatformFeeFixed: 0,
+    userPlatformFeeGstPercentage: 0,
     workerJobFeeType: 'percentage',
     workerJobFeePercentage: 0,
     workerJobFeeFixed: 0,
@@ -151,6 +155,10 @@ const AdminSettings = ({ defaultView = 'main' }) => {
             workerPlatformFeePercentage: res.settings.workerPlatformFeePercentage ?? 0,
             workerPlatformFeeGstPercentage: res.settings.workerPlatformFeeGstPercentage ?? 0,
             workerTdsPercentage: res.settings.workerTdsPercentage ?? 0,
+            userPlatformFeeType: res.settings.userPlatformFeeType || 'percentage',
+            userPlatformFeePercentage: res.settings.userPlatformFeePercentage ?? 0,
+            userPlatformFeeFixed: res.settings.userPlatformFeeFixed ?? 0,
+            userPlatformFeeGstPercentage: res.settings.userPlatformFeeGstPercentage ?? 0,
             workerJobFeeType: res.settings.workerJobFeeType || 'percentage',
             workerJobFeePercentage: res.settings.workerJobFeePercentage ?? 0,
             workerJobFeeFixed: res.settings.workerJobFeeFixed ?? 0,
@@ -727,6 +735,45 @@ const AdminSettings = ({ defaultView = 'main' }) => {
                       <input type="number" name="platformFeePercentage" value={financialSettings.platformFeePercentage} onChange={handleFinancialChange}
                         className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-green-500 transition-all" />
                       <p className="text-[10px] text-gray-400 mt-1">Fee charged on {providerLabel.toLowerCase()} withdrawals</p>
+                    </div>
+                    <div className="pt-4 border-t border-gray-100 md:col-span-2">
+                      <h4 className="text-xs font-bold text-gray-700 uppercase mb-1">User Platform Fee</h4>
+                      <p className="text-[10px] text-gray-400 mb-3">Charged to the customer and shown as its own line on their bill. It is company revenue, not partner earning. Leave 0 to charge nothing (the line is hidden from the user's bill).</p>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Fee Type</label>
+                          <select value={financialSettings.userPlatformFeeType}
+                            onChange={(e) => setFinancialSettings(prev => ({ ...prev, userPlatformFeeType: e.target.value }))}
+                            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-green-500 transition-all">
+                            <option value="percentage">Percentage (%)</option>
+                            <option value="fixed">Fixed amount (₹)</option>
+                          </select>
+                        </div>
+                        {financialSettings.userPlatformFeeType === 'fixed' ? (
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Fixed Fee per Booking (₹)</label>
+                            <input type="number" name="userPlatformFeeFixed" value={financialSettings.userPlatformFeeFixed} onChange={handleFinancialChange}
+                              min="0"
+                              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-green-500 transition-all" />
+                            <p className="text-[10px] text-gray-400 mt-1">Flat ₹ added to the user's bill (not on free ₹0 bookings)</p>
+                          </div>
+                        ) : (
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Fee (%)</label>
+                            <input type="number" name="userPlatformFeePercentage" value={financialSettings.userPlatformFeePercentage} onChange={handleFinancialChange}
+                              min="0" max="100"
+                              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-green-500 transition-all" />
+                            <p className="text-[10px] text-gray-400 mt-1">% of the service + parts amount (before GST)</p>
+                          </div>
+                        )}
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">GST on Platform Fee (%)</label>
+                          <input type="number" name="userPlatformFeeGstPercentage" value={financialSettings.userPlatformFeeGstPercentage} onChange={handleFinancialChange}
+                            min="0" max="100"
+                            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-green-500 transition-all" />
+                          <p className="text-[10px] text-gray-400 mt-1">0 = no GST on the fee, and no GST line shown</p>
+                        </div>
+                      </div>
                     </div>
                     <div className="pt-4 border-t border-gray-100 md:col-span-2">
                       <h4 className="text-xs font-bold text-gray-700 uppercase mb-1">Worker Job Platform Fee</h4>

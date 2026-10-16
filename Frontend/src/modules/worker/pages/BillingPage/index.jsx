@@ -10,6 +10,7 @@ import workerBillService from '../../../../services/workerBillService';
 import workerService from '../../../../services/workerService';
 import { publicCatalogService } from '../../../../services/catalogService';
 import { configService } from '../../../../services/configService';
+import { computeUserPlatformFee, platformFeeLabel } from '../../../../utils/userPlatformFee';
 
 const BillingPage = () => {
   const { id } = useParams();
@@ -54,6 +55,7 @@ const BillingPage = () => {
   const [selectedParts, setSelectedParts] = useState([]);
   const [customItems, setCustomItems] = useState([]);
   const [transportCharges, setTransportCharges] = useState(0);
+  const [userFeeSettings, setUserFeeSettings] = useState(null); // admin "User Platform Fee" config
   const [applyPartsGST, setApplyPartsGST] = useState(true);
 
   // Search
@@ -135,6 +137,7 @@ const BillingPage = () => {
       let gstFromConfig = null;
       let partsGstFromConfig = null;
       if (configRes && configRes.success && configRes.settings) {
+        setUserFeeSettings(configRes.settings);
         gstFromConfig = Number(configRes.settings.serviceGstPercentage) || 0;
         partsGstFromConfig = Number(configRes.settings.partsGstPercentage) || 0;
       } else {
@@ -398,7 +401,9 @@ const BillingPage = () => {
     const totalPartsGST = partsGST + customGST;
 
     // Total Value of everything
-    const totalValue = parseFloat(((totalServiceBase + totalServiceGST) + (totalPartsBase + totalPartsGST) + visitingCharges + finalTransportCharges).toFixed(2));
+    // Customer platform fee (admin Settings → User Platform Fee) on service + parts base; 0 = none
+    const userFee = computeUserPlatformFee(userFeeSettings, totalServiceBase + totalPartsBase);
+    const totalValue = parseFloat(((totalServiceBase + totalServiceGST) + (totalPartsBase + totalPartsGST) + visitingCharges + finalTransportCharges + userFee.total).toFixed(2));
 
     // Calculate Prepaid Amount (if user already paid during booking)
     const isAlreadyPaid = job.paymentStatus === 'paid' || job.paymentStatus === 'SUCCESS';
@@ -422,6 +427,7 @@ const BillingPage = () => {
       totalGST: parseFloat((totalServiceGST + totalPartsGST).toFixed(2)),
       visitingCharges,
       transportCharges: finalTransportCharges,
+      userFee,
       totalValue,
       prepaidAmount,
       isAlreadyPaid,
@@ -432,7 +438,7 @@ const BillingPage = () => {
       servicePayoutPct,
       partsPayoutPct
     };
-  }, [job, selectedServices, selectedParts, customItems, transportCharges, payoutSettings, applyPartsGST]);
+  }, [job, selectedServices, selectedParts, customItems, transportCharges, payoutSettings, applyPartsGST, userFeeSettings]);
 
   const handleSendOTP = async () => {
     try {
@@ -991,6 +997,29 @@ const BillingPage = () => {
                       <span>Transport Price</span>
                       <span>₹{Number(transportCharges).toFixed(2)}</span>
                     </div>
+                  </div>
+                )}
+                {/* GST + customer platform fee — each line hidden when its amount is 0 */}
+                {(calculations.totalGST > 0 || calculations.userFee.total > 0) && (
+                  <div className="space-y-2 text-sm pl-2 pt-1 border-t border-gray-100">
+                    {calculations.totalGST > 0 && (
+                      <div className="flex justify-between text-gray-600">
+                        <span>GST</span>
+                        <span>₹{calculations.totalGST.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {calculations.userFee.fee > 0 && (
+                      <div className="flex justify-between text-gray-600">
+                        <span>{platformFeeLabel(calculations.userFee)}</span>
+                        <span>₹{calculations.userFee.fee.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {calculations.userFee.gst > 0 && (
+                      <div className="flex justify-between text-gray-600">
+                        <span>GST on Platform Fee ({calculations.userFee.gstRate}%)</span>
+                        <span>₹{calculations.userFee.gst.toFixed(2)}</span>
+                      </div>
+                    )}
                   </div>
                 )}
                 {calculations.isAlreadyPaid && (

@@ -154,6 +154,17 @@ const bookingSchema = new mongoose.Schema({
     default: 0,
     min: 0
   },
+  // Customer platform fee (+ GST on it) snapshotted at booking time from admin settings
+  platformFee: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  platformFeeGst: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
   penalty: {
     type: Number,
     default: 0,

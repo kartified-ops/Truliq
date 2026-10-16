@@ -12,6 +12,7 @@ import { bookingService } from '../../../../services/bookingService';
 import { paymentService } from '../../../../services/paymentService';
 import { cartService } from '../../../../services/cartService';
 import { configService } from '../../../../services/configService';
+import { computeUserPlatformFee, platformFeeLabel } from '../../../../utils/userPlatformFee';
 import { getPlans } from '../../services/planService';
 import { userAuthService } from '../../../../services/authService';
 import { useCart } from '../../../../context/CartContext';
@@ -52,8 +53,9 @@ const Checkout = () => {
   const [selectedDate, setSelectedDate] = useState(null);
 
   const [selectedTime, setSelectedTime] = useState(null);
-  const [visitedFee, setVisitedFee] = useState(29);
-  const [gstPercentage, setGstPercentage] = useState(18);
+  const [visitedFee, setVisitedFee] = useState(0);
+  const [feeSettings, setFeeSettings] = useState(null); // admin user-platform-fee config
+  const [gstPercentage, setGstPercentage] = useState(0);
   const [bookingType, setBookingType] = useState('instant'); // 'instant' | 'scheduled'
 
   // Check if Razorpay is loaded (defer to avoid blocking initial render)
@@ -169,6 +171,7 @@ const Checkout = () => {
           if (response.success) {
             // Set Config
             setVisitedFee(Number(response.settings?.visitedCharges) || 0);
+            setFeeSettings(response.settings || null);
             setGstPercentage(Number(response.settings?.serviceGstPercentage) || 0);
             setBookingModel('worker'); // Force 'worker' model for UI display
 
@@ -1149,7 +1152,11 @@ const Checkout = () => {
   // Assuming "Free under plan" means NO Payment.
   const finalVisitedFee = itemTotal === 0 ? 0 : visitedFee;
 
-  const totalAmount = itemTotal + taxesAndFee + finalVisitedFee;
+  // Customer platform fee (admin Settings → User Platform Fee); not applied to plan purchases. 0 = hidden.
+  const isPlanCheckout = cartItems.some(item => item.isPlan);
+  const userFee = isPlanCheckout ? computeUserPlatformFee(null, 0) : computeUserPlatformFee(feeSettings, itemTotal);
+
+  const totalAmount = itemTotal + taxesAndFee + finalVisitedFee + userFee.total;
   const amountToPay = totalAmount;
 
   // Helper for Free Plan Full Breakdown Display
@@ -1485,6 +1492,20 @@ const Checkout = () => {
               <div className="flex justify-between items-center">
                 <span className="text-sm text-slate-500">GST ({gstPercentage}%)</span>
                 <span className="text-sm font-medium text-slate-700">₹{displayTax.toLocaleString('en-IN')}</span>
+              </div>
+            )}
+
+            {/* Customer platform fee (+ GST on it) — hidden when the admin sets it to 0 */}
+            {userFee.fee > 0 && (
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-500">{platformFeeLabel(userFee)}</span>
+                <span className="text-sm font-medium text-slate-700">₹{userFee.fee.toLocaleString('en-IN')}</span>
+              </div>
+            )}
+            {userFee.gst > 0 && (
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-500">GST on Platform Fee ({userFee.gstRate}%)</span>
+                <span className="text-sm font-medium text-slate-700">₹{userFee.gst.toLocaleString('en-IN')}</span>
               </div>
             )}
 

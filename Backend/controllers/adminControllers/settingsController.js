@@ -41,6 +41,10 @@ exports.updateSettings = async (req, res, next) => {
       workerJobFeeType,
       workerJobFeePercentage,
       workerJobFeeFixed,
+      userPlatformFeeType,
+      userPlatformFeePercentage,
+      userPlatformFeeFixed,
+      userPlatformFeeGstPercentage,
       vendorCashLimit, // Add this
       cancellationPenalty,
       razorpayKeyId,
@@ -83,6 +87,10 @@ exports.updateSettings = async (req, res, next) => {
         workerJobFeeType,
         workerJobFeePercentage,
         workerJobFeeFixed,
+        userPlatformFeeType,
+        userPlatformFeePercentage,
+        userPlatformFeeFixed,
+        userPlatformFeeGstPercentage,
         vendorCashLimit, // Add this
         cancellationPenalty,
         razorpayKeyId,
@@ -110,6 +118,10 @@ exports.updateSettings = async (req, res, next) => {
       if (workerJobFeeType !== undefined) settings.workerJobFeeType = workerJobFeeType;
       if (workerJobFeePercentage !== undefined) settings.workerJobFeePercentage = workerJobFeePercentage;
       if (workerJobFeeFixed !== undefined) settings.workerJobFeeFixed = workerJobFeeFixed;
+      if (userPlatformFeeType !== undefined) settings.userPlatformFeeType = userPlatformFeeType;
+      if (userPlatformFeePercentage !== undefined) settings.userPlatformFeePercentage = userPlatformFeePercentage;
+      if (userPlatformFeeFixed !== undefined) settings.userPlatformFeeFixed = userPlatformFeeFixed;
+      if (userPlatformFeeGstPercentage !== undefined) settings.userPlatformFeeGstPercentage = userPlatformFeeGstPercentage;
       if (vendorCashLimit !== undefined) settings.vendorCashLimit = vendorCashLimit; // Add this
       if (cancellationPenalty !== undefined) settings.cancellationPenalty = cancellationPenalty;
       if (razorpayKeyId !== undefined) settings.razorpayKeyId = razorpayKeyId;
@@ -222,10 +234,10 @@ exports.updateSettings = async (req, res, next) => {
 // Get Public Settings (Visited Charges, GST, Legal)
 exports.getPublicSettings = async (req, res, next) => {
   try {
-    let settings = await Settings.findOne({ type: 'global' }).select('visitedCharges serviceGstPercentage partsGstPercentage supportEmail supportPhone supportWhatsapp cancellationPenalty companyName companyAddress companyCity companyState companyPincode companyPhone companyEmail isOnlinePaymentEnabled isSubscriptionPaymentEnabled termsAndConditions privacyPolicy supportPageContent');
+    let settings = await Settings.findOne({ type: 'global' }).select('visitedCharges serviceGstPercentage partsGstPercentage userPlatformFeeType userPlatformFeePercentage userPlatformFeeFixed userPlatformFeeGstPercentage supportEmail supportPhone supportWhatsapp cancellationPenalty companyName companyAddress companyCity companyState companyPincode companyPhone companyEmail isOnlinePaymentEnabled isSubscriptionPaymentEnabled termsAndConditions privacyPolicy supportPageContent');
 
     if (!settings) {
-      settings = { visitedCharges: 0, serviceGstPercentage: 0, partsGstPercentage: 0 };
+      settings = { visitedCharges: 0, serviceGstPercentage: 0, partsGstPercentage: 0, userPlatformFeeType: 'percentage', userPlatformFeePercentage: 0, userPlatformFeeFixed: 0, userPlatformFeeGstPercentage: 0 };
     }
 
     let clientIntegrations = {};

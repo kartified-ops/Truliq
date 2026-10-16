@@ -10,6 +10,7 @@ const Review = require('../../models/Review');
 const { validationResult } = require('express-validator');
 const { withTransaction, abort } = require('../../utils/withTransaction');
 const { BOOKING_STATUS, PAYMENT_STATUS } = require('../../utils/constants');
+const { computeUserPlatformFee } = require('../../utils/userPlatformFee');
 const { createNotification } = require('../notificationControllers/notificationController');
 const { sendNotificationToUser, sendNotificationToVendor, sendNotificationToWorker } = require('../../services/firebaseAdmin');
 
@@ -98,7 +99,7 @@ const createBooking = async (req, res) => {
     // --- MOVE SEARCH UP HERE ---
     // Load Global Settings for Flow Control
     const Settings = require('../../models/Settings');
-    const globalSettings = await Settings.findOne({ type: 'global' }).select('searchRadius bookingModel serviceGstPercentage visitedCharges').lean();
+    const globalSettings = await Settings.findOne({ type: 'global' }).select('searchRadius bookingModel serviceGstPercentage visitedCharges userPlatformFeeType userPlatformFeePercentage userPlatformFeeFixed userPlatformFeeGstPercentage').lean();
 
     // --- SERVER-SIDE ITEM PRICING ---
     // Each booked item is priced from its UserService record. Items sent without
@@ -178,7 +179,7 @@ const createBooking = async (req, res) => {
     // --- END SEARCH BLOCK ---
     // --- END VENDOR SEARCH BLOCK ---
 
-    let basePrice, discount, tax, finalAmount;
+    let basePrice, discount, tax, finalAmount, platformFee = 0, platformFeeGst = 0;
     let bookingStatus = BOOKING_STATUS.SEARCHING;
     let bookingPaymentStatus = PAYMENT_STATUS.PENDING;
 
@@ -222,7 +223,11 @@ const createBooking = async (req, res) => {
     discount = Math.max(0, originalTotal - itemTotal);
     tax = Math.round((itemTotal * gstPercentage) / 100);
     visitingCharges = itemTotal === 0 ? 0 : (globalSettings?.visitedCharges ?? 0);
-    finalAmount = itemTotal + tax + visitingCharges + pendingPenalty;
+    // Customer platform fee (admin Settings → User Platform Fee). Charged on the paid items only; 0 = none.
+    const userFee = computeUserPlatformFee(globalSettings, itemTotal);
+    platformFee = userFee.fee;
+    platformFeeGst = userFee.gst;
+    finalAmount = itemTotal + tax + visitingCharges + pendingPenalty + platformFee + platformFeeGst;
 
     const usePlanBenefits = itemTotal === 0 && !!userPlan;
     if (usePlanBenefits) {
@@ -320,6 +325,8 @@ const createBooking = async (req, res) => {
       tax,
       visitingCharges,
       penalty: pendingPenalty,
+      platformFee,
+      platformFeeGst,
       finalAmount,
       userPayableAmount: finalAmount,
       address: {

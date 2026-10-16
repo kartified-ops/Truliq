@@ -2,6 +2,7 @@ const Booking = require('../../models/Booking');
 const BookingRequest = require('../../models/BookingRequest');
 const { validationResult } = require('express-validator');
 const { BOOKING_STATUS, PAYMENT_STATUS } = require('../../utils/constants');
+const { workerKeepsFromBill } = require('../../utils/userPlatformFee');
 const { withTransaction, abort } = require('../../utils/withTransaction');
 
 /**
@@ -727,7 +728,9 @@ const collectCash = async (req, res) => {
           {
             $inc: {
               'wallet.totalCashCollected': grandTotal,
-              'wallet.earnings': grandTotal
+              'wallet.earnings': workerKeepsFromBill(bill),
+              // Customer platform fee (+GST) was collected in cash but belongs to the company
+              'wallet.dues': parseFloat((grandTotal - workerKeepsFromBill(bill)).toFixed(2))
             }
           },
           { new: true, session }

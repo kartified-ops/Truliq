@@ -104,6 +104,16 @@ const vendorBillSchema = new mongoose.Schema({
   // 3. FINAL BILL (What user pays)
   // ==========================================
 
+  // Customer platform fee (admin Settings → User Platform Fee). Company revenue, never partner earning.
+  userPlatformFee: { type: Number, default: 0 },
+  userPlatformFeeGst: { type: Number, default: 0 },
+  userPlatformFeeTotal: { type: Number, default: 0 },   // fee + GST on fee
+  userPlatformFeeConfig: {
+    type: { type: String, default: 'percentage' },
+    rate: { type: Number, default: 0 },
+    gstRate: { type: Number, default: 0 }
+  },
+
   grandTotal: {
     type: Number,
     required: true

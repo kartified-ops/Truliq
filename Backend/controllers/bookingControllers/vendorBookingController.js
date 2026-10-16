@@ -1109,7 +1109,9 @@ const completeSelfJob = async (req, res) => {
     // ═══════════════════════════════════════════
 
     const visitingCharges = Number(booking.visitingCharges) || 0;
-    const grandTotal = parseFloat((totalServiceBase + totalPartsBase + totalGST + visitingCharges).toFixed(2));
+    // Customer platform fee (admin Settings → User Platform Fee) on service + parts base. 0 = none.
+    const userFee = require('../../utils/userPlatformFee').computeUserPlatformFee(settings, totalServiceBase + totalPartsBase);
+    const grandTotal = parseFloat((totalServiceBase + totalPartsBase + totalGST + visitingCharges + userFee.total).toFixed(2));
 
     // ═══════════════════════════════════════════
     // STEP 5: REVENUE SPLIT (internal only)
@@ -1159,6 +1161,12 @@ const completeSelfJob = async (req, res) => {
       vendorServiceGST,
       partsGST,
       totalGST,
+
+      // Customer platform fee
+      userPlatformFee: userFee.fee,
+      userPlatformFeeGst: userFee.gst,
+      userPlatformFeeTotal: userFee.total,
+      userPlatformFeeConfig: { type: userFee.type, rate: userFee.rate, gstRate: userFee.gstRate },
 
       // Bill total
       grandTotal,

@@ -7,6 +7,7 @@ import { vendorTheme as themeColors } from '../../../../theme';
 import vendorBillService from '../../../../services/vendorBillService';
 import vendorWalletService from '../../../../services/vendorWalletService';
 import { getBookingById } from '../../services/bookingService';
+import { computeUserPlatformFee, platformFeeLabel } from '../../../../utils/userPlatformFee';
 import { publicCatalogService } from '../../../../services/catalogService';
 import { OtpVerificationModal, ScanAndPayModal } from '../../components/common';
 
@@ -221,6 +222,7 @@ const BillingPage = () => {
         const data = await res.json();
         if (data.success && data.data?.global) {
           const g = data.data.global;
+          setUserFeeSettings(g);
           const hasSavedPayout = !!billRes.bill?.payoutConfig;
           setPayoutSettings(prev => ({
             serviceGstPct: Number(g.serviceGstPercentage) || 0,
@@ -350,6 +352,7 @@ const BillingPage = () => {
 
 
   // --- Settings (fetched for vendor-side preview) ---
+  const [userFeeSettings, setUserFeeSettings] = useState(null); // admin 'User Platform Fee' config
   const [payoutSettings, setPayoutSettings] = useState({
     serviceGstPct: 0,
     partsGstPct: 0,
@@ -409,7 +412,9 @@ const BillingPage = () => {
     const totalPartsBase = partsBase + customBase;
     const totalPartsGST = partsGST + customGST;
 
-    const finalBillAmount = parseFloat(((totalServiceBase + totalServiceGST) + (totalPartsBase + totalPartsGST) + visitingCharges + finalTransportCharges).toFixed(2));
+    // Customer platform fee (admin Settings → User Platform Fee) on service + parts base; 0 = none
+    const userFee = computeUserPlatformFee(userFeeSettings, totalServiceBase + totalPartsBase);
+    const finalBillAmount = parseFloat(((totalServiceBase + totalServiceGST) + (totalPartsBase + totalPartsGST) + visitingCharges + finalTransportCharges + userFee.total).toFixed(2));
 
     // Vendor Earnings estimate
     const vendorServiceEarnings = parseFloat(((totalServiceBase * servicePayoutPct) / 100).toFixed(2));
@@ -427,6 +432,7 @@ const BillingPage = () => {
       totalGST: parseFloat((totalServiceGST + totalPartsGST).toFixed(2)),
       visitingCharges,
       transportCharges: finalTransportCharges,
+      userFee,
       finalBillAmount,
       totalVendorEarnings,
       vendorServiceEarnings,
@@ -434,7 +440,7 @@ const BillingPage = () => {
       servicePayoutPct,
       partsPayoutPct
     };
-  }, [booking, selectedServices, selectedParts, customItems, transportCharges, payoutSettings, applyPartsGST]);
+  }, [booking, selectedServices, selectedParts, customItems, transportCharges, payoutSettings, applyPartsGST, userFeeSettings]);
 
   const willExceedCashLimit = useMemo(() => {
     if (!walletInfo || !calculations) return false;
@@ -1089,6 +1095,22 @@ const BillingPage = () => {
                       <span>Transport Price</span>
                       <span>₹{Number(transportCharges).toFixed(2)}</span>
                     </div>
+                  </div>
+                )}
+
+                {/* Customer platform fee (+GST on it) — hidden when 0 */}
+                {calculations.userFee.fee > 0 && (
+                  <div className="space-y-2 text-sm pl-2 pt-1 border-t border-gray-100">
+                    <div className="flex justify-between text-gray-600">
+                      <span>{platformFeeLabel(calculations.userFee)}</span>
+                      <span>₹{calculations.userFee.fee.toFixed(2)}</span>
+                    </div>
+                    {calculations.userFee.gst > 0 && (
+                      <div className="flex justify-between text-gray-600">
+                        <span>GST on Platform Fee ({calculations.userFee.gstRate}%)</span>
+                        <span>₹{calculations.userFee.gst.toFixed(2)}</span>
+                      </div>
+                    )}
                   </div>
                 )}
 

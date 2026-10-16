@@ -6,6 +6,7 @@ const VendorPartsCatalog = require('../../models/VendorPartsCatalog');
 const Settings = require('../../models/Settings');
 const { BILL_STATUS } = require('../../utils/constants');
 const { DEFAULT_SERVICE_PAYOUT_PCT } = require('../../utils/commission');
+const { computeUserPlatformFee } = require('../../utils/userPlatformFee');
 
 /**
  * Create or Update Vendor Bill
@@ -214,7 +215,9 @@ const createOrUpdateBill = async (req, res) => {
 
     const totalGST = parseFloat((originalGST + vendorServiceGST + partsGST).toFixed(2));
     const finalTransportCharges = Number(transportCharges) || 0;
-    const grandTotal = parseFloat((totalServiceBaseForBill + totalPartsBase + totalGST + visitingCharges + finalTransportCharges).toFixed(2));
+    // Customer platform fee (admin Settings → User Platform Fee), on service + parts base. 0 = none.
+    const userFee = computeUserPlatformFee(settings, totalServiceBaseForBill + totalPartsBase);
+    const grandTotal = parseFloat((totalServiceBaseForBill + totalPartsBase + totalGST + visitingCharges + finalTransportCharges + userFee.total).toFixed(2));
 
     // ═══════════════════════════════════════
     // 5. REVENUE SPLIT (% applied on BASE only)
@@ -267,6 +270,10 @@ const createOrUpdateBill = async (req, res) => {
       totalGST,
       visitingCharges,
       transportCharges: finalTransportCharges,
+      userPlatformFee: userFee.fee,
+      userPlatformFeeGst: userFee.gst,
+      userPlatformFeeTotal: userFee.total,
+      userPlatformFeeConfig: { type: userFee.type, rate: userFee.rate, gstRate: userFee.gstRate },
       grandTotal,
       payoutConfig: {
         serviceSplitPercentage: serviceSplitPct,

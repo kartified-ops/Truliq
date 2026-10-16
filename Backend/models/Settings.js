@@ -47,6 +47,31 @@ const settingsSchema = new mongoose.Schema({
     min: 0,
     max: 100
   },
+  // Platform fee charged to the CUSTOMER on a booking (shown as its own line on the user's bill).
+  // Percentage is applied on the service + parts base (before GST). 0 = not charged and not shown.
+  userPlatformFeeType: {
+    type: String,
+    enum: ['percentage', 'fixed'],
+    default: 'percentage'
+  },
+  userPlatformFeePercentage: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 100
+  },
+  userPlatformFeeFixed: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  // GST charged on top of the customer platform fee. 0 = no GST line on the fee.
+  userPlatformFeeGstPercentage: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 100
+  },
   // Platform fee charged to a direct worker on each completed job (applied on service + parts base).
   // Default 0 so nothing changes until an admin sets it.
   workerJobFeeType: {

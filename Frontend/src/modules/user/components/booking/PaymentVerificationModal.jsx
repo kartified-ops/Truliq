@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FiCheckCircle, FiShield, FiAlertCircle, FiPackage, FiX, FiInfo } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
 import { configService } from '../../../../services/configService';
+import { platformFeeLabel } from '../../../../utils/userPlatformFee';
 
 const PaymentVerificationModal = ({ isOpen, onClose, booking, onPayOnline }) => {
   const [isOnlinePaymentEnabled, setIsOnlinePaymentEnabled] = useState(true);
@@ -83,6 +84,11 @@ const PaymentVerificationModal = ({ isOpen, onClose, booking, onPayOnline }) => 
   const totalGST = originalGST + extraServiceGST + partsGST;
   const serviceGstRate = bill?.payoutConfig?.serviceGstPercentage ?? serviceGstFromConfig;
   const partsGstRate = bill?.payoutConfig?.partsGstPercentage ?? partsGstFromConfig;
+
+  // Customer platform fee (+GST): from the bill if there is one, else as stored on the booking. Hidden when 0.
+  const platformFeeAmt = Number(bill ? bill.userPlatformFee : booking.platformFee) || 0;
+  const platformFeeGstAmt = Number(bill ? bill.userPlatformFeeGst : booking.platformFeeGst) || 0;
+  const platformFeeCfg = bill?.userPlatformFeeConfig || {};
 
   // Final Total
   const finalTotal = bill?.grandTotal || (booking.finalAmount || 0);
@@ -230,6 +236,24 @@ const PaymentVerificationModal = ({ isOpen, onClose, booking, onPayOnline }) => 
                       <span>₹{(partsBase + partsGST).toFixed(2)}</span>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* 3a. Platform fee (+GST on it) */}
+              {(platformFeeAmt > 0 || platformFeeGstAmt > 0) && (
+                <div className="mt-4 pt-2 border-t border-slate-100 space-y-1.5">
+                  {platformFeeAmt > 0 && (
+                    <div className="flex justify-between text-xs text-slate-600">
+                      <span>{platformFeeLabel({ type: platformFeeCfg.type, rate: platformFeeCfg.rate })}</span>
+                      <span className="font-mono">₹{platformFeeAmt.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {platformFeeGstAmt > 0 && (
+                    <div className="flex justify-between text-xs text-slate-600">
+                      <span>GST on Platform Fee{platformFeeCfg.gstRate ? ' (' + platformFeeCfg.gstRate + '%)' : ''}</span>
+                      <span className="font-mono">₹{platformFeeGstAmt.toFixed(2)}</span>
+                    </div>
+                  )}
                 </div>
               )}
 
