@@ -288,6 +288,18 @@ exports.confirmCashCollection = async (req, res) => {
         }
       }
 
+      // The bill is the source of truth for the amount. A prepaid part can make the cash amount
+      // lower than grandTotal, but it can never legitimately be higher — that would mean the
+      // customer was charged something (e.g. GST) that the ledger never records.
+      // Checked BEFORE the lock below so a rejection never leaves the booking half-processed.
+      if (amount !== undefined) {
+        const billForCheck = await VendorBill.findOne({ bookingId: booking._id }).session(session);
+        if (billForCheck && Number(amount) > Number(billForCheck.grandTotal) + 0.01) {
+          console.warn(`[ConfirmCash] Amount ${amount} exceeds bill ${billForCheck.grandTotal} for booking ${id}`);
+          abort({ amountMismatch: true, expected: Number(billForCheck.grandTotal) });
+        }
+      }
+
       // --- ATOMIC LOCK AGAINST RACE CONDITIONS ---
       // Inside the transaction on purpose: if anything below fails, the lock is
       // rolled back too, instead of leaving the booking permanently unprocessable.
@@ -356,9 +368,9 @@ exports.confirmCashCollection = async (req, res) => {
       }
 
       // Update Booking
-      // Bill (if any) is the source of truth; grandTotal equals collectionAmount when there is no bill
-      booking.finalAmount = grandTotal;
-      booking.userPayableAmount = grandTotal;
+      // What the customer actually paid in hand (can be below grandTotal when part was prepaid online)
+      booking.finalAmount = collectionAmount;
+      booking.userPayableAmount = collectionAmount;
       booking.cashCollected = true;
       booking.cashCollectedAt = new Date();
       booking.cashCollectedBy = userRole === 'vendor' ? 'vendor' : 'worker';
@@ -515,6 +527,12 @@ exports.confirmCashCollection = async (req, res) => {
     }
     if (outcome.badOtp) {
       return res.status(400).json({ success: false, message: 'Invalid OTP. Please enter the correct code shared by the customer.' });
+    }
+    if (outcome.amountMismatch) {
+      return res.status(400).json({
+        success: false,
+        message: `Amount does not match the bill (₹${outcome.expected}). Please reopen the billing page and try again.`
+      });
     }
     if (outcome.alreadyDone) {
       return res.status(200).json({

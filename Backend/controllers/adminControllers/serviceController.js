@@ -105,6 +105,9 @@ const createService = async (req, res) => {
       });
     }
 
+    // No hardcoded rate: when the admin leaves GST blank, use the global Service GST from Settings
+    const defaultServiceGst = Number((await require('../../models/Settings').findOne({ type: 'global' }).select('serviceGstPercentage').lean())?.serviceGstPercentage) || 0;
+
     // Try to create service
     // If slug collision happens within same brand, mongoose throws duplicate key error
     const service = await Service.create({
@@ -112,7 +115,7 @@ const createService = async (req, res) => {
       categoryId,
       title,
       basePrice,
-      gstPercentage: gstPercentage || 18,
+      gstPercentage: gstPercentage ?? defaultServiceGst,
       pricingUnit,
       description,
       status: status || SERVICE_STATUS.ACTIVE,

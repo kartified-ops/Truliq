@@ -1064,8 +1064,10 @@ const createPlanOrder = async (req, res) => {
     // Calculate dynamic pricing
     const { amount } = calculateUpgradeAmount(user.plans, plan.price);
 
-    // Add 18% Tax
-    const amountWithTax = Math.ceil(amount * 1.18);
+    // Tax rate comes from the admin panel (Settings → Service GST)
+    const planSettings = await Settings.findOne({ type: 'global' }).select('serviceGstPercentage').lean();
+    const planGstPct = Number(planSettings?.serviceGstPercentage) || 0;
+    const amountWithTax = Math.ceil(amount * (1 + planGstPct / 100));
 
     const orderResult = await createOrder(
       amountWithTax,

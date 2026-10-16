@@ -103,8 +103,9 @@ export default function BookingDetails() {
         },
         // Price Breakdown
         basePrice: parseFloat(apiData.basePrice || 0),
-        tax: parseFloat(apiData.tax || (apiData.paymentMethod === 'plan_benefit' ? (apiData.basePrice || 0) * 0.18 : 0)),
-        visitingCharges: parseFloat(apiData.visitingCharges || apiData.visitationFee || (apiData.paymentMethod === 'plan_benefit' ? 49 : 0)),
+        // Taken as stored on the booking (computed from admin settings); no hardcoded rates/fees here
+        tax: parseFloat(apiData.tax || 0),
+        visitingCharges: parseFloat(apiData.visitingCharges || apiData.visitationFee || 0),
         discount: parseFloat(apiData.discount || 0),
         platformCommission: parseFloat(apiData.adminCommission || apiData.platformFee || apiData.commission || 0),
         finalAmount: parseFloat(apiData.finalAmount || 0),
@@ -617,7 +618,9 @@ export default function BookingDetails() {
   });
 
   // Tax Logic
-  const originalGST = bill ? (bill.originalGST || 0) : (originalBase * 0.18);
+  const originalGST = bill ? (bill.originalGST || 0) : (parseFloat(booking?.tax) || 0);
+  const serviceGstRate = bill?.payoutConfig?.serviceGstPercentage;
+  const partsGstRate = bill?.payoutConfig?.partsGstPercentage;
   const totalGST = originalGST + extraServiceGST + partsGST;
 
   // Final Total from bill or booking
@@ -929,7 +932,7 @@ export default function BookingDetails() {
 
                 {/* Service GST */}
                 <div className="flex justify-between text-xs text-gray-500 border-t border-dashed border-gray-100 pt-1 mt-1">
-                  <span>Service GST (18%)</span>
+                  <span>Service GST{serviceGstRate != null ? ` (${serviceGstRate}%)` : ''}</span>
                   <span className="font-mono">₹{(originalGST + extraServiceGST).toFixed(2)}</span>
                 </div>
 
@@ -967,7 +970,7 @@ export default function BookingDetails() {
 
                   {/* Parts GST */}
                   <div className="flex justify-between text-xs text-gray-500 border-t border-dashed border-gray-100 pt-1 mt-1">
-                    <span>Parts GST (18%)</span>
+                    <span>Parts GST{partsGstRate ? ` (${partsGstRate}%)` : ''}</span>
                     <span className="font-mono">₹{partsGST.toFixed(2)}</span>
                   </div>
 

@@ -14,8 +14,8 @@ const AdminSettings = ({ defaultView = 'main' }) => {
 
   const [financialSettings, setFinancialSettings] = useState({
     visitedCharges: 0,
-    serviceGstPercentage: 18,
-    partsGstPercentage: 18,
+    serviceGstPercentage: 0,
+    partsGstPercentage: 0,
     servicePayoutPercentage: 90,
     partsPayoutPercentage: 100,
     vendorCashLimit: 10000,
@@ -142,8 +142,8 @@ const AdminSettings = ({ defaultView = 'main' }) => {
         if (res.success && res.settings) {
           setFinancialSettings({
             visitedCharges: res.settings.visitedCharges || 0,
-            serviceGstPercentage: res.settings.serviceGstPercentage ?? 18,
-            partsGstPercentage: res.settings.partsGstPercentage ?? 18,
+            serviceGstPercentage: res.settings.serviceGstPercentage ?? 0,
+            partsGstPercentage: res.settings.partsGstPercentage ?? 0,
             servicePayoutPercentage: res.settings.servicePayoutPercentage ?? 90,
             partsPayoutPercentage: res.settings.partsPayoutPercentage ?? 100,
             tdsPercentage: res.settings.tdsPercentage || 1,

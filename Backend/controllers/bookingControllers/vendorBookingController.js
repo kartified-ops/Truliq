@@ -1041,8 +1041,8 @@ const completeSelfJob = async (req, res) => {
     const settings = await Settings.findOne({ type: 'global' });
     const serviceSplitPct = settings?.servicePayoutPercentage ?? DEFAULT_SERVICE_PAYOUT_PCT;
     const partsSplitPct = settings?.partsPayoutPercentage ?? 10;
-    const serviceGstPct = settings?.serviceGstPercentage ?? 18;
-    const partsGstPct = settings?.partsGstPercentage ?? 18;
+    const serviceGstPct = Number(settings?.serviceGstPercentage) || 0;
+    const partsGstPct = Number(settings?.partsGstPercentage) || 0;
 
     // ═══════════════════════════════════════════
     // STEP 1: BUILD LINE ITEMS

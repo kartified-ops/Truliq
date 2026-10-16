@@ -70,8 +70,10 @@ const createOrUpdateBill = async (req, res) => {
       })
       : existingServiceSplit;
     const partsSplitPct = isDirectWorkerFlow ? (serviceSplitPct === 100 ? 100 : existingPartsSplit) : existingPartsSplit;
-    const serviceGstPct = 0;
-    const partsGstPct = 0;
+    // GST rates come from the admin panel (Settings → Financial). Same source the user checkout,
+    // worker billing screen and vendor completion flow read, so every screen agrees.
+    const serviceGstPct = Math.max(0, Number(settings?.serviceGstPercentage) || 0);
+    const partsGstPct = Math.max(0, Number(settings?.partsGstPercentage) || 0);
 
     // ═══════════════════════════════════════
     // 1. ORIGINAL SERVICE (from booking)

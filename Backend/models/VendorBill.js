@@ -118,8 +118,8 @@ const vendorBillSchema = new mongoose.Schema({
   payoutConfig: {
     serviceSplitPercentage: { type: Number, default: 70 },  // vendor gets 70%
     partsSplitPercentage: { type: Number, default: 10 },  // vendor gets 10%
-    serviceGstPercentage: { type: Number, default: 18 },
-    partsGstPercentage: { type: Number, default: 18 }
+    serviceGstPercentage: { type: Number, default: 0 },
+    partsGstPercentage: { type: Number, default: 0 }
   },
 
   /** Vendor earnings (calculated on BASE prices, never on GST) */

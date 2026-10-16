@@ -13,13 +13,13 @@ const settingsSchema = new mongoose.Schema({
   },
   serviceGstPercentage: {
     type: Number,
-    default: 18,
+    default: 0,
     min: 0,
     max: 100
   },
   partsGstPercentage: {
     type: Number,
-    default: 18,
+    default: 0,
     min: 0,
     max: 100
   },

@@ -28,7 +28,6 @@ const vendorPartsCatalogSchema = new mongoose.Schema({
   },
   gstPercentage: {
     type: Number,
-    default: 18,
     min: 0
   },
   status: {

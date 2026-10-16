@@ -6,6 +6,8 @@ import { configService } from '../../../../services/configService';
 const PaymentVerificationModal = ({ isOpen, onClose, booking, onPayOnline }) => {
   const [isOnlinePaymentEnabled, setIsOnlinePaymentEnabled] = useState(true);
   const [configLoading, setConfigLoading] = useState(true);
+  const [serviceGstFromConfig, setServiceGstFromConfig] = useState(0);
+  const [partsGstFromConfig, setPartsGstFromConfig] = useState(0);
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -13,6 +15,8 @@ const PaymentVerificationModal = ({ isOpen, onClose, booking, onPayOnline }) => 
         const res = await configService.getSettings();
         if (res.success && res.settings) {
           setIsOnlinePaymentEnabled(res.settings.isOnlinePaymentEnabled !== false);
+          setServiceGstFromConfig(Number(res.settings.serviceGstPercentage) || 0);
+          setPartsGstFromConfig(Number(res.settings.partsGstPercentage) || 0);
         }
       } catch (error) {
         console.error('Error fetching payment config:', error);
@@ -73,8 +77,12 @@ const PaymentVerificationModal = ({ isOpen, onClose, booking, onPayOnline }) => 
   });
 
   // Tax Logic
-  const originalGST = bill ? (bill.originalGST || 0) : (originalBase * 0.18);
+  // No hardcoded rate: with a bill use its GST, otherwise the tax already stored on the booking
+  // (computed at checkout from the admin GST setting). Rate label comes from the bill / admin config.
+  const originalGST = bill ? (bill.originalGST || 0) : (parseFloat(booking.tax) || 0);
   const totalGST = originalGST + extraServiceGST + partsGST;
+  const serviceGstRate = bill?.payoutConfig?.serviceGstPercentage ?? serviceGstFromConfig;
+  const partsGstRate = bill?.payoutConfig?.partsGstPercentage ?? partsGstFromConfig;
 
   // Final Total
   const finalTotal = bill?.grandTotal || (booking.finalAmount || 0);
@@ -178,10 +186,12 @@ const PaymentVerificationModal = ({ isOpen, onClose, booking, onPayOnline }) => 
                       <span className="font-medium font-mono">₹{((parseFloat(s.price) || 0) * (parseFloat(s.quantity) || 1)).toFixed(2)}</span>
                     </div>
                   ))}
-                  <div className="flex justify-between text-xs text-slate-500 border-t border-dashed border-slate-100 pt-1 mt-1">
-                    <span>GST (18%)</span>
-                    <span className="font-mono">₹{(originalGST + extraServiceGST).toFixed(2)}</span>
-                  </div>
+                  {(originalGST + extraServiceGST) > 0 && (
+                    <div className="flex justify-between text-xs text-slate-500 border-t border-dashed border-slate-100 pt-1 mt-1">
+                      <span>GST ({serviceGstRate}%)</span>
+                      <span className="font-mono">₹{(originalGST + extraServiceGST).toFixed(2)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-xs font-bold text-slate-800 pt-1">
                     <span>Total Service</span>
                     <span>₹{(totalServiceBase + originalGST + extraServiceGST).toFixed(2)}</span>
@@ -211,7 +221,7 @@ const PaymentVerificationModal = ({ isOpen, onClose, booking, onPayOnline }) => 
                     ))}
                     {partsGST > 0 && (
                       <div className="flex justify-between text-xs text-slate-500 border-t border-dashed border-slate-100 pt-1 mt-1">
-                        <span>GST (18%)</span>
+                        <span>GST{partsGstRate ? ` (${partsGstRate}%)` : ''}</span>
                         <span className="font-mono">₹{partsGST.toFixed(2)}</span>
                       </div>
                     )}

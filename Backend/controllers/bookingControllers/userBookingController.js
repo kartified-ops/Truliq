@@ -217,7 +217,7 @@ const createBooking = async (req, res) => {
       if (!p.isCovered) itemTotal += p.unitPrice * p.quantity;
     });
 
-    const gstPercentage = globalSettings?.serviceGstPercentage ?? 18;
+    const gstPercentage = Number(globalSettings?.serviceGstPercentage) || 0;
     basePrice = originalTotal;
     discount = Math.max(0, originalTotal - itemTotal);
     tax = Math.round((itemTotal * gstPercentage) / 100);

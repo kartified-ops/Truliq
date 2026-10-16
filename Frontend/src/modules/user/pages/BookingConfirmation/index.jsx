@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { themeColors } from '../../../../theme';
@@ -17,6 +17,7 @@ import {
   FiXCircle
 } from 'react-icons/fi';
 import { bookingService } from '../../../../services/bookingService';
+import { configService } from '../../../../services/configService';
 import NotificationBell from '../../components/common/NotificationBell';
 import ConfirmDialog from '../../../../components/common/ConfirmDialog';
 import { useAppNotifications } from '../../../../hooks/useAppNotifications';
@@ -101,12 +102,27 @@ const BookingConfirmation = () => {
   const [confirmDialog, setConfirmDialog] = useState(false);
   const socket = useAppNotifications('user');
 
+  // GST % and visiting charge come from admin Settings, never hardcoded.
+  const [gstPct, setGstPct] = useState(0);
+  const adminRates = useRef({ gst: 0, visit: 0 });
+  useEffect(() => {
+    configService.getSettings().then(res => {
+      if (res?.success && res.settings) {
+        adminRates.current = {
+          gst: Number(res.settings.serviceGstPercentage) || 0,
+          visit: Number(res.settings.visitedCharges) || 0
+        };
+        setGstPct(adminRates.current.gst);
+      }
+    }).catch(() => { });
+  }, []);
+
   const applyBookingData = useCallback((data) => {
     if (!data) return;
     const enriched = { ...data };
     if (enriched.paymentMethod === 'plan_benefit') {
-      if (!enriched.tax) enriched.tax = (enriched.basePrice || 0) * 0.18;
-      if (!enriched.visitingCharges && !enriched.visitationFee) enriched.visitingCharges = 49;
+      if (!enriched.tax) enriched.tax = ((enriched.basePrice || 0) * adminRates.current.gst) / 100;
+      if (!enriched.visitingCharges && !enriched.visitationFee) enriched.visitingCharges = adminRates.current.visit;
     }
     setBooking(enriched);
     const currentStatus = enriched.status?.toLowerCase();
@@ -490,7 +506,7 @@ const BookingConfirmation = () => {
               {/* Tax */}
               {(booking.tax > 0 || booking.paymentMethod === 'plan_benefit') && (
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-500">GST (18%)</span>
+                  <span className="text-slate-500">GST{gstPct ? ` (${gstPct}%)` : ''}</span>
                   {booking.paymentMethod === 'plan_benefit' ? (
                     <div className="flex items-center gap-2">
                       <span className="line-through text-slate-400 text-xs">₹{(booking.tax || 0).toLocaleString('en-IN')}</span>

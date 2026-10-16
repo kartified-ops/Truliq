@@ -225,7 +225,7 @@ exports.getPublicSettings = async (req, res, next) => {
     let settings = await Settings.findOne({ type: 'global' }).select('visitedCharges serviceGstPercentage partsGstPercentage supportEmail supportPhone supportWhatsapp cancellationPenalty companyName companyAddress companyCity companyState companyPincode companyPhone companyEmail isOnlinePaymentEnabled isSubscriptionPaymentEnabled termsAndConditions privacyPolicy supportPageContent');
 
     if (!settings) {
-      settings = { visitedCharges: 29, serviceGstPercentage: 18, partsGstPercentage: 18 };
+      settings = { visitedCharges: 0, serviceGstPercentage: 0, partsGstPercentage: 0 };
     }
 
     let clientIntegrations = {};

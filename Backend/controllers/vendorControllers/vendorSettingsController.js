@@ -29,8 +29,8 @@ const getSettings = async (req, res) => {
         settings: vendor.settings || {},
         businessHours: vendor.businessHours || {},
         global: {
-          serviceGstPercentage: globalSettings?.serviceGstPercentage ?? 18,
-          partsGstPercentage: globalSettings?.partsGstPercentage ?? 18,
+          serviceGstPercentage: globalSettings?.serviceGstPercentage ?? 0,
+          partsGstPercentage: globalSettings?.partsGstPercentage ?? 0,
           servicePayoutPercentage: globalSettings?.servicePayoutPercentage ?? DEFAULT_SERVICE_PAYOUT_PCT,
           partsPayoutPercentage: globalSettings?.partsPayoutPercentage ?? 10
         }

@@ -75,8 +75,8 @@ const BillingPage = () => {
 
   // --- Settings ---
   const [payoutSettings, setPayoutSettings] = useState({
-    serviceGstPct: 18,
-    partsGstPct: 18,
+    serviceGstPct: 0,
+    partsGstPct: 0,
     servicePayoutPct: 90,
     partsPayoutPct: 100
   });
@@ -130,11 +130,15 @@ const BillingPage = () => {
         setIsOtpSent(true);
       }
 
-      let gstFromConfig = 18;
-      let partsGstFromConfig = 18;
+      // GST rates are owned by the admin panel (Settings → Financial); nothing is hardcoded here.
+      // The live admin value wins; the rate saved on an older bill is only a fallback if the config call failed.
+      let gstFromConfig = null;
+      let partsGstFromConfig = null;
       if (configRes && configRes.success && configRes.settings) {
-        gstFromConfig = configRes.settings.serviceGstPercentage ?? 18;
-        partsGstFromConfig = configRes.settings.partsGstPercentage ?? 18;
+        gstFromConfig = Number(configRes.settings.serviceGstPercentage) || 0;
+        partsGstFromConfig = Number(configRes.settings.partsGstPercentage) || 0;
+      } else {
+        toast.error('Could not load GST settings. Please refresh before billing.');
       }
 
       const isDirectWorker = jobData?.bookingModel === 'worker';
@@ -199,15 +203,15 @@ const BillingPage = () => {
         if (billRes.bill.payoutConfig) {
           const pc = billRes.bill.payoutConfig;
           setPayoutSettings({
-            serviceGstPct: pc.serviceGstPercentage ?? gstFromConfig,
-            partsGstPct: pc.partsGstPercentage ?? partsGstFromConfig,
+            serviceGstPct: gstFromConfig ?? pc.serviceGstPercentage ?? 0,
+            partsGstPct: partsGstFromConfig ?? pc.partsGstPercentage ?? 0,
             servicePayoutPct: pc.serviceSplitPercentage ?? defaultServiceSplit,
             partsPayoutPct: pc.partsSplitPercentage ?? defaultPartsSplit
           });
         } else {
           setPayoutSettings({
-            serviceGstPct: gstFromConfig,
-            partsGstPct: partsGstFromConfig,
+            serviceGstPct: gstFromConfig ?? 0,
+            partsGstPct: partsGstFromConfig ?? 0,
             servicePayoutPct: defaultServiceSplit,
             partsPayoutPct: defaultPartsSplit
           });
@@ -229,8 +233,8 @@ const BillingPage = () => {
         setMaxStep(prev => Math.max(prev, reachedStep));
       } else {
         setPayoutSettings({
-          serviceGstPct: gstFromConfig,
-          partsGstPct: partsGstFromConfig,
+          serviceGstPct: gstFromConfig ?? 0,
+          partsGstPct: partsGstFromConfig ?? 0,
           servicePayoutPct: defaultServiceSplit,
           partsPayoutPct: defaultPartsSplit
         });
@@ -285,7 +289,7 @@ const BillingPage = () => {
       if (exists) {
         return prev.filter(p => p.catalogId !== item._id);
       }
-      const gstPercentage = item.gstPercentage || 18;
+      const gstPercentage = item.gstPercentage || payoutSettings.partsGstPct;
       const gstAmount = (item.price * gstPercentage) / 100;
       return [...prev, {
         catalogId: item._id,
@@ -323,7 +327,7 @@ const BillingPage = () => {
       hsnCode: '',
       price: 0,
       gstApplicable: true,
-      gstPercentage: 18,
+      gstPercentage: payoutSettings.partsGstPct,
       quantity: 1,
       gstAmount: 0,
       total: 0
@@ -883,7 +887,7 @@ const BillingPage = () => {
                     <div className="flex items-center justify-between pt-2 border-t border-gray-50 mt-1 md:col-span-2 md:pt-3">
                       <div className="flex items-center gap-2">
                         <input type="checkbox" id={`gst-${idx}`} checked={item.gstApplicable} onChange={e => updateCustomItem(idx, 'gstApplicable', e.target.checked)} className="w-4 h-4 rounded text-blue-600 border-gray-300" />
-                        <label htmlFor={`gst-${idx}`} className="text-xs font-bold text-gray-600">Apply 18% GST</label>
+                        <label htmlFor={`gst-${idx}`} className="text-xs font-bold text-gray-600">Apply {item.gstPercentage || payoutSettings.partsGstPct}% GST</label>
                       </div>
                       <div className="text-right">
                         <span className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">Subtotal: </span>

@@ -7,7 +7,8 @@ export const configService = {
       return response.data;
     } catch (error) {
       console.error('Error getting public settings', error);
-      return { success: false, settings: { visitedCharges: 29, serviceGstPercentage: 18, partsGstPercentage: 18 } };
+      // No made-up rates: when the admin config can't be loaded callers must treat it as unavailable.
+      return { success: false, settings: {} };
     }
   }
 };

@@ -186,8 +186,8 @@ const BillingPage = () => {
         if (billRes.bill.payoutConfig) {
           const pc = billRes.bill.payoutConfig;
           setPayoutSettings({
-            serviceGstPct: pc.serviceGstPercentage ?? 18,
-            partsGstPct: pc.partsGstPercentage ?? 18,
+            serviceGstPct: pc.serviceGstPercentage ?? 0,
+            partsGstPct: pc.partsGstPercentage ?? 0,
             servicePayoutPct: pc.serviceSplitPercentage ?? 70,
             partsPayoutPct: pc.partsSplitPercentage ?? 10
           });
@@ -214,23 +214,23 @@ const BillingPage = () => {
         // Has draft but no backend bill - ok
       }
 
-      // Fallback settings logic (existing)
-      if (!billRes.success || !billRes.bill?.payoutConfig) {
-        try {
-          const token = localStorage.getItem('vendorToken');
-          const res = await fetch('/api/vendors/settings', { headers: { Authorization: `Bearer ${token}` } });
-          const data = await res.json();
-          if (data.success && data.data?.global) {
-            const g = data.data.global;
-            setPayoutSettings({
-              serviceGstPct: g.serviceGstPercentage ?? 18,
-              partsGstPct: g.partsGstPercentage ?? 18,
-              servicePayoutPct: g.servicePayoutPercentage ?? 70,
-              partsPayoutPct: g.partsPayoutPercentage ?? 10
-            });
-          }
-        } catch (e) { console.error('Error fetching global settings:', e); }
-      }
+      // Admin settings are the source of truth for GST (the rate saved on an older bill may be stale).
+      try {
+        const token = localStorage.getItem('vendorToken');
+        const res = await fetch('/api/vendors/settings', { headers: { Authorization: `Bearer ${token}` } });
+        const data = await res.json();
+        if (data.success && data.data?.global) {
+          const g = data.data.global;
+          const hasSavedPayout = !!billRes.bill?.payoutConfig;
+          setPayoutSettings(prev => ({
+            serviceGstPct: Number(g.serviceGstPercentage) || 0,
+            partsGstPct: Number(g.partsGstPercentage) || 0,
+            // Keep the payout split frozen on the bill if one exists
+            servicePayoutPct: hasSavedPayout ? prev.servicePayoutPct : (g.servicePayoutPercentage ?? prev.servicePayoutPct),
+            partsPayoutPct: hasSavedPayout ? prev.partsPayoutPct : (g.partsPayoutPercentage ?? prev.partsPayoutPct)
+          }));
+        }
+      } catch (e) { console.error('Error fetching global settings:', e); }
 
     } catch (error) {
       console.error('Error loading billing data:', error);
@@ -283,7 +283,7 @@ const BillingPage = () => {
       if (exists) {
         return prev.filter(p => p.catalogId !== item._id);
       }
-      const gstPercentage = item.gstPercentage || 18;
+      const gstPercentage = item.gstPercentage || payoutSettings.partsGstPct;
       const gstAmount = (item.price * gstPercentage) / 100;
       return [...prev, {
         catalogId: item._id,
@@ -323,7 +323,7 @@ const BillingPage = () => {
       hsnCode: '',
       price: 0,
       gstApplicable: true,
-      gstPercentage: 18,
+      gstPercentage: payoutSettings.partsGstPct,
       quantity: 1,
       gstAmount: 0,
       total: 0
@@ -351,8 +351,8 @@ const BillingPage = () => {
 
   // --- Settings (fetched for vendor-side preview) ---
   const [payoutSettings, setPayoutSettings] = useState({
-    serviceGstPct: 18,
-    partsGstPct: 18,
+    serviceGstPct: 0,
+    partsGstPct: 0,
     servicePayoutPct: 90,
     partsPayoutPct: 100
   });
@@ -929,7 +929,7 @@ const BillingPage = () => {
                             onChange={e => updateCustomItem(idx, 'gstApplicable', e.target.checked)}
                             className="w-4 h-4 rounded text-blue-600 border-gray-300"
                           />
-                          <label htmlFor={`gst-${idx}`} className="text-xs font-bold text-gray-600">Apply 18% GST</label>
+                          <label htmlFor={`gst-${idx}`} className="text-xs font-bold text-gray-600">Apply {item.gstPercentage || payoutSettings.partsGstPct}% GST</label>
                         </div>
                         <div className="text-right">
                           <span className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">Subtotal: </span>

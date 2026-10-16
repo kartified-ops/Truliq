@@ -6,6 +6,7 @@ import Modal from "../components/Modal";
 import CategorySelect from "../components/CategorySelect";
 import { ensureIds, saveCatalog, toAssetUrl } from "../utils";
 import { brandService, serviceService, categoryService } from "../../../../../services/catalogService";
+import { configService } from '../../../../../services/configService';
 import { z } from "zod";
 
 // Schema for Service Entity (Child of Brand)
@@ -177,10 +178,21 @@ const ServicesPage = ({ catalog, setCatalog, selectedCity }) => {
   // Form State
   const [editingId, setEditingId] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  // GST default comes from admin Settings → Service GST (not hardcoded)
+  const [defaultGst, setDefaultGst] = useState(0);
+  useEffect(() => {
+    configService.getSettings().then(r => {
+      if (r?.success) {
+        const g = Number(r.settings.serviceGstPercentage) || 0;
+        setDefaultGst(g);
+        setForm(f => (editingId ? f : { ...f, gstPercentage: g }));
+      }
+    });
+  }, []);
   const [form, setForm] = useState({
     title: "",
     basePrice: "",
-    gstPercentage: 18,
+    gstPercentage: defaultGst,
     discountPrice: "",
     pricingUnit: "",
     categoryId: ""
@@ -202,7 +214,7 @@ const ServicesPage = ({ catalog, setCatalog, selectedCity }) => {
     setForm({
       title: "",
       basePrice: "",
-      gstPercentage: 18,
+      gstPercentage: defaultGst,
       discountPrice: "",
       pricingUnit: "",
       categoryId: defaultCat
@@ -215,7 +227,7 @@ const ServicesPage = ({ catalog, setCatalog, selectedCity }) => {
     setForm({
       title: service.title,
       basePrice: service.basePrice,
-      gstPercentage: service.gstPercentage || 18,
+      gstPercentage: service.gstPercentage ?? defaultGst,
       discountPrice: service.discountPrice || "",
       pricingUnit: service.pricingUnit || "",
       categoryId: service.categoryId?._id || service.categoryId || ""

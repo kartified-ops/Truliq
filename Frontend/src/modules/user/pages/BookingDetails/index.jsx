@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import useAppNotifications from '../../../../hooks/useAppNotifications';
@@ -62,6 +62,12 @@ const BookingDetails = () => {
   // Mirrors the backend cancellation fee inputs so the warning shows the real amount
   const [cancelFeeSettings, setCancelFeeSettings] = useState({ penalty: 0, visitedCharges: 0 });
 
+  // GST % and visiting charge come from admin Settings (/public/config); kept in a ref too so the
+  // booking loader / socket handler (which close over old state) always read the live value.
+  const [gstPct, setGstPct] = useState(0);
+  const gstPctRef = useRef(0);
+  const visitedChargesRef = useRef(0);
+
   const socket = useAppNotifications();
 
   // Fetch support settings
@@ -70,7 +76,10 @@ const BookingDetails = () => {
       try {
         const response = await api.get('/public/config');
         if (response.data?.success && response.data?.settings) {
-          const { supportEmail, supportPhone, cancellationPenalty, visitedCharges } = response.data.settings;
+          const { supportEmail, supportPhone, cancellationPenalty, visitedCharges, serviceGstPercentage } = response.data.settings;
+          gstPctRef.current = Number(serviceGstPercentage) || 0;
+          visitedChargesRef.current = Number(visitedCharges) || 0;
+          setGstPct(gstPctRef.current);
           setSupportInfo({
             email: supportEmail || 'help@Truliq.in',
             phone: supportPhone || '+919999999999'
@@ -100,8 +109,8 @@ const BookingDetails = () => {
         const data = { ...response.data };
         // Calculate notional display values for plan_benefit
         if (data.paymentMethod === 'plan_benefit') {
-          if (!data.tax) data.tax = (data.basePrice || 0) * 0.18;
-          if (!data.visitingCharges && !data.visitationFee) data.visitingCharges = 49;
+          if (!data.tax) data.tax = ((data.basePrice || 0) * gstPctRef.current) / 100;
+          if (!data.visitingCharges && !data.visitationFee) data.visitingCharges = visitedChargesRef.current;
         }
         setBooking(data);
       } else {
@@ -185,8 +194,8 @@ const BookingDetails = () => {
 
             // Calculate notional display values for plan_benefit
             if (newData.paymentMethod === 'plan_benefit') {
-              if (!newData.tax) newData.tax = (newData.basePrice || 0) * 0.18;
-              if (!newData.visitingCharges && !newData.visitationFee) newData.visitingCharges = 49;
+              if (!newData.tax) newData.tax = ((newData.basePrice || 0) * gstPctRef.current) / 100;
+              if (!newData.visitingCharges && !newData.visitationFee) newData.visitingCharges = visitedChargesRef.current;
             }
             return newData;
           });
@@ -554,7 +563,8 @@ const BookingDetails = () => {
   });
 
   // Use bill.originalGST if available
-  const originalGST = bill ? (bill.originalGST || 0) : (originalBase * 0.18);
+  const serviceGstRate = bill?.payoutConfig?.serviceGstPercentage ?? gstPct;
+  const originalGST = bill ? (bill.originalGST || 0) : ((originalBase * gstPct) / 100);
   const totalGST = originalGST + extraServiceGST + partsGST;
 
   // Final Total
@@ -1195,10 +1205,18 @@ const BookingDetails = () => {
 
 
 
+                          {/* Service GST (rate comes from admin settings / saved on the bill) */}
+                          {(originalGST + extraServiceGST) > 0 && (
+                            <div className="flex justify-between items-center text-gray-600">
+                              <span>GST ({serviceGstRate}%)</span>
+                              <span className="font-mono text-xs">₹{(originalGST + extraServiceGST).toFixed(2)}</span>
+                            </div>
+                          )}
+
                           {/* Service Subtotal */}
                           <div className="flex justify-between font-bold text-gray-800 pt-1">
                             <span>Total Service</span>
-                            <span>₹{(originalBase + extraServiceBase).toFixed(2)}</span>
+                            <span>₹{(originalBase + extraServiceBase + originalGST + extraServiceGST).toFixed(2)}</span>
                           </div>
                         </div>
                       </div>
@@ -1228,10 +1246,17 @@ const BookingDetails = () => {
 
 
 
+                            {partsGST > 0 && (
+                              <div className="flex justify-between items-center text-gray-600">
+                                <span>GST</span>
+                                <span className="font-mono text-xs">₹{partsGST.toFixed(2)}</span>
+                              </div>
+                            )}
+
                             {/* Parts Subtotal */}
                             <div className="flex justify-between font-bold text-gray-800 pt-1">
                               <span>Total Parts</span>
-                              <span>₹{(partsBase).toFixed(2)}</span>
+                              <span>₹{(partsBase + partsGST).toFixed(2)}</span>
                             </div>
                           </div>
                         </div>
@@ -1272,7 +1297,7 @@ const BookingDetails = () => {
                       <div className="pt-4 mt-2 border-t-2 border-gray-100 flex justify-between items-center">
                         <span className="font-bold text-gray-900 text-lg">Grand Total</span>
                         <span className="font-black text-teal-700 text-2xl">
-                          ₹{(originalBase + extraServiceBase + partsBase + (bill?.transportCharges || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          ₹{(bill?.grandTotal ?? (originalBase + extraServiceBase + originalGST + extraServiceGST + partsBase + partsGST + (bill?.transportCharges || 0))).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
 
                       </div>

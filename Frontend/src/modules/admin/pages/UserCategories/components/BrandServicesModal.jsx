@@ -3,6 +3,7 @@ import { FiPlus, FiEdit2, FiTrash2, FiSave, FiX } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 import Modal from './Modal'; // Assuming Modal is in same directory
 import { serviceService } from '../../../../../services/catalogService';
+import { configService } from '../../../../../services/configService';
 import { z } from 'zod';
 
 const serviceSchema = z.object({
@@ -16,10 +17,21 @@ const BrandServicesModal = ({ isOpen, onClose, brand }) => {
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  // GST default comes from admin Settings → Service GST (not hardcoded)
+  const [defaultGst, setDefaultGst] = useState(0);
+  useEffect(() => {
+    configService.getSettings().then(r => {
+      if (r?.success) {
+        const g = Number(r.settings.serviceGstPercentage) || 0;
+        setDefaultGst(g);
+        setForm(f => (editingId ? f : { ...f, gstPercentage: g }));
+      }
+    });
+  }, []);
   const [form, setForm] = useState({
     title: '',
     basePrice: '',
-    gstPercentage: 18,
+    gstPercentage: defaultGst,
     discountPrice: ''
   });
 
@@ -52,7 +64,7 @@ const BrandServicesModal = ({ isOpen, onClose, brand }) => {
     setForm({
       title: '',
       basePrice: '',
-      gstPercentage: 18,
+      gstPercentage: defaultGst,
       discountPrice: ''
     });
   };
@@ -121,7 +133,7 @@ const BrandServicesModal = ({ isOpen, onClose, brand }) => {
     setForm({
       title: service.title,
       basePrice: service.basePrice,
-      gstPercentage: service.gstPercentage || 18,
+      gstPercentage: service.gstPercentage ?? defaultGst,
       discountPrice: service.discountPrice || ''
     });
   };
