@@ -7,6 +7,18 @@ const { PAYMENT_STATUS, BOOKING_STATUS } = require('../../utils/constants');
 const { recordBookingEarning } = require('../../services/earningTrackerService');
 const { getCommissionRates } = require('../../utils/commission');
 const { workerKeepsFromBill } = require('../../utils/userPlatformFee');
+
+// A booking that was already paid online has nothing (or only a remainder) left to collect, so the
+// amount the professional sends is trusted there. Otherwise the BILL decides what the customer owes:
+// a client (or an old cached app build) must never be able to drop or add charges such as GST or the
+// customer platform fee.
+const isPrepaid = (booking) => ['success', 'paid'].includes(String(booking.paymentStatus || '').toLowerCase());
+const billDueAmount = async (booking, session) => {
+  if (isPrepaid(booking)) return null;
+  const VendorBill = require('../../models/VendorBill');
+  const bill = await VendorBill.findOne({ bookingId: booking._id }).session(session || null);
+  return bill ? Number(bill.grandTotal) : null;
+};
 const { withTransaction, abort } = require('../../utils/withTransaction');
 const { createQRCode, getQRCodePayments } = require('../../services/razorpayService');
 
@@ -24,7 +36,11 @@ exports.initiateOnlineCollection = async (req, res) => {
 
     // Optional: Update final total and extra items if provided during initiation
     const { totalAmount, extraItems } = req.body;
-    if (totalAmount !== undefined && !isNaN(parseFloat(totalAmount))) {
+    const onlineBillDue = await billDueAmount(booking);
+    if (onlineBillDue !== null) {
+      booking.finalAmount = onlineBillDue;
+      booking.userPayableAmount = onlineBillDue;
+    } else if (totalAmount !== undefined && !isNaN(parseFloat(totalAmount))) {
       booking.finalAmount = parseFloat(totalAmount);
       booking.userPayableAmount = parseFloat(totalAmount);
     }
@@ -152,7 +168,11 @@ exports.initiateCashCollection = async (req, res) => {
 
     // Optional: Update final total and extra items if provided during initiation
     const { totalAmount, extraItems } = req.body;
-    if (totalAmount !== undefined) {
+    const cashBillDue = await billDueAmount(booking);
+    if (cashBillDue !== null) {
+      booking.finalAmount = cashBillDue;
+      booking.userPayableAmount = cashBillDue;
+    } else if (totalAmount !== undefined) {
       booking.finalAmount = Number(totalAmount);
       // Assuming no partial payment has been made yet (as status is pending/work_done)
       booking.userPayableAmount = Number(totalAmount);
@@ -315,7 +335,11 @@ exports.confirmCashCollection = async (req, res) => {
         abort({ alreadyDone: true, bookingId: booking._id });
       }
 
-      const collectionAmount = amount !== undefined ? Number(amount) : Number(booking.finalAmount);
+      // For an unpaid booking with a bill, the bill is what was collected (not the client's number)
+      const confirmBillDue = await billDueAmount(booking, session);
+      const collectionAmount = confirmBillDue !== null
+        ? confirmBillDue
+        : (amount !== undefined ? Number(amount) : Number(booking.finalAmount));
 
       // Store extra items in workDoneDetails (for display)
       if (extraItems && Array.isArray(extraItems) && extraItems.length > 0) {
